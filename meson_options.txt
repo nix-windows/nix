@@ -69,6 +69,14 @@ option(
     description : 'link args for libbz2')
 
 option(
+    'zlib_link_args',
+    type : 'array',
+    value : [
+        '-L/usr/local/lib',
+        '-lz'],
+    description : 'link args for libzlib')
+
+option(
     'curl_link_args',
     type : 'array',
     value : [

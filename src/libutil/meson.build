@@ -59,7 +59,9 @@ libutil_dep_list = [
     libbrotli_dep,
     openssl_dep,
     pthread_dep,
-    libsodium_dep]
+    libsodium_dep,
+    zlib_dep,
+]
 
 
 

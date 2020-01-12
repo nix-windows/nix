@@ -256,6 +256,13 @@ libbz2_dep = declare_dependency(
     link_args :  get_option('bz2_link_args'))
 
 
+# Look for zlib, a required dependency.
+#--------------------------------------------------
+zlib_dep = declare_dependency(
+    dependencies : dependency('zlib'),
+    link_args :  get_option('zlib_link_args'))
+
+
 # Look for editline, a required dependency.
 #--------------------------------------------------
 # NOTE: The the libeditline.pc file was added only in libeditline >= 1.15.2, see 
