@@ -2,13 +2,10 @@ AC_INIT(nix-perl, m4_esyscmd([bash -c "echo -n $(cat ../.version)$VERSION_SUFFIX
 AC_CONFIG_SRCDIR(MANIFEST)
 AC_CONFIG_AUX_DIR(../config)
 
-# Set default flags for nix (as per AC_PROG_CC/CXX docs),
-# while still allowing the user to override them from the command line.
-: ${CFLAGS="-O3"}
-: ${CXXFLAGS="-O3"}
+CFLAGS=
+CXXFLAGS=
 AC_PROG_CC
 AC_PROG_CXX
-AX_CXX_COMPILE_STDCXX_11
 
 # Use 64-bit file system calls so that we can support files > 2 GiB.
 AC_SYS_LARGEFILE
@@ -71,14 +68,15 @@ AC_SUBST(perlFlags)
 
 PKG_CHECK_MODULES([NIX], [nix-store])
 
-NEED_PROG([NIX_INSTANTIATE_PROGRAM], [nix-instantiate])
+NEED_PROG([NIX], [nix])
 
 # Get nix configure values
-nixbindir=$("$NIX_INSTANTIATE_PROGRAM" --eval '<nix/config.nix>' -A nixBinDir | tr -d \")
-nixlibexecdir=$("$NIX_INSTANTIATE_PROGRAM" --eval '<nix/config.nix>' -A nixLibexecDir | tr -d \")
-nixlocalstatedir=$("$NIX_INSTANTIATE_PROGRAM" --eval '<nix/config.nix>' -A nixLocalstateDir | tr -d \")
-nixsysconfdir=$("$NIX_INSTANTIATE_PROGRAM" --eval '<nix/config.nix>' -A nixSysconfDir | tr -d \")
-nixstoredir=$("$NIX_INSTANTIATE_PROGRAM" --eval '<nix/config.nix>' -A nixStoreDir | tr -d \")
+export NIX_REMOTE=daemon
+nixbindir=$("$NIX" --experimental-features nix-command eval --raw -f '<nix/config.nix>' nixBinDir)
+nixlibexecdir=$("$NIX" --experimental-features nix-command eval --raw -f '<nix/config.nix>' nixLibexecDir)
+nixlocalstatedir=$("$NIX" --experimental-features nix-command eval --raw -f '<nix/config.nix>' nixLocalstateDir)
+nixsysconfdir=$("$NIX" --experimental-features nix-command eval --raw -f '<nix/config.nix>' nixSysconfDir)
+nixstoredir=$("$NIX" --experimental-features nix-command eval --raw -f '<nix/config.nix>' nixStoreDir)
 AC_SUBST(nixbindir)
 AC_SUBST(nixlibexecdir)
 AC_SUBST(nixlocalstatedir)

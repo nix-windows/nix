@@ -10,6 +10,50 @@ let
 
   jobs = rec {
 
+    # Create a "vendor" directory that contains the crates listed in
+    # Cargo.lock, and include it in the Nix tarball. This allows Nix
+    # to be built without network access.
+    vendoredCrates =
+      let
+        lockFile = builtins.fromTOML (builtins.readFile nix-rust/Cargo.lock);
+
+        files = map (pkg: import <nix/fetchurl.nix> {
+          url = "https://crates.io/api/v1/crates/${pkg.name}/${pkg.version}/download";
+          sha256 = lockFile.metadata."checksum ${pkg.name} ${pkg.version} (registry+https://github.com/rust-lang/crates.io-index)";
+        }) (builtins.filter (pkg: pkg.source or "" == "registry+https://github.com/rust-lang/crates.io-index") lockFile.package);
+
+      in pkgs.runCommand "cargo-vendor-dir" {}
+        ''
+          mkdir -p $out/vendor
+
+          cat > $out/vendor/config <<EOF
+          [source.crates-io]
+          replace-with = "vendored-sources"
+
+          [source.vendored-sources]
+          directory = "vendor"
+          EOF
+
+          ${toString (builtins.map (file: ''
+            mkdir $out/vendor/tmp
+            tar xvf ${file} -C $out/vendor/tmp
+            dir=$(echo $out/vendor/tmp/*)
+
+            # Add just enough metadata to keep Cargo happy.
+            printf '{"files":{},"package":"${file.outputHash}"}' > "$dir/.cargo-checksum.json"
+
+            # Clean up some cruft from the winapi crates. FIXME: find
+            # a way to remove winapi* from our dependencies.
+            if [[ $dir =~ /winapi ]]; then
+              find $dir -name "*.a" -print0 | xargs -0 rm -f --
+            fi
+
+            mv "$dir" $out/vendor/
+
+            rm -rf $out/vendor/tmp
+          '') files)}
+        '';
+
 
     tarball =
       with pkgs;
@@ -26,8 +70,6 @@ let
         nativeBuildInputs = tarballDeps ++ nativeBuildDeps;
         buildInputs = buildDeps;
 
-        configureFlags = "--enable-gc";
-
         postUnpack = ''
           (cd $sourceRoot && find . -type f) | cut -c3- > $sourceRoot/.dist-files
           cat $sourceRoot/.dist-files
@@ -41,6 +83,8 @@ let
 
         distPhase =
           ''
+            cp -prd ${vendoredCrates}/vendor/ nix-rust/vendor/
+
             runHook preDist
             make dist
             mkdir -p $out/tarballs
@@ -132,7 +176,7 @@ let
       in
 
       runCommand "nix-binary-tarball-${version}"
-        { nativeBuildInputs = lib.optional (system != "aarch64-linux") shellcheck;
+        { #nativeBuildInputs = lib.optional (system != "aarch64-linux") shellcheck;
           meta.description = "Distribution-independent Nix bootstrap binaries for ${system}";
         }
         ''
@@ -207,23 +251,13 @@ let
 
         doInstallCheck = true;
 
-        lcovFilter = [ "*/boost/*" "*-tab.*" "*/nlohmann/*" "*/linenoise/*" ];
+        lcovFilter = [ "*/boost/*" "*-tab.*" ];
 
         # We call `dot', and even though we just use it to
         # syntax-check generated dot files, it still requires some
         # fonts.  So provide those.
         FONTCONFIG_FILE = texFunctions.fontsConf;
       };
-
-
-    #rpm_fedora27x86_64 = makeRPM_x86_64 (diskImageFunsFun: diskImageFunsFun.fedora27x86_64) [ ];
-
-
-    #deb_debian8i386 = makeDeb_i686 (diskImageFuns: diskImageFuns.debian8i386) [ "libsodium-dev" ] [ "libsodium13" ];
-    #deb_debian8x86_64 = makeDeb_x86_64 (diskImageFunsFun: diskImageFunsFun.debian8x86_64) [ "libsodium-dev" ] [ "libsodium13" ];
-
-    #deb_ubuntu1710i386 = makeDeb_i686 (diskImageFuns: diskImageFuns.ubuntu1710i386) [ ] [ "libsodium18" ];
-    #deb_ubuntu1710x86_64 = makeDeb_x86_64 (diskImageFuns: diskImageFuns.ubuntu1710x86_64) [ ] [ "libsodium18" "libboost-context1.62.0" ];
 
 
     # System tests.
@@ -267,7 +301,7 @@ let
             x86_64-linux = "${build.x86_64-linux}";
           }
           EOF
-          su - alice -c 'nix upgrade-nix -vvv --nix-store-paths-url file:///tmp/paths.nix'
+          su - alice -c 'nix --experimental-features nix-command upgrade-nix -vvv --nix-store-paths-url file:///tmp/paths.nix'
           (! [ -L /home/alice/.profile-1-link ])
           su - alice -c 'PAGER= nix-store -qR ${build.x86_64-linux}'
 
@@ -276,6 +310,7 @@ let
           umount /nix
         ''); # */
 
+    /*
     tests.evalNixpkgs =
       import (nixpkgs + "/pkgs/top-level/make-tarball.nix") {
         inherit nixpkgs;
@@ -294,6 +329,7 @@ let
 
           touch $out
         '';
+    */
 
 
     installerScript =
@@ -305,7 +341,7 @@ let
 
           substitute ${./scripts/install.in} $out/install \
             ${pkgs.lib.concatMapStrings
-              (system: "--replace '@binaryTarball_${system}@' $(nix hash-file --base16 --type sha256 ${binaryTarball.${system}}/*.tar.xz) ")
+              (system: "--replace '@binaryTarball_${system}@' $(nix --experimental-features nix-command hash-file --base16 --type sha256 ${binaryTarball.${system}}/*.tar.xz) ")
               [ "x86_64-linux" "i686-linux" "x86_64-darwin" "aarch64-linux" ]
             } \
             --replace '@nixVersion@' ${build.x86_64-linux.src.version}
@@ -331,64 +367,13 @@ let
           tests.remoteBuilds
           tests.nix-copy-closure
           tests.binaryTarball
-          tests.evalNixpkgs
-          tests.evalNixOS
+          #tests.evalNixpkgs
+          #tests.evalNixOS
           installerScript
         ];
     };
 
   };
-
-
-  makeRPM_i686 = makeRPM "i686-linux";
-  makeRPM_x86_64 = makeRPM "x86_64-linux";
-
-  makeRPM =
-    system: diskImageFun: extraPackages:
-
-    with import nixpkgs { inherit system; };
-
-    releaseTools.rpmBuild rec {
-      name = "nix-rpm";
-      src = jobs.tarball;
-      diskImage = (diskImageFun vmTools.diskImageFuns)
-        { extraPackages =
-            [ "sqlite" "sqlite-devel" "bzip2-devel" "libcurl-devel" "openssl-devel" "xz-devel" "libseccomp-devel" "libsodium-devel" "boost-devel" "bison" "flex" ]
-            ++ extraPackages; };
-      # At most 2047MB can be simulated in qemu-system-i386
-      memSize = 2047;
-      meta.schedulingPriority = 50;
-      postRPMInstall = "cd /tmp/rpmout/BUILD/nix-* && make installcheck";
-      #enableParallelBuilding = true;
-    };
-
-
-  makeDeb_i686 = makeDeb "i686-linux";
-  makeDeb_x86_64 = makeDeb "x86_64-linux";
-
-  makeDeb =
-    system: diskImageFun: extraPackages: extraDebPackages:
-
-    with import nixpkgs { inherit system; };
-
-    releaseTools.debBuild {
-      name = "nix-deb";
-      src = jobs.tarball;
-      diskImage = (diskImageFun vmTools.diskImageFuns)
-        { extraPackages =
-            [ "libsqlite3-dev" "libbz2-dev" "libcurl-dev" "libcurl3-nss" "libssl-dev" "liblzma-dev" "libseccomp-dev" "libsodium-dev" "libboost-all-dev" ]
-            ++ extraPackages; };
-      memSize = 2047;
-      meta.schedulingPriority = 50;
-      postInstall = "make installcheck";
-      configureFlags = "--sysconfdir=/etc";
-      debRequires =
-        [ "curl" "libsqlite3-0" "libbz2-1.0" "bzip2" "xz-utils" "libssl1.0.0" "liblzma5" "libseccomp2" ]
-        ++ extraDebPackages;
-      debMaintainer = "Eelco Dolstra <eelco.dolstra@logicblox.com>";
-      doInstallCheck = true;
-      #enableParallelBuilding = true;
-    };
 
 
 in jobs

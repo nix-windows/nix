@@ -41,9 +41,7 @@ rec {
   ];
 
   configureFlags =
-    [
-      "--enable-gc"
-    ] ++ lib.optionals stdenv.isLinux [
+    lib.optionals stdenv.isLinux [
       "--with-sandbox-shell=${sh}/bin/busybox"
     ];
 
@@ -62,6 +60,7 @@ rec {
     pkgconfig
     meson
     ninja
+    rustc cargo
   ];
 
   buildDeps = with pkgs;
@@ -74,7 +73,9 @@ rec {
       openssl
       sqlite
       boehmgc
+      zlib
       boost
+      nlohmann_json
 
       # Tests
       git

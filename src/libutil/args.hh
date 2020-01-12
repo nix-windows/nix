@@ -188,6 +188,57 @@ public:
     friend class MultiCommand;
 };
 
+/* A command is an argument parser that can be executed by calling its
+   run() method. */
+struct Command : virtual Args
+{
+private:
+    std::string _name;
+
+    friend class MultiCommand;
+
+public:
+
+    virtual ~Command() { }
+
+    std::string name() { return _name; }
+
+    virtual void prepare() { };
+    virtual void run() = 0;
+
+    struct Example
+    {
+        std::string description;
+        std::string command;
+    };
+
+    typedef std::list<Example> Examples;
+
+    virtual Examples examples() { return Examples(); }
+
+    void printHelp(const string & programName, std::ostream & out) override;
+};
+
+typedef std::map<std::string, std::function<ref<Command>()>> Commands;
+
+/* An argument parser that supports multiple subcommands,
+   i.e. ‘<command> <subcommand>’. */
+class MultiCommand : virtual Args
+{
+public:
+    Commands commands;
+
+    std::shared_ptr<Command> command;
+
+    MultiCommand(const Commands & commands);
+
+    void printHelp(const string & programName, std::ostream & out) override;
+
+    bool processFlag(Strings::iterator & pos, Strings::iterator end) override;
+
+    bool processArgs(const Strings & args, bool finish) override;
+};
+
 Strings argvToStrings(int argc, char * * argv);
 
 /* Helper function for rendering argument labels. */

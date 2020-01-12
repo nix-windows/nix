@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <climits>
 #include <iostream>
 #include <sstream>
 #include <thread>
@@ -17,11 +18,12 @@
 
 #include <fcntl.h>
 #include <grp.h>
-#include <limits.h>
 #include <pwd.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
+#include <sys/socket.h>
 #include <sys/wait.h>
+#include <sys/un.h>
 #include <unistd.h>
 
 #ifdef __APPLE__
@@ -56,10 +58,11 @@ std::string SysError::addErrno(const std::string & s)
 }
 
 
-string getEnv(const string & key, const string & def)
+std::optional<std::string> getEnv(const std::string & key)
 {
     char * value = getenv(key.c_str());
-    return value ? string(value) : def;
+    if (!value) return {};
+    return std::string(value);
 }
 
 
@@ -185,22 +188,22 @@ Path dirOf(const Path & path)
 }
 
 
-string baseNameOf(const Path & path)
+std::string_view baseNameOf(std::string_view path)
 {
     if (path.empty())
         return "";
 
-    Path::size_type last = path.length() - 1;
+    auto last = path.size() - 1;
     if (path[last] == '/' && last > 0)
         last -= 1;
 
-    Path::size_type pos = path.rfind('/', last);
+    auto pos = path.rfind('/', last);
     if (pos == string::npos)
         pos = 0;
     else
         pos += 1;
 
-    return string(path, pos, last - pos + 1);
+    return path.substr(pos, last - pos + 1);
 }
 
 
@@ -436,7 +439,7 @@ void deletePath(const Path & path, unsigned long long & bytesFreed)
 static Path tempName(Path tmpRoot, const Path & prefix, bool includePid,
     int & counter)
 {
-    tmpRoot = canonPath(tmpRoot.empty() ? getEnv("TMPDIR", "/tmp") : tmpRoot, true);
+    tmpRoot = canonPath(tmpRoot.empty() ? getEnv("TMPDIR").value_or("/tmp") : tmpRoot, true);
     if (includePid)
         return (format("%1%/%2%-%3%-%4%") % tmpRoot % prefix % getpid() % counter++).str();
     else
@@ -478,7 +481,7 @@ Path createTempDir(const Path & tmpRoot, const Path & prefix,
 std::string getUserName()
 {
     auto pw = getpwuid(geteuid());
-    std::string name = pw ? pw->pw_name : getEnv("USER", "");
+    std::string name = pw ? pw->pw_name : getEnv("USER").value_or("");
     if (name.empty())
         throw Error("cannot figure out user name");
     return name;
@@ -486,8 +489,8 @@ std::string getUserName()
 
 
 static Lazy<Path> getHome2([]() {
-    Path homeDir = getEnv("HOME");
-    if (homeDir.empty()) {
+    auto homeDir = getEnv("HOME");
+    if (!homeDir) {
         std::vector<char> buf(16384);
         struct passwd pwbuf;
         struct passwd * pw;
@@ -496,7 +499,7 @@ static Lazy<Path> getHome2([]() {
             throw Error("cannot determine user's home directory");
         homeDir = pw->pw_dir;
     }
-    return homeDir;
+    return *homeDir;
 });
 
 Path getHome() { return getHome2(); }
@@ -504,25 +507,21 @@ Path getHome() { return getHome2(); }
 
 Path getCacheDir()
 {
-    Path cacheDir = getEnv("XDG_CACHE_HOME");
-    if (cacheDir.empty())
-        cacheDir = getHome() + "/.cache";
-    return cacheDir;
+    auto cacheDir = getEnv("XDG_CACHE_HOME");
+    return cacheDir ? *cacheDir : getHome() + "/.cache";
 }
 
 
 Path getConfigDir()
 {
-    Path configDir = getEnv("XDG_CONFIG_HOME");
-    if (configDir.empty())
-        configDir = getHome() + "/.config";
-    return configDir;
+    auto configDir = getEnv("XDG_CONFIG_HOME");
+    return configDir ? *configDir : getHome() + "/.config";
 }
 
 std::vector<Path> getConfigDirs()
 {
     Path configHome = getConfigDir();
-    string configDirs = getEnv("XDG_CONFIG_DIRS");
+    string configDirs = getEnv("XDG_CONFIG_DIRS").value_or("");
     std::vector<Path> result = tokenizeString<std::vector<string>>(configDirs, ":");
     result.insert(result.begin(), configHome);
     return result;
@@ -531,10 +530,8 @@ std::vector<Path> getConfigDirs()
 
 Path getDataDir()
 {
-    Path dataDir = getEnv("XDG_DATA_HOME");
-    if (dataDir.empty())
-        dataDir = getHome() + "/.local/share";
-    return dataDir;
+    auto dataDir = getEnv("XDG_DATA_HOME");
+    return dataDir ? *dataDir : getHome() + "/.local/share";
 }
 
 
@@ -1189,7 +1186,7 @@ void _interrupted()
 //////////////////////////////////////////////////////////////////////
 
 
-template<class C> C tokenizeString(const string & s, const string & separators)
+template<class C> C tokenizeString(std::string_view s, const string & separators)
 {
     C result;
     string::size_type pos = s.find_first_not_of(separators, 0);
@@ -1203,9 +1200,9 @@ template<class C> C tokenizeString(const string & s, const string & separators)
     return result;
 }
 
-template Strings tokenizeString(const string & s, const string & separators);
-template StringSet tokenizeString(const string & s, const string & separators);
-template vector<string> tokenizeString(const string & s, const string & separators);
+template Strings tokenizeString(std::string_view s, const string & separators);
+template StringSet tokenizeString(std::string_view s, const string & separators);
+template vector<string> tokenizeString(std::string_view s, const string & separators);
 
 
 string concatStringsSep(const string & sep, const Strings & ss)
@@ -1305,9 +1302,10 @@ bool hasPrefix(const string & s, const string & prefix)
 }
 
 
-bool hasSuffix(const string & s, const string & suffix)
+bool hasSuffix(std::string_view s, std::string_view suffix)
 {
-    return s.size() >= suffix.size() && string(s, s.size() - suffix.size()) == suffix;
+    return s.size() >= suffix.size()
+        && s.substr(s.size() - suffix.size()) == suffix;
 }
 
 
@@ -1465,7 +1463,7 @@ static Sync<std::pair<unsigned short, unsigned short>> windowSize{{0, 0}};
 static void updateWindowSize()
 {
     struct winsize ws;
-    if (ioctl(1, TIOCGWINSZ, &ws) == 0) {
+    if (ioctl(2, TIOCGWINSZ, &ws) == 0) {
         auto windowSize_(windowSize.lock());
         windowSize_->first = ws.ws_row;
         windowSize_->second = ws.ws_col;
@@ -1560,6 +1558,39 @@ std::unique_ptr<InterruptCallback> createInterruptCallback(std::function<void()>
     res->it--;
 
     return std::unique_ptr<InterruptCallback>(res.release());
+}
+
+
+AutoCloseFD createUnixDomainSocket(const Path & path, mode_t mode)
+{
+    AutoCloseFD fdSocket = socket(PF_UNIX, SOCK_STREAM
+        #ifdef SOCK_CLOEXEC
+        | SOCK_CLOEXEC
+        #endif
+        , 0);
+    if (!fdSocket)
+        throw SysError("cannot create Unix domain socket");
+
+    closeOnExec(fdSocket.get());
+
+    struct sockaddr_un addr;
+    addr.sun_family = AF_UNIX;
+    if (path.size() >= sizeof(addr.sun_path))
+        throw Error("socket path '%1%' is too long", path);
+    strcpy(addr.sun_path, path.c_str());
+
+    unlink(path.c_str());
+
+    if (bind(fdSocket.get(), (struct sockaddr *) &addr, sizeof(addr)) == -1)
+        throw SysError("cannot bind to socket '%1%'", path);
+
+    if (chmod(path.c_str(), mode) == -1)
+        throw SysError("changing permissions on '%1%'", path);
+
+    if (listen(fdSocket.get(), 5) == -1)
+        throw SysError("cannot listen on socket '%1%'", path);
+
+    return fdSocket;
 }
 
 }

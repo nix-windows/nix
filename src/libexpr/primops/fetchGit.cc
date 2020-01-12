@@ -4,6 +4,7 @@
 #include "store-api.hh"
 #include "pathlocks.hh"
 #include "hash.hh"
+#include "tarfile.hh"
 
 #include <sys/time.h>
 #include <sys/wait.h>
@@ -46,9 +47,7 @@ GitInfo exportGit(ref<Store> store, const std::string & uri,
 
         if (!clean) {
 
-            /* This is an unclean working tree. So copy all tracked
-               files. */
-
+            /* This is an unclean working tree. So copy all tracked files. */
             GitInfo gitInfo;
             gitInfo.rev = "0000000000000000000000000000000000000000";
             gitInfo.shortRev = std::string(gitInfo.rev, 0, 7);
@@ -71,7 +70,7 @@ GitInfo exportGit(ref<Store> store, const std::string & uri,
                 return files.count(file);
             };
 
-            gitInfo.storePath = store->addToStore("source", uri, true, htSHA256, filter);
+            gitInfo.storePath = store->printStorePath(store->addToStore("source", uri, true, htSHA256, filter));
 
             return gitInfo;
         }
@@ -158,7 +157,7 @@ GitInfo exportGit(ref<Store> store, const std::string & uri,
 
         gitInfo.storePath = json["storePath"];
 
-        if (store->isValidPath(gitInfo.storePath)) {
+        if (store->isValidPath(store->parseStorePath(gitInfo.storePath))) {
             gitInfo.revCount = json["revCount"];
             return gitInfo;
         }
@@ -167,16 +166,18 @@ GitInfo exportGit(ref<Store> store, const std::string & uri,
         if (e.errNo != ENOENT) throw;
     }
 
-    // FIXME: should pipe this, or find some better way to extract a
-    // revision.
-    auto tar = runProgram("git", true, { "-C", cacheDir, "archive", gitInfo.rev });
+    auto source = sinkToSource([&](Sink & sink) {
+        RunOptions gitOptions("git", { "-C", cacheDir, "archive", gitInfo.rev });
+        gitOptions.standardOut = &sink;
+        runProgram2(gitOptions);
+    });
 
     Path tmpDir = createTempDir();
     AutoDelete delTmpDir(tmpDir, true);
 
-    runProgram("tar", true, { "x", "-C", tmpDir }, tar);
+    unpackTarfile(*source, tmpDir);
 
-    gitInfo.storePath = store->addToStore(name, tmpDir);
+    gitInfo.storePath = store->printStorePath(store->addToStore(name, tmpDir));
 
     gitInfo.revCount = std::stoull(runProgram("git", true, { "-C", cacheDir, "rev-list", "--count", gitInfo.rev }));
 

@@ -8,6 +8,7 @@
 #include "compression.hh"
 #include "pathlocks.hh"
 #include "finally.hh"
+#include "tarfile.hh"
 
 #ifdef ENABLE_S3
 #include <aws/core/client/ClientConfiguration.h>
@@ -33,6 +34,10 @@ namespace nix {
 DownloadSettings downloadSettings;
 
 static GlobalConfig::Register r1(&downloadSettings);
+
+CachedDownloadRequest::CachedDownloadRequest(const std::string & uri)
+    : uri(uri), ttl(settings.tarballTtl)
+{ }
 
 std::string resolveUri(const std::string & uri)
 {
@@ -285,6 +290,7 @@ struct CurlDownloader : public Downloader
             }
 
             if (request.verifyTLS) {
+                debug("verify TLS: Nix CA file = '%s'", settings.caFile);
                 if (settings.caFile != "")
                     curl_easy_setopt(req, CURLOPT_CAINFO, settings.caFile.c_str());
             } else {
@@ -644,10 +650,10 @@ struct CurlDownloader : public Downloader
 #ifdef ENABLE_S3
                 auto [bucketName, key, params] = parseS3Uri(request.uri);
 
-                std::string profile = get(params, "profile", "");
-                std::string region = get(params, "region", Aws::Region::US_EAST_1);
-                std::string scheme = get(params, "scheme", "");
-                std::string endpoint = get(params, "endpoint", "");
+                std::string profile = get(params, "profile").value_or("");
+                std::string region = get(params, "region").value_or(Aws::Region::US_EAST_1);
+                std::string scheme = get(params, "scheme").value_or("");
+                std::string endpoint = get(params, "endpoint").value_or("");
 
                 S3Helper s3Helper(profile, region, scheme, endpoint);
 
@@ -805,13 +811,13 @@ CachedDownloadResult Downloader::downloadCached(
         if (p != string::npos) name = string(url, p + 1);
     }
 
-    Path expectedStorePath;
+    std::optional<StorePath> expectedStorePath;
     if (request.expectedHash) {
         expectedStorePath = store->makeFixedOutputPath(request.unpack, request.expectedHash, name);
-        if (store->isValidPath(expectedStorePath)) {
+        if (store->isValidPath(*expectedStorePath)) {
             CachedDownloadResult result;
-            result.storePath = expectedStorePath;
-            result.path = store->toRealPath(expectedStorePath);
+            result.storePath = store->printStorePath(*expectedStorePath);
+            result.path = store->toRealPath(result.storePath);
             return result;
         }
     }
@@ -826,7 +832,7 @@ CachedDownloadResult Downloader::downloadCached(
 
     PathLocks lock({fileLink}, fmt("waiting for lock on '%1%'...", fileLink));
 
-    Path storePath;
+    std::optional<StorePath> storePath;
 
     string expectedETag;
 
@@ -835,9 +841,10 @@ CachedDownloadResult Downloader::downloadCached(
     CachedDownloadResult result;
 
     if (pathExists(fileLink) && pathExists(dataFile)) {
-        storePath = readLink(fileLink);
-        store->addTempRoot(storePath);
-        if (store->isValidPath(storePath)) {
+        storePath = store->parseStorePath(readLink(fileLink));
+        // FIXME
+        store->addTempRoot(*storePath);
+        if (store->isValidPath(*storePath)) {
             auto ss = tokenizeString<vector<string>>(readFile(dataFile), "\n");
             if (ss.size() >= 3 && ss[0] == url) {
                 time_t lastChecked;
@@ -851,7 +858,7 @@ CachedDownloadResult Downloader::downloadCached(
                 }
             }
         } else
-            storePath = "";
+            storePath.reset();
     }
 
     if (!skip) {
@@ -864,62 +871,65 @@ CachedDownloadResult Downloader::downloadCached(
             result.etag = res.etag;
 
             if (!res.cached) {
-                ValidPathInfo info;
                 StringSink sink;
                 dumpString(*res.data, sink);
                 Hash hash = hashString(request.expectedHash ? request.expectedHash.type : htSHA256, *res.data);
-                info.path = store->makeFixedOutputPath(false, hash, name);
+                ValidPathInfo info(store->makeFixedOutputPath(false, hash, name));
                 info.narHash = hashString(htSHA256, *sink.s);
                 info.narSize = sink.s->size();
                 info.ca = makeFixedOutputCA(false, hash);
                 store->addToStore(info, sink.s, NoRepair, NoCheckSigs);
-                storePath = info.path;
+                storePath = info.path.clone();
             }
 
-            assert(!storePath.empty());
-            replaceSymlink(storePath, fileLink);
+            assert(storePath);
+            replaceSymlink(store->printStorePath(*storePath), fileLink);
 
             writeFile(dataFile, url + "\n" + res.etag + "\n" + std::to_string(time(0)) + "\n");
         } catch (DownloadError & e) {
-            if (storePath.empty()) throw;
+            if (!storePath) throw;
             warn("warning: %s; using cached result", e.msg());
             result.etag = expectedETag;
         }
     }
 
     if (request.unpack) {
-        Path unpackedLink = cacheDir + "/" + baseNameOf(storePath) + "-unpacked";
+        Path unpackedLink = cacheDir + "/" + ((std::string) storePath->to_string()) + "-unpacked";
         PathLocks lock2({unpackedLink}, fmt("waiting for lock on '%1%'...", unpackedLink));
-        Path unpackedStorePath;
+        std::optional<StorePath> unpackedStorePath;
         if (pathExists(unpackedLink)) {
-            unpackedStorePath = readLink(unpackedLink);
-            store->addTempRoot(unpackedStorePath);
-            if (!store->isValidPath(unpackedStorePath))
-                unpackedStorePath = "";
+            unpackedStorePath = store->parseStorePath(readLink(unpackedLink));
+            // FIXME
+            store->addTempRoot(*unpackedStorePath);
+            if (!store->isValidPath(*unpackedStorePath))
+                unpackedStorePath.reset();
         }
-        if (unpackedStorePath.empty()) {
-            printInfo(format("unpacking '%1%'...") % url);
+        if (!unpackedStorePath) {
+            printInfo("unpacking '%s'...", url);
             Path tmpDir = createTempDir();
             AutoDelete autoDelete(tmpDir, true);
-            // FIXME: this requires GNU tar for decompression.
-            runProgram("tar", true, {"xf", store->toRealPath(storePath), "-C", tmpDir, "--strip-components", "1"});
-            unpackedStorePath = store->addToStore(name, tmpDir, true, htSHA256, defaultPathFilter, NoRepair);
+            unpackTarfile(store->toRealPath(store->printStorePath(*storePath)), tmpDir);
+            auto members = readDirectory(tmpDir);
+            if (members.size() != 1)
+                throw nix::Error("tarball '%s' contains an unexpected number of top-level files", url);
+            auto topDir = tmpDir + "/" + members.begin()->name;
+            unpackedStorePath = store->addToStore(name, topDir, true, htSHA256, defaultPathFilter, NoRepair);
         }
-        replaceSymlink(unpackedStorePath, unpackedLink);
-        storePath = unpackedStorePath;
+        replaceSymlink(store->printStorePath(*unpackedStorePath), unpackedLink);
+        storePath = std::move(*unpackedStorePath);
     }
 
-    if (expectedStorePath != "" && storePath != expectedStorePath) {
+    if (expectedStorePath && *storePath != *expectedStorePath) {
         unsigned int statusCode = 102;
         Hash gotHash = request.unpack
-            ? hashPath(request.expectedHash.type, store->toRealPath(storePath)).first
-            : hashFile(request.expectedHash.type, store->toRealPath(storePath));
+            ? hashPath(request.expectedHash.type, store->toRealPath(store->printStorePath(*storePath))).first
+            : hashFile(request.expectedHash.type, store->toRealPath(store->printStorePath(*storePath)));
         throw nix::Error(statusCode, "hash mismatch in file downloaded from '%s':\n  wanted: %s\n  got:    %s",
             url, request.expectedHash.to_string(), gotHash.to_string());
     }
 
-    result.storePath = storePath;
-    result.path = store->toRealPath(storePath);
+    result.storePath = store->printStorePath(*storePath);
+    result.path = store->toRealPath(result.storePath);
     return result;
 }
 

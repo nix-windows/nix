@@ -1,6 +1,3 @@
-check:
-	@echo "Warning: Nix has no 'make check'. Please install Nix and run 'make installcheck' instead."
-
 nix_tests = \
   init.sh hash.sh lang.sh add.sh simple.sh dependencies.sh \
   gc.sh \
@@ -30,7 +27,8 @@ nix_tests = \
   search.sh \
   nix-copy-ssh.sh \
   post-hook.sh \
-  function-trace.sh
+  function-trace.sh \
+  recursive.sh
   # parallel.sh
 
 install-tests += $(foreach x, $(nix_tests), tests/$(x))
@@ -39,4 +37,4 @@ tests-environment = NIX_REMOTE= $(bash) -e
 
 clean-files += $(d)/common.sh
 
-installcheck: $(d)/common.sh $(d)/plugins/libplugintest.$(SO_EXT)
+installcheck: $(d)/common.sh $(d)/config.nix $(d)/plugins/libplugintest.$(SO_EXT)

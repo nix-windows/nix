@@ -35,7 +35,7 @@ extern const std::string nativeSystem;
 
 
 /* Return an environment variable. */
-string getEnv(const string & key, const string & def = "");
+std::optional<std::string> getEnv(const std::string & key);
 
 /* Get the entire environment. */
 std::map<std::string, std::string> getEnv();
@@ -62,7 +62,7 @@ Path dirOf(const Path & path);
 
 /* Return the base name of the given canonical path, i.e., everything
    following the final `/'. */
-string baseNameOf(const Path & path);
+std::string_view baseNameOf(std::string_view path);
 
 /* Check whether 'path' is a descendant of 'dir'. */
 bool isInDir(const Path & path, const Path & dir);
@@ -299,7 +299,7 @@ public:
     int status;
 
     template<typename... Args>
-    ExecError(int status, Args... args)
+    ExecError(int status, const Args & ... args)
         : Error(args...), status(status)
     { }
 };
@@ -340,7 +340,7 @@ MakeError(FormatError, Error);
 
 
 /* String tokenizer. */
-template<class C> C tokenizeString(const string & s, const string & separators = " \t\n\r");
+template<class C> C tokenizeString(std::string_view s, const string & separators = " \t\n\r");
 
 
 /* Concatenate the given strings with a separator between the
@@ -407,7 +407,7 @@ bool hasPrefix(const string & s, const string & prefix);
 
 
 /* Return true iff `s' ends in `suffix'. */
-bool hasSuffix(const string & s, const string & suffix);
+bool hasSuffix(std::string_view s, std::string_view suffix);
 
 
 /* Convert a string to lower case. */
@@ -450,10 +450,10 @@ string base64Decode(const string & s);
 /* Get a value for the specified key from an associate container, or a
    default value if the key doesn't exist. */
 template <class T>
-string get(const T & map, const string & key, const string & def = "")
+std::optional<std::string> get(const T & map, const std::string & key)
 {
     auto i = map.find(key);
-    return i == map.end() ? def : i->second;
+    return i == map.end() ? std::optional<std::string>() : i->second;
 }
 
 
@@ -551,6 +551,10 @@ std::pair<unsigned short, unsigned short> getWindowSize();
 typedef std::function<bool(const Path & path)> PathFilter;
 
 extern PathFilter defaultPathFilter;
+
+
+/* Create a Unix domain socket in listen mode. */
+AutoCloseFD createUnixDomainSocket(const Path & path, mode_t mode);
 
 
 }

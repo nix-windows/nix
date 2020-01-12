@@ -42,11 +42,6 @@ struct CmdCopy : StorePathsCommand
             .set(&substitute, Substitute);
     }
 
-    std::string name() override
-    {
-        return "copy";
-    }
-
     std::string description() override
     {
         return "copy paths between Nix stores";
@@ -85,16 +80,16 @@ struct CmdCopy : StorePathsCommand
         return srcUri.empty() ? StoreCommand::createStore() : openStore(srcUri);
     }
 
-    void run(ref<Store> srcStore, Paths storePaths) override
+    void run(ref<Store> srcStore, StorePaths storePaths) override
     {
         if (srcUri.empty() && dstUri.empty())
             throw UsageError("you must pass '--from' and/or '--to'");
 
         ref<Store> dstStore = dstUri.empty() ? openStore() : openStore(dstUri);
 
-        copyPaths(srcStore, dstStore, PathSet(storePaths.begin(), storePaths.end()),
+        copyPaths(srcStore, dstStore, storePathsToSet(storePaths),
             NoRepair, checkSigs, substitute);
     }
 };
 
-static RegisterCommand r1(make_ref<CmdCopy>());
+static auto r1 = registerCommand<CmdCopy>("copy");

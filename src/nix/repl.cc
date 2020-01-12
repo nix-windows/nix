@@ -22,6 +22,7 @@ extern "C" {
 #include "shared.hh"
 #include "eval.hh"
 #include "eval-inline.hh"
+#include "attr-path.hh"
 #include "store-api.hh"
 #include "common-eval-args.hh"
 #include "get-drvs.hh"
@@ -412,7 +413,7 @@ Path NixRepl::getDerivationPath(Value & v) {
     if (!drvInfo)
         throw Error("expression does not evaluate to a derivation, so I can't build it");
     Path drvPath = drvInfo->queryDrvPath();
-    if (drvPath == "" || !state.store->isValidPath(drvPath))
+    if (drvPath == "" || !state.store->isValidPath(state.store->parseStorePath(drvPath)))
         throw Error("expression did not evaluate to a valid derivation");
     return drvPath;
 }
@@ -440,6 +441,7 @@ bool NixRepl::processLine(string line)
              << "  <x> = <expr>  Bind expression to variable\n"
              << "  :a <expr>     Add attributes from resulting set to scope\n"
              << "  :b <expr>     Build derivation\n"
+             << "  :e <expr>     Open the derivation in $EDITOR\n"
              << "  :i <expr>     Build derivation, then install result into current profile\n"
              << "  :l <path>     Load Nix expression and add it to scope\n"
              << "  :p <expr>     Evaluate and print expression recursively\n"
@@ -462,6 +464,34 @@ bool NixRepl::processLine(string line)
     }
 
     else if (command == ":r" || command == ":reload") {
+        state.resetFileCache();
+        reloadFiles();
+    }
+
+    else if (command == ":e" || command == ":edit") {
+        Value v;
+        evalString(arg, v);
+
+        Pos pos;
+
+        if (v.type == tPath || v.type == tString) {
+            PathSet context;
+            auto filename = state.coerceToString(noPos, v, context);
+            pos.file = state.symbols.create(filename);
+        } else if (v.type == tLambda) {
+            pos = v.lambda.fun->pos;
+        } else {
+            // assume it's a derivation
+            pos = findDerivationFilename(state, v, arg);
+        }
+
+        // Open in EDITOR
+        auto args = editorFor(pos);
+        auto editor = args.front();
+        args.pop_front();
+        runProgram(editor, args);
+
+        // Reload right after exiting the editor
         state.resetFileCache();
         reloadFiles();
     }
@@ -491,10 +521,10 @@ bool NixRepl::processLine(string line)
                but doing it in a child makes it easier to recover from
                problems / SIGINT. */
             if (runProgram(settings.nixBinDir + "/nix", Strings{"build", "--no-link", drvPath}) == 0) {
-                Derivation drv = readDerivation(drvPath);
+                auto drv = readDerivation(*state.store, drvPath);
                 std::cout << std::endl << "this derivation produced the following outputs:" << std::endl;
                 for (auto & i : drv.outputs)
-                    std::cout << format("  %1% -> %2%") % i.first % i.second.path << std::endl;
+                    std::cout << fmt("  %s -> %s\n", i.first, state.store->printStorePath(i.second.path));
             }
         } else if (command == ":i") {
             runProgram(settings.nixBinDir + "/nix-env", Strings{"-i", drvPath});
@@ -771,8 +801,6 @@ struct CmdRepl : StoreCommand, MixEvalArgs
         expectArgs("files", &files);
     }
 
-    std::string name() override { return "repl"; }
-
     std::string description() override
     {
         return "start an interactive environment for evaluating Nix expressions";
@@ -786,6 +814,6 @@ struct CmdRepl : StoreCommand, MixEvalArgs
     }
 };
 
-static RegisterCommand r1(make_ref<CmdRepl>());
+static auto r1 = registerCommand<CmdRepl>("repl");
 
 }

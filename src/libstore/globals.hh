@@ -34,6 +34,8 @@ class Settings : public Config {
 
     StringSet getDefaultSystemFeatures();
 
+    bool isWSL1();
+
 public:
 
     Settings();
@@ -66,7 +68,7 @@ public:
     /* File name of the socket the daemon listens to.  */
     Path nixDaemonSocketFile;
 
-    Setting<std::string> storeUri{this, getEnv("NIX_REMOTE", "auto"), "store",
+    Setting<std::string> storeUri{this, getEnv("NIX_REMOTE").value_or("auto"), "store",
         "The default Nix store to use."};
 
     Setting<bool> keepFailed{this, false, "keep-failed",
@@ -130,7 +132,7 @@ public:
     Setting<bool> fsyncMetadata{this, true, "fsync-metadata",
         "Whether SQLite should use fsync()."};
 
-    Setting<bool> useSQLiteWAL{this, true, "use-sqlite-wal",
+    Setting<bool> useSQLiteWAL{this, !isWSL1(), "use-sqlite-wal",
         "Whether SQLite should use WAL mode."};
 
     Setting<bool> syncBeforeRegistering{this, false, "sync-before-registering",
@@ -319,7 +321,7 @@ public:
         "A program to run just before a build to set derivation-specific build settings."};
 
     Setting<std::string> postBuildHook{this, "", "post-build-hook",
-        "A program to run just after each succesful build."};
+        "A program to run just after each successful build."};
 
     Setting<std::string> netrcFile{this, fmt("%s/%s", nixConfDir, "netrc"), "netrc-file",
         "Path to the netrc file used to obtain usernames/passwords for downloads."};
@@ -356,6 +358,8 @@ public:
 
     Setting<Strings> experimentalFeatures{this, {}, "experimental-features",
         "Experimental Nix features to enable."};
+
+    bool isExperimentalFeatureEnabled(const std::string & name);
 
     void requireExperimentalFeature(const std::string & name);
 };

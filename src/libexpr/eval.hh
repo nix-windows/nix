@@ -6,9 +6,9 @@
 #include "symbol-table.hh"
 #include "hash.hh"
 #include "config.hh"
-#include "function-trace.hh"
 
 #include <map>
+#include <optional>
 #include <unordered_map>
 
 
@@ -17,6 +17,7 @@ namespace nix {
 
 class Store;
 class EvalState;
+struct StorePath;
 enum RepairFlag : bool;
 
 
@@ -36,21 +37,20 @@ struct PrimOp
 struct Env
 {
     Env * up;
-    unsigned short size; // used by ‘valueSize’
     unsigned short prevWith:14; // nr of levels up to next `with' environment
     enum { Plain = 0, HasWithExpr, HasWithAttrs } type:2;
     Value * values[0];
 };
 
 
-Value & mkString(Value & v, const string & s, const PathSet & context = PathSet());
+Value & mkString(Value & v, std::string_view s, const PathSet & context = PathSet());
 
 void copyContext(const Value & v, PathSet & context);
 
 
 /* Cache for calls to addToStore(); maps source paths to the store
    paths. */
-typedef std::map<Path, Path> SrcToStore;
+typedef std::map<Path, StorePath> SrcToStore;
 
 
 std::ostream & operator << (std::ostream & str, const Value & v);
@@ -196,6 +196,9 @@ public:
        set with attribute `type = "derivation"'). */
     bool isDerivation(Value & v);
 
+    std::optional<string> tryAttrsToString(const Pos & pos, Value & v,
+        PathSet & context, bool coerceMore = false, bool copyToStore = true);
+
     /* String coercion.  Converts strings, paths and derivations to a
        string.  If `coerceMore' is set, also converts nulls, integers,
        booleans and lists to a string.  If `copyToStore' is set,
@@ -335,8 +338,15 @@ struct InvalidPathError : EvalError
 
 struct EvalSettings : Config
 {
+    EvalSettings();
+
+    static Strings getDefaultNixPath();
+
     Setting<bool> enableNativeCode{this, false, "allow-unsafe-native-code-during-evaluation",
         "Whether builtin functions that allow executing native code should be enabled."};
+
+    Setting<Strings> nixPath{this, getDefaultNixPath(), "nix-path",
+        "List of directories to be searched for <...> file references."};
 
     Setting<bool> restrictEval{this, false, "restrict-eval",
         "Whether to restrict file system access to paths in $NIX_PATH, "
