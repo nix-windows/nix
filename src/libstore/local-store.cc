@@ -547,6 +547,18 @@ void LocalStore::checkDerivationOutputs(const StorePath & drvPath, const Derivat
     std::string drvName(drvPath.name());
     drvName = string(drvName, 0, drvName.size() - drvExtension.size());
 
+    auto check = [&](const StorePath & expected, const StorePath & actual, const std::string & varName)
+    {
+        if (actual != expected)
+            throw Error("derivation '%s' has incorrect output '%s', should be '%s'",
+                printStorePath(drvPath), printStorePath(actual), printStorePath(expected));
+        auto j = drv.env.find(varName);
+        if (j == drv.env.end() || parseStorePath(j->second) != actual)
+            throw Error("derivation '%s' has incorrect environment variable '%s', should be '%s'",
+                printStorePath(drvPath), varName, printStorePath(actual));
+    };
+
+
     if (drv.isFixedOutput()) {
         DerivationOutputs::const_iterator out = drv.outputs.find("out");
         if (out == drv.outputs.end())
@@ -554,24 +566,14 @@ void LocalStore::checkDerivationOutputs(const StorePath & drvPath, const Derivat
 
         bool recursive; Hash h;
         out->second.parseHashInfo(recursive, h);
-        auto outPath = makeFixedOutputPath(recursive, h, drvName);
 
-        StringPairs::const_iterator j = drv.env.find("out");
-        if (out->second.path != outPath || j == drv.env.end() || parseStorePath(j->second) != outPath)
-            throw Error("derivation '%s' has incorrect output '%s', should be '%s'",
-                printStorePath(drvPath), printStorePath(out->second.path), printStorePath(outPath));
+        check(makeFixedOutputPath(recursive, h, drvName), out->second.path, "out");
     }
 
     else {
         Hash h = hashDerivationModulo(*this, drv, true);
-
-        for (auto & i : drv.outputs) {
-            auto outPath = makeOutputPath(i.first, h, drvName);
-            StringPairs::const_iterator j = drv.env.find(i.first);
-            if (i.second.path != outPath || j == drv.env.end() || parseStorePath(j->second) != outPath)
-                throw Error("derivation '%s' has incorrect output '%s', should be '%s'",
-                    printStorePath(drvPath), printStorePath(i.second.path), printStorePath(outPath));
-        }
+        for (auto & i : drv.outputs)
+            check(makeOutputPath(i.first, h, drvName), i.second.path, i.first);
     }
 }
 
@@ -620,7 +622,8 @@ uint64_t LocalStore::addValidPath(State & state,
 
     {
         auto state_(Store::state.lock());
-        state_->pathInfoCache.upsert(storePathToHash(printStorePath(info.path)), std::make_shared<ValidPathInfo>(info));
+        state_->pathInfoCache.upsert(storePathToHash(printStorePath(info.path)),
+            PathInfoCacheValue{ .value = std::make_shared<const ValidPathInfo>(info) });
     }
 
     return id;
@@ -1001,16 +1004,18 @@ void LocalStore::addToStore(const ValidPathInfo & info, Source & source,
 
             deletePath(realPath);
 
+            if (info.ca != "" &&
+                !((hasPrefix(info.ca, "text:") && !info.references.count(info.path))
+                    || info.references.empty()))
+                settings.requireExperimentalFeature("ca-references");
+
             /* While restoring the path from the NAR, compute the hash
                of the NAR. */
             std::unique_ptr<AbstractHashSink> hashSink;
-            if (info.ca == "")
+            if (info.ca == "" || !info.references.count(info.path))
                 hashSink = std::make_unique<HashSink>(htSHA256);
-            else {
-                if (!info.references.empty())
-                    settings.requireExperimentalFeature("ca-references");
+            else
                 hashSink = std::make_unique<HashModuloSink>(htSHA256, storePathToHash(printStorePath(info.path)));
-            }
 
             LambdaSource wrapperSource([&](unsigned char * data, size_t len) -> size_t {
                 size_t n = source.read(data, len);
@@ -1265,7 +1270,7 @@ bool LocalStore::verifyStore(bool checkContents, RepairFlag repair)
                 printMsg(lvlTalkative, "checking contents of '%s'", printStorePath(i));
 
                 std::unique_ptr<AbstractHashSink> hashSink;
-                if (info->ca == "")
+                if (info->ca == "" || !info->references.count(info->path))
                     hashSink = std::make_unique<HashSink>(info->narHash.type);
                 else
                     hashSink = std::make_unique<HashModuloSink>(info->narHash.type, storePathToHash(printStorePath(info->path)));

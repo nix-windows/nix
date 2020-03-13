@@ -121,10 +121,17 @@ static void prim_scopedImport(EvalState & state, const Pos & pos, Value * * args
             mkString(*(outputsVal->listElems()[outputs_index++]), o.first);
         }
         w.attrs->sort();
-        Value fun;
-        state.evalFile(settings.nixDataDir + "/nix/corepkgs/imported-drv-to-derivation.nix", fun);
-        state.forceFunction(fun, pos);
-        mkApp(v, fun, w);
+
+        static Value * fun = nullptr;
+        if (!fun) {
+            fun = state.allocValue();
+            state.eval(state.parseExprFromString(
+                #include "imported-drv-to-derivation.nix.gen.hh"
+                , "/"), *fun);
+        }
+
+        state.forceFunction(*fun, pos);
+        mkApp(v, *fun, w);
         state.forceAttrs(v, pos);
     } else {
         state.forceAttrs(*args[0]);
@@ -731,6 +738,8 @@ static void prim_derivationStrict(EvalState & state, const Pos & pos, Value * * 
            the hash. */
         for (auto & i : outputs) {
             if (!jsonObject) drv.env[i] = "";
+            drv.outputs.insert_or_assign(i,
+                DerivationOutput(StorePath::dummy.clone(), "", ""));
         }
 
         Hash h = hashDerivationModulo(*state.store, Derivation(drv), true);
@@ -1809,19 +1818,21 @@ static void prim_hashString(EvalState & state, const Pos & pos, Value * * args, 
 
 /* Match a regular expression against a string and return either
    ‘null’ or a list containing substring matches. */
-static void prim_match(EvalState & state, const Pos & pos, Value * * args, Value & v)
+void prim_match(EvalState & state, const Pos & pos, Value * * args, Value & v)
 {
     auto re = state.forceStringNoCtx(*args[0], pos);
 
     try {
 
-        std::regex regex(re, std::regex::extended);
+        auto regex = state.regexCache.find(re);
+        if (regex == state.regexCache.end())
+            regex = state.regexCache.emplace(re, std::regex(re, std::regex::extended)).first;
 
         PathSet context;
         const std::string str = state.forceString(*args[1], context, pos);
 
         std::smatch match;
-        if (!std::regex_match(str, match, regex)) {
+        if (!std::regex_match(str, match, regex->second)) {
             mkNull(v);
             return;
         }

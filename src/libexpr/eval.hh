@@ -114,6 +114,9 @@ private:
     /* Cache used by checkSourcePath(). */
     std::unordered_map<Path, Path> resolvedPaths;
 
+    /* Cache used by prim_match(). */
+    std::unordered_map<std::string, std::regex> regexCache;
+
 public:
 
     EvalState(const Strings & _searchPath, ref<Store> store);
@@ -141,8 +144,8 @@ public:
     Expr * parseExprFromFile(const Path & path, StaticEnv & staticEnv);
 
     /* Parse a Nix expression from the specified string. */
-    Expr * parseExprFromString(const string & s, const Path & basePath, StaticEnv & staticEnv);
-    Expr * parseExprFromString(const string & s, const Path & basePath);
+    Expr * parseExprFromString(std::string_view s, const Path & basePath, StaticEnv & staticEnv);
+    Expr * parseExprFromString(std::string_view s, const Path & basePath);
 
     Expr * parseStdin();
 
@@ -314,6 +317,7 @@ private:
     friend struct ExprOpConcatLists;
     friend struct ExprSelect;
     friend void prim_getAttr(EvalState & state, const Pos & pos, Value * * args, Value & v);
+    friend void prim_match(EvalState & state, const Pos & pos, Value * * args, Value & v);
 };
 
 

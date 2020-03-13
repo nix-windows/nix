@@ -1,5 +1,5 @@
 { nix ? builtins.fetchGit ./.
-, nixpkgs ? builtins.fetchTarball https://github.com/NixOS/nixpkgs-channels/archive/nixos-19.09.tar.gz
+, nixpkgs ? builtins.fetchTarball https://github.com/NixOS/nixpkgs/archive/nixos-20.03-small.tar.gz
 , officialRelease ? false
 , systems ? [ "x86_64-linux" "i686-linux" "x86_64-darwin" "aarch64-linux" ]
 }:
@@ -8,11 +8,14 @@ let
 
   pkgs = import nixpkgs { system = builtins.currentSystem or "x86_64-linux"; };
 
+  version =
+    builtins.readFile ./.version
+    + (if officialRelease then "" else "pre${toString nix.revCount}_${nix.shortRev}");
+
   jobs = rec {
 
     # Create a "vendor" directory that contains the crates listed in
-    # Cargo.lock, and include it in the Nix tarball. This allows Nix
-    # to be built without network access.
+    # Cargo.lock. This allows Nix to be built without network access.
     vendoredCrates =
       let
         lockFile = builtins.fromTOML (builtins.readFile nix-rust/Cargo.lock);
@@ -55,49 +58,6 @@ let
         '';
 
 
-    tarball =
-      with pkgs;
-
-      with import ./release-common.nix { inherit pkgs; };
-
-      releaseTools.sourceTarball {
-        name = "nix-tarball";
-        version = builtins.readFile ./.version;
-        versionSuffix = if officialRelease then "" else "pre${toString nix.revCount}_${nix.shortRev}";
-        src = nix;
-        inherit officialRelease;
-
-        nativeBuildInputs = tarballDeps ++ nativeBuildDeps;
-        buildInputs = buildDeps;
-
-        postUnpack = ''
-          (cd $sourceRoot && find . -type f) | cut -c3- > $sourceRoot/.dist-files
-          cat $sourceRoot/.dist-files
-        '';
-
-        preConfigure = ''
-          (cd perl ; autoreconf --install --force --verbose)
-          # TeX needs a writable font cache.
-          export VARTEXFONTS=$TMPDIR/texfonts
-        '';
-
-        distPhase =
-          ''
-            cp -prd ${vendoredCrates}/vendor/ nix-rust/vendor/
-
-            runHook preDist
-            make dist
-            mkdir -p $out/tarballs
-            cp *.tar.* $out/tarballs
-          '';
-
-        preDist = ''
-          make install docdir=$out/share/doc/nix makefiles=doc/manual/local.mk
-          echo "doc manual $out/share/doc/nix/manual" >> $out/nix-support/hydra-build-products
-        '';
-      };
-
-
     build = pkgs.lib.genAttrs systems (system:
 
       let pkgs = import nixpkgs { inherit system; }; in
@@ -106,17 +66,22 @@ let
 
       with import ./release-common.nix { inherit pkgs; };
 
-      releaseTools.nixBuild {
-        name = "nix";
-        src = tarball;
+      stdenv.mkDerivation {
+        name = "nix-${version}";
+
+        src = nix;
+
+        outputs = [ "out" "dev" "doc" ];
 
         nativeBuildInputs = nativeBuildDeps;
         buildInputs = buildDeps;
 
+        propagatedBuildInputs = propagatedDeps;
+
         preConfigure =
-          # Copy libboost_context so we don't get all of Boost in our closure.
-          # https://github.com/NixOS/nixpkgs/issues/45462
           ''
+            # Copy libboost_context so we don't get all of Boost in our closure.
+            # https://github.com/NixOS/nixpkgs/issues/45462
             mkdir -p $out/lib
             cp -pd ${boost}/lib/{libboost_context*,libboost_thread*,libboost_system*} $out/lib
             rm -f $out/lib/*.a
@@ -124,6 +89,10 @@ let
               chmod u+w $out/lib/*.so.*
               patchelf --set-rpath $out/lib:${stdenv.cc.cc.lib}/lib $out/lib/libboost_thread.so.*
             ''}
+
+            ln -sfn ${vendoredCrates}/vendor/ nix-rust/vendor
+
+            (cd perl; autoreconf --install --force --verbose)
           '';
 
         inherit mesonFlags;
@@ -137,8 +106,17 @@ let
 
         installFlags = "sysconfdir=$(out)/etc";
 
+        doCheck = true;
+
         doInstallCheck = true;
         installCheckFlags = "sysconfdir=$(out)/etc";
+
+        separateDebugInfo = true;
+
+        preDist = ''
+          mkdir -p $doc/nix-support
+          echo "doc manual $doc/share/doc/nix/manual" >> $doc/nix-support/hydra-build-products
+        '';
       });
 
 
@@ -147,11 +125,21 @@ let
       let pkgs = import nixpkgs { inherit system; }; in with pkgs;
 
       releaseTools.nixBuild {
-        name = "nix-perl";
-        src = tarball;
+        name = "nix-perl-${version}";
+
+        src = nix;
 
         buildInputs =
-          [ jobs.build.${system} curl bzip2 xz pkgconfig pkgs.perl boost ]
+          [ autoconf-archive
+            autoreconfHook
+            jobs.build.${system}
+            curl
+            bzip2
+            xz
+            pkgconfig
+            pkgs.perl
+            boost
+          ]
           ++ lib.optional (stdenv.isLinux || stdenv.isDarwin) libsodium;
 
         configureFlags = ''
@@ -171,7 +159,6 @@ let
 
       let
         toplevel = builtins.getAttr system jobs.build;
-        version = toplevel.src.version;
         installerClosureInfo = closureInfo { rootPaths = [ toplevel cacert ]; };
       in
 
@@ -241,11 +228,14 @@ let
       with import ./release-common.nix { inherit pkgs; };
 
       releaseTools.coverageAnalysis {
-        name = "nix-build";
-        src = tarball;
+        name = "nix-coverage-${version}";
+
+        src = nix;
+
+        enableParallelBuilding = true;
 
         nativeBuildInputs = nativeBuildDeps;
-        buildInputs = buildDeps;
+        buildInputs = buildDeps ++ propagatedDeps;
 
         dontInstall = false;
 
@@ -257,6 +247,9 @@ let
         # syntax-check generated dot files, it still requires some
         # fonts.  So provide those.
         FONTCONFIG_FILE = texFunctions.fontsConf;
+
+        # To test building without precompiled headers.
+        makeFlagsArray = [ "PRECOMPILE_HEADERS=0" ];
       };
 
 
@@ -334,44 +327,19 @@ let
 
     installerScript =
       pkgs.runCommand "installer-script"
-        { buildInputs = [ build.x86_64-linux ];
-        }
+        { buildInputs = [ build.${builtins.currentSystem or "x86_64-linux"} ]; }
         ''
           mkdir -p $out/nix-support
 
           substitute ${./scripts/install.in} $out/install \
             ${pkgs.lib.concatMapStrings
               (system: "--replace '@binaryTarball_${system}@' $(nix --experimental-features nix-command hash-file --base16 --type sha256 ${binaryTarball.${system}}/*.tar.xz) ")
-              [ "x86_64-linux" "i686-linux" "x86_64-darwin" "aarch64-linux" ]
+              systems
             } \
-            --replace '@nixVersion@' ${build.x86_64-linux.src.version}
+            --replace '@nixVersion@' ${version}
 
           echo "file installer $out/install" >> $out/nix-support/hydra-build-products
         '';
-
-
-    # Aggregate job containing the release-critical jobs.
-    release = pkgs.releaseTools.aggregate {
-      name = "nix-${tarball.version}";
-      meta.description = "Release-critical builds";
-      constituents =
-        [ tarball
-          build.i686-linux
-          build.x86_64-darwin
-          build.x86_64-linux
-          build.aarch64-linux
-          binaryTarball.i686-linux
-          binaryTarball.x86_64-darwin
-          binaryTarball.x86_64-linux
-          binaryTarball.aarch64-linux
-          tests.remoteBuilds
-          tests.nix-copy-closure
-          tests.binaryTarball
-          #tests.evalNixpkgs
-          #tests.evalNixOS
-          installerScript
-        ];
-    };
 
   };
 

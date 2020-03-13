@@ -213,15 +213,26 @@ Derivation Store::derivationFromPath(const StorePath & drvPath)
 }
 
 
-static void printString(string & res, const string & s)
+static void printString(string & res, std::string_view s)
+{
+    char buf[s.size() * 2 + 2];
+    char * p = buf;
+    *p++ = '"';
+    for (auto c : s)
+        if (c == '\"' || c == '\\') { *p++ = '\\'; *p++ = c; }
+        else if (c == '\n') { *p++ = '\\'; *p++ = 'n'; }
+        else if (c == '\r') { *p++ = '\\'; *p++ = 'r'; }
+        else if (c == '\t') { *p++ = '\\'; *p++ = 't'; }
+        else *p++ = c;
+    *p++ = '"';
+    res.append(buf, p - buf);
+}
+
+
+static void printUnquotedString(string & res, std::string_view s)
 {
     res += '"';
-    for (const char * i = s.c_str(); *i; i++)
-        if (*i == '\"' || *i == '\\') { res += "\\"; res += *i; }
-        else if (*i == '\n') res += "\\n";
-        else if (*i == '\r') res += "\\r";
-        else if (*i == '\t') res += "\\t";
-        else res += *i;
+    res.append(s);
     res += '"';
 }
 
@@ -239,6 +250,19 @@ static void printStrings(string & res, ForwardIterator i, ForwardIterator j)
 }
 
 
+template<class ForwardIterator>
+static void printUnquotedStrings(string & res, ForwardIterator i, ForwardIterator j)
+{
+    res += '[';
+    bool first = true;
+    for ( ; i != j; ++i) {
+        if (first) first = false; else res += ',';
+        printUnquotedString(res, *i);
+    }
+    res += ']';
+}
+
+
 string Derivation::unparse(const Store & store, bool maskOutputs,
     std::map<std::string, StringSet> * actualInputs) const
 {
@@ -246,51 +270,39 @@ string Derivation::unparse(const Store & store, bool maskOutputs,
     s.reserve(65536);
     s += "Derive([";
 
-    StringSet maskedOutputs;
-
-    if (maskOutputs) {
-        bool first = true;
-        maskedOutputs = tokenizeString<StringSet>(get(env, "outputs").value_or("out"), " ");
-        for (auto & i : maskedOutputs) {
-            if (first) first = false; else s += ',';
-            s += '('; printString(s, i);
-            s += ",\"\",\"\",\"\")";
-        }
-    } else {
-        bool first = true;
-        for (auto & i : outputs) {
-            if (first) first = false; else s += ',';
-            s += '('; printString(s, i.first);
-            s += ','; printString(s, store.printStorePath(i.second.path));
-            s += ','; printString(s, i.second.hashAlgo);
-            s += ','; printString(s, i.second.hash);
-            s += ')';
-        }
+    bool first = true;
+    for (auto & i : outputs) {
+        if (first) first = false; else s += ',';
+        s += '('; printUnquotedString(s, i.first);
+        s += ','; printUnquotedString(s, maskOutputs ? "" : store.printStorePath(i.second.path));
+        s += ','; printUnquotedString(s, i.second.hashAlgo);
+        s += ','; printUnquotedString(s, i.second.hash);
+        s += ')';
     }
 
     s += "],[";
-    bool first = true;
+    first = true;
     if (actualInputs) {
         for (auto & i : *actualInputs) {
             if (first) first = false; else s += ',';
-            s += '('; printString(s, i.first);
-            s += ','; printStrings(s, i.second.begin(), i.second.end());
+            s += '('; printUnquotedString(s, i.first);
+            s += ','; printUnquotedStrings(s, i.second.begin(), i.second.end());
             s += ')';
         }
     } else {
         for (auto & i : inputDrvs) {
             if (first) first = false; else s += ',';
-            s += '('; printString(s, store.printStorePath(i.first));
-            s += ','; printStrings(s, i.second.begin(), i.second.end());
+            s += '('; printUnquotedString(s, store.printStorePath(i.first));
+            s += ','; printUnquotedStrings(s, i.second.begin(), i.second.end());
             s += ')';
         }
     }
 
     s += "],";
     auto paths = store.printStorePathSet(inputSrcs); // FIXME: slow
-    printStrings(s, paths.begin(), paths.end());
+    printUnquotedStrings(s, paths.begin(), paths.end());
 
-    s += ','; printString(s, platform);
+    s += ','; printUnquotedString(s, platform);
     s += ','; printString(s, builder);
     s += ','; printStrings(s, args.begin(), args.end());
 
@@ -299,7 +311,7 @@ string Derivation::unparse(const Store & store, bool maskOutputs,
     for (auto & i : env) {
         if (first) first = false; else s += ',';
         s += '('; printString(s, i.first);
-        s += ','; printString(s, maskOutputs && maskedOutputs.count(i.first) ? "" : i.second);
+        s += ','; printString(s, maskOutputs && outputs.count(i.first) ? "" : i.second);
         s += ')';
     }
 

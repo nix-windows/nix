@@ -7,7 +7,7 @@ namespace nix {
 /* See path.rs. */
 struct StorePath;
 
-struct Store;
+class Store;
 
 extern "C" {
     void ffi_StorePath_drop(void *);
@@ -18,6 +18,8 @@ extern "C" {
 
 struct StorePath : rust::Value<3 * sizeof(void *) + 24, ffi_StorePath_drop>
 {
+    StorePath() = delete;
+
     static StorePath make(std::string_view path, std::string_view storeDir);
 
     static StorePath make(unsigned char hash[20], std::string_view name);
@@ -53,6 +55,8 @@ struct StorePath : rust::Value<3 * sizeof(void *) + 24, ffi_StorePath_drop>
     {
         return ffi_StorePath_hash_data(*this);
     }
+
+    static StorePath dummy;
 };
 
 typedef std::set<StorePath> StorePathSet;

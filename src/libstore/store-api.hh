@@ -16,6 +16,7 @@
 #include <unordered_set>
 #include <memory>
 #include <string>
+#include <chrono>
 
 
 namespace nix {
@@ -261,10 +262,28 @@ public:
 
 protected:
 
+    struct PathInfoCacheValue {
+
+        // Time of cache entry creation or update
+        std::chrono::time_point<std::chrono::steady_clock> time_point = std::chrono::steady_clock::now();
+
+        // Null if missing
+        std::shared_ptr<const ValidPathInfo> value;
+
+        // Whether the value is valid as a cache entry. The path may not exist.
+        bool isKnownNow();
+
+        // Past tense, because a path can only be assumed to exists when
+        // isKnownNow() && didExist()
+        inline bool didExist() {
+          return value != nullptr;
+        }
+    };
+
     struct State
     {
         // FIXME: fix key
-        LRUCache<std::string, std::shared_ptr<const ValidPathInfo>> pathInfoCache;
+        LRUCache<std::string, PathInfoCacheValue> pathInfoCache;
     };
 
     Sync<State> state;
@@ -280,6 +299,8 @@ public:
     virtual std::string getUri() = 0;
 
     StorePath parseStorePath(std::string_view path) const;
+
+    std::optional<StorePath> maybeParseStorePath(std::string_view path) const;
 
     std::string printStorePath(const StorePath & path) const;
 
@@ -303,7 +324,7 @@ public:
 
     /* Return true if ‘path’ is a store path, i.e. a direct child of
        the Nix store. */
-    bool isStorePath(const Path & path) const;
+    bool isStorePath(std::string_view path) const;
 
     /* Chop off the parts after the top-level store name, e.g.,
        /nix/store/abcd-foo/bar => /nix/store/abcd-foo. */
@@ -676,7 +697,7 @@ class LocalFSStore : public virtual Store
 public:
 
     // FIXME: the (Store*) cast works around a bug in gcc that causes
-    // it to emit the call to the Option constructor. Clang works fine
+    // it to omit the call to the Setting constructor. Clang works fine
     // either way.
     const PathSetting rootDir{(Store*) this, true, "",
         "root", "directory prefixed to all other paths"};

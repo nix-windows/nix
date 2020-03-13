@@ -40,48 +40,42 @@ rec {
     (mesonFeature "with_libsodium" stdenv.hostPlatform.isLinux)
   ];
 
-  configureFlags =
-    lib.optionals stdenv.isLinux [
-      "--with-sandbox-shell=${sh}/bin/busybox"
-    ];
-
-  tarballDeps = with pkgs.buildPackages;
-    [ bison
-      flex
-      libxml2
-      libxslt
-      docbook5
-      docbook_xsl_ns
-      autoconf-archive
-      autoreconfHook
-    ];
+  configureFlags = lib.optionals stdenv.isLinux [
+    "--with-sandbox-shell=${sh}/bin/busybox"
+  ];
 
   nativeBuildDeps = with pkgs.buildPackages; [
+    bison
+    flex
+    libxml2
+    libxslt
+    docbook5
+    docbook_xsl_ns
+    autoconf-archive
+    autoreconfHook
+
     pkgconfig
     meson
     ninja
     rustc cargo
   ];
 
-  buildDeps = with pkgs;
-    [
-      curl
-      bzip2
-      xz
-      brotli
-      editline
-      openssl
-      sqlite
-      boehmgc
-      zlib
-      boost
-      nlohmann_json
+  buildDeps = with pkgs; [
+    curl
+    bzip2
+    xz
+    brotli
+    editline
+    openssl
+    sqlite
+    zlib
+    boost
+    nlohmann_json
 
-      # Tests
-      git
-      mercurial
-    ]
-    ++ lib.optionals stdenv.isLinux [libseccomp utillinuxMinimal]
+    # Tests
+    git
+    mercurial
+  ] ++ lib.optionals stdenv.isLinux [libseccomp utillinuxMinimal]
     ++ lib.optional (stdenv.isLinux || stdenv.isDarwin) libsodium
     ++ lib.optional (stdenv.isLinux || stdenv.isDarwin)
       ((aws-sdk-cpp.override {
@@ -96,8 +90,12 @@ rec {
         */
       }));
 
-  perlDeps = with pkgs;
-    [ perl
-      perlPackages.DBDSQLite
-    ];
+  propagatedDeps = with pkgs; [
+    (boehmgc.override { enableLargeConfig = true; })
+  ];
+
+  perlDeps = with pkgs; [
+    perl
+    perlPackages.DBDSQLite
+  ];
 }
