@@ -9,11 +9,10 @@
 
 
 corepkgs_data = files(
-    join_paths(meson.source_root(), 'corepkgs/buildenv.nix'),
     join_paths(meson.source_root(), 'corepkgs/derivation.nix'),
     join_paths(meson.source_root(), 'corepkgs/fetchurl.nix'),
-    join_paths(meson.source_root(), 'corepkgs/imported-drv-to-derivation.nix'),
-    join_paths(meson.source_root(), 'corepkgs/unpack-channel.nix'))
+    join_paths(meson.source_root(), 'corepkgs/unpack-channel.nix'),
+)
 
 
 

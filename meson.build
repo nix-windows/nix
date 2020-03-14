@@ -572,13 +572,20 @@ install_headers(
 add_project_arguments('-include', 'config.h', language : 'cpp')
 src_inc = [include_directories('.', 'src')]
 
+# Needed by multiple libraries
+gen_header = '''
+  echo 'R"foo(' >> "$1"
+  cat @INPUT@ >> "$1"
+  echo ')foo"' >> "$1"
+'''
+
 project_dirs = [
     'src',
     'scripts',
     'corepkgs',
     'misc',
     'doc',
-    'tests'
+    'tests',
 ]
 
 

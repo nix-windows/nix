@@ -115,6 +115,13 @@ nix_cxx_args = []
 # targets
 #============================================================================
 
+nix_src += custom_target(
+  'buildenv.nix.gen.hh',
+  output : 'buildenv.nix.gen.hh',
+  input : join_paths(meson.source_root(), 'src/nix-env/buildenv.nix'),
+  command : [bash, '-c', gen_header, 'sh', '@OUTPUT@'],
+)
+
 
 
 

@@ -131,18 +131,11 @@ libstore_cxx_args = [
 # targets
 #============================================================================
 
-gen_header = '''
-  echo 'R"foo(' >> "$1"
-  cat @INPUT@ >> "$1"
-  echo ')foo"' >> "$1"
-'''
-
 libstore_src += custom_target(
   'schema.sql.gen.hh',
   output : 'schema.sql.gen.hh',
   input : 'schema.sql',
   command : [bash, '-c', gen_header, 'sh', '@OUTPUT@'])
-
 
 
 

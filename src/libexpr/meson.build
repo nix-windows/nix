@@ -86,6 +86,13 @@ libexpr_cxx_args = []
 #============================================================================
 
 libexpr_src += custom_target(
+  'imported-drv-to-derivation.nix.gen.hh',
+  output : 'imported-drv-to-derivation.nix.gen.hh',
+  input : 'imported-drv-to-derivation.nix',
+  command : [bash, '-c', gen_header, 'sh', '@OUTPUT@'],
+)
+
+libexpr_src += custom_target(
     'parser_tab.[cchh]',
     output : [
         'parser-tab.cc',
