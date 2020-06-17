@@ -11,12 +11,16 @@ src_inc += include_directories('.')
 
 libmain_src = files(
     join_paths(meson.source_root(), 'src/libmain/common-args.cc'),
+    join_paths(meson.source_root(), 'src/libmain/progress-bar.cc'),
     join_paths(meson.source_root(), 'src/libmain/shared.cc'),
-    join_paths(meson.source_root(), 'src/libmain/stack.cc'))
+    join_paths(meson.source_root(), 'src/libmain/stack.cc'),
+)
 
 libmain_headers = files(
     join_paths(meson.source_root(), 'src/libmain/common-args.hh'),
-    join_paths(meson.source_root(), 'src/libmain/shared.hh'))
+    join_paths(meson.source_root(), 'src/libmain/progress-bar.hh'),
+    join_paths(meson.source_root(), 'src/libmain/shared.hh'),
+)
 
 
 
