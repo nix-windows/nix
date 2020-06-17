@@ -13,6 +13,7 @@ libstore_src = files(
     join_paths(meson.source_root(), 'src/libstore/binary-cache-store.cc'),
     join_paths(meson.source_root(), 'src/libstore/build.cc'),
     join_paths(meson.source_root(), 'src/libstore/crypto.cc'),
+    join_paths(meson.source_root(), 'src/libstore/daemon.cc'),
     join_paths(meson.source_root(), 'src/libstore/derivations.cc'),
     join_paths(meson.source_root(), 'src/libstore/filetransfer.cc'),
     join_paths(meson.source_root(), 'src/libstore/export-import.cc'),
@@ -31,6 +32,7 @@ libstore_src = files(
     join_paths(meson.source_root(), 'src/libstore/nar-info-disk-cache.cc'),
     join_paths(meson.source_root(), 'src/libstore/optimise-store.cc'),
     join_paths(meson.source_root(), 'src/libstore/parsed-derivations.cc'),
+    join_paths(meson.source_root(), 'src/libstore/path.cc'),
     join_paths(meson.source_root(), 'src/libstore/pathlocks.cc'),
     join_paths(meson.source_root(), 'src/libstore/profiles.cc'),
     join_paths(meson.source_root(), 'src/libstore/references.cc'),
@@ -42,12 +44,15 @@ libstore_src = files(
     join_paths(meson.source_root(), 'src/libstore/ssh-store.cc'),
     join_paths(meson.source_root(), 'src/libstore/store-api.cc'),
     join_paths(meson.source_root(), 'src/libstore/builtins/buildenv.cc'),
-    join_paths(meson.source_root(), 'src/libstore/builtins/fetchurl.cc'))
+    join_paths(meson.source_root(), 'src/libstore/builtins/fetchurl.cc'),
+    join_paths(meson.source_root(), 'src/libstore/builtins/unpack-channel.cc'),
+)
 
 libstore_headers = files(
     join_paths(meson.source_root(), 'src/libstore/binary-cache-store.hh'),
     join_paths(meson.source_root(), 'src/libstore/builtins.hh'),
     join_paths(meson.source_root(), 'src/libstore/crypto.hh'),
+    join_paths(meson.source_root(), 'src/libstore/daemon.hh'),
     join_paths(meson.source_root(), 'src/libstore/derivations.hh'),
     join_paths(meson.source_root(), 'src/libstore/filetransfer.hh'),
     join_paths(meson.source_root(), 'src/libstore/fs-accessor.hh'),
@@ -59,6 +64,7 @@ libstore_headers = files(
     join_paths(meson.source_root(), 'src/libstore/nar-info-disk-cache.hh'),
     join_paths(meson.source_root(), 'src/libstore/nar-info.hh'),
     join_paths(meson.source_root(), 'src/libstore/parsed-derivations.hh'),
+    join_paths(meson.source_root(), 'src/libstore/path.hh'),
     join_paths(meson.source_root(), 'src/libstore/pathlocks.hh'),
     join_paths(meson.source_root(), 'src/libstore/profiles.hh'),
     join_paths(meson.source_root(), 'src/libstore/references.hh'),
@@ -70,7 +76,8 @@ libstore_headers = files(
     join_paths(meson.source_root(), 'src/libstore/sqlite.hh'),
     join_paths(meson.source_root(), 'src/libstore/ssh.hh'),
     join_paths(meson.source_root(), 'src/libstore/store-api.hh'),
-    join_paths(meson.source_root(), 'src/libstore/worker-protocol.hh'))
+    join_paths(meson.source_root(), 'src/libstore/worker-protocol.hh'),
+)
 
 libstore_data = files(
     join_paths(meson.source_root(), 'src/libstore/sandbox-defaults.sb'),

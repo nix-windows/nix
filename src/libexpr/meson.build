@@ -65,7 +65,9 @@ endif
 libexpr_link_list = [
     libutil_lib,
     libstore_lib,
-    libmain_lib]
+    libfetchers_lib,
+    libmain_lib,
+]
 
 libexpr_link_args = []
 

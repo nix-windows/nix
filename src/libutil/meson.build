@@ -15,6 +15,7 @@ libutil_src = files(
     join_paths(meson.source_root(), 'src/libutil/args.cc'),
     join_paths(meson.source_root(), 'src/libutil/compression.cc'),
     join_paths(meson.source_root(), 'src/libutil/config.cc'),
+    join_paths(meson.source_root(), 'src/libutil/error.cc'),
     join_paths(meson.source_root(), 'src/libutil/hash.cc'),
     join_paths(meson.source_root(), 'src/libutil/json.cc'),
     join_paths(meson.source_root(), 'src/libutil/logging.cc'),
