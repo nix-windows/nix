@@ -48,7 +48,10 @@ perl/Makefile.config
 /src/libexpr/nix.tbl
 
 # /src/libstore/
-/src/libstore/*.gen.hh
+*.gen.*
+
+# /src/libutil/
+/src/libutil/tests/libutil-tests
 
 /src/nix/nix
 
@@ -75,6 +78,8 @@ perl/Makefile.config
 /src/nix-build/nix-build
 
 /src/nix-copy-closure/nix-copy-closure
+
+/src/error-demo/error-demo
 
 /src/build-remote/build-remote
 

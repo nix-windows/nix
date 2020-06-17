@@ -57,7 +57,6 @@ rec {
     pkgconfig
     meson
     ninja
-    rustc cargo
   ];
 
   buildDeps = with pkgs; [
@@ -75,6 +74,7 @@ rec {
     # Tests
     git
     mercurial
+    gmock
   ] ++ lib.optionals stdenv.isLinux [libseccomp utillinuxMinimal]
     ++ lib.optional (stdenv.isLinux || stdenv.isDarwin) libsodium
     ++ lib.optional (stdenv.isLinux || stdenv.isDarwin)
