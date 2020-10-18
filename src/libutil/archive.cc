@@ -35,13 +35,10 @@ struct ArchiveSettings : Config
         #endif
         "use-case-hack",
         "Whether to enable a Darwin-specific hack for dealing with file name collisions."};
-<<<<<<< HEAD
 #endif
-||||||| merged common ancestors
-=======
+
     Setting<bool> preallocateContents{this, true, "preallocate-contents",
         "Whether to preallocate files when writing objects with known size."};
->>>>>>> meson
 };
 
 static ArchiveSettings archiveSettings;
@@ -61,19 +58,13 @@ static void dumpContents(const Path & path, size_t size,
     sink << "contents" << size;
 #ifndef _WIN32
     AutoCloseFD fd = open(path.c_str(), O_RDONLY | O_CLOEXEC);
-<<<<<<< HEAD
-    if (!fd) throw PosixError(format("opening file '%1%'") % path);
+    if (!fd) throw PosixError("opening file '%1%'", path);
 #else
 //std::cerr << "dumpContents(" << path << "," << size << ")" << std::endl;
     AutoCloseWindowsHandle fd = CreateFileW(pathW(path).c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (fd.get() == INVALID_HANDLE_VALUE)
         throw WinError("CreateFileW when dumpContents '%1%'", path);
 #endif
-||||||| merged common ancestors
-    if (!fd) throw SysError(format("opening file '%1%'") % path);
-=======
-    if (!fd) throw SysError("opening file '%1%'", path);
->>>>>>> meson
 
     std::vector<unsigned char> buf(65536);
     size_t left = size;
@@ -93,19 +84,8 @@ static void dump(const Path & path, Sink & sink, PathFilter & filter)
 {
     checkInterrupt();
 
-<<<<<<< HEAD
-    struct stat st;
-    if (lstat(path.c_str(), &st))
-        throw PosixError(format("getting attributes of path '%1%'") % path);
-||||||| merged common ancestors
-    struct stat st;
-    if (lstat(path.c_str(), &st))
-        throw SysError(format("getting attributes of path '%1%'") % path);
-
-=======
     auto st = lstat(path);
 
->>>>>>> meson
     sink << "(";
 
     if (S_ISREG(st.st_mode)) {
@@ -130,20 +110,10 @@ static void dump(const Path & path, Sink & sink, PathFilter & filter)
                     name.erase(pos);
                 }
                 if (unhacked.find(name) != unhacked.end())
-<<<<<<< HEAD
-                    throw Error(format("file name collision in between '%1%' and '%2%'")
-                        % (path + "/" + unhacked[name]) % (path + "/" + i.name()));
-                unhacked[name] = i.name();
-||||||| merged common ancestors
-                    throw Error(format("file name collision in between '%1%' and '%2%'")
-                        % (path + "/" + unhacked[name]) % (path + "/" + i.name));
-                unhacked[name] = i.name;
-=======
                     throw Error("file name collision in between '%1%' and '%2%'",
                        (path + "/" + unhacked[name]),
-                       (path + "/" + i.name));
-                unhacked[name] = i.name;
->>>>>>> meson
+                       (path + "/" + i.name()));
+                unhacked[name] = i.name();
             } else
                 unhacked[i.name()] = i.name();
 
@@ -434,17 +404,11 @@ struct RestoreSink : ParseSink
         Path p = dstPath + path;
 #ifndef _WIN32
         if (mkdir(p.c_str(), 0777) == -1)
-<<<<<<< HEAD
-            throw PosixError(format("creating directory '%1%'") % p);
+            throw PosixError("creating directory '%1%'", p);
 #else
         if (!CreateDirectoryW(pathW(p).c_str(), NULL))
             throw WinError("CreateDirectoryW when RestoreSink '%1%'", p);
 #endif
-||||||| merged common ancestors
-            throw SysError(format("creating directory '%1%'") % p);
-=======
-            throw SysError("creating directory '%1%'", p);
->>>>>>> meson
     };
 
     void createRegularFile(const Path & path)
@@ -452,19 +416,13 @@ struct RestoreSink : ParseSink
         Path p = dstPath + path;
 #ifndef _WIN32
         fd = open(p.c_str(), O_CREAT | O_EXCL | O_WRONLY | O_CLOEXEC, 0666);
-<<<<<<< HEAD
-        if (!fd) throw PosixError(format("creating file '%1%'") % p);
+        if (!fd) throw PosixError("creating file '%1%'", p);
 #else
         fd = CreateFileW(pathW(p).c_str(), GENERIC_WRITE, 0, NULL, CREATE_NEW,
                          FILE_ATTRIBUTE_NORMAL | FILE_FLAG_POSIX_SEMANTICS, NULL);
         if (fd.get() == INVALID_HANDLE_VALUE)
             throw WinError("CreateFileW when RestoreSink '%1%'", p);
 #endif
-||||||| merged common ancestors
-        if (!fd) throw SysError(format("creating file '%1%'") % p);
-=======
-        if (!fd) throw SysError("creating file '%1%'", p);
->>>>>>> meson
     }
 
 #ifndef _WIN32
@@ -492,13 +450,7 @@ struct RestoreSink : ParseSink
                OpenSolaris).  Since preallocation is just an
                optimisation, ignore it. */
             if (errno && errno != EINVAL && errno != EOPNOTSUPP && errno != ENOSYS)
-<<<<<<< HEAD
-                throw PosixError(format("preallocating file of %1% bytes") % len);
-||||||| merged common ancestors
-                throw SysError(format("preallocating file of %1% bytes") % len);
-=======
-                throw SysError("preallocating file of %1% bytes", len);
->>>>>>> meson
+                throw PosixError("preallocating file of %1% bytes", len);
         }
 #endif
     }
