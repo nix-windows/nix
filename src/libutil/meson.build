@@ -10,41 +10,54 @@
 src_inc += include_directories('.')
 
 libutil_src = files(
-    join_paths(meson.source_root(), 'src/libutil/affinity.cc'),
-    join_paths(meson.source_root(), 'src/libutil/archive.cc'),
-    join_paths(meson.source_root(), 'src/libutil/args.cc'),
-    join_paths(meson.source_root(), 'src/libutil/compression.cc'),
-    join_paths(meson.source_root(), 'src/libutil/config.cc'),
-    join_paths(meson.source_root(), 'src/libutil/hash.cc'),
-    join_paths(meson.source_root(), 'src/libutil/json.cc'),
-    join_paths(meson.source_root(), 'src/libutil/logging.cc'),
-    join_paths(meson.source_root(), 'src/libutil/serialise.cc'),
-    join_paths(meson.source_root(), 'src/libutil/thread-pool.cc'),
-    join_paths(meson.source_root(), 'src/libutil/util.cc'),
-    join_paths(meson.source_root(), 'src/libutil/xml-writer.cc'))
-
+    'affinity.cc',
+    'archive.cc',
+    'args.cc',
+    'compression.cc',
+    'config.cc',
+    'error.cc',
+    'hash.cc',
+    'json.cc',
+    'logging.cc',
+    'rust-ffi.cc',
+    'serialise.cc',
+    'tarfile.cc',
+    'thread-pool.cc',
+    'url.cc',
+    'util.cc',
+    'xml-writer.cc',
+)
 libutil_headers = files(
-    join_paths(meson.source_root(), 'src/libutil/affinity.hh'),
-    join_paths(meson.source_root(), 'src/libutil/archive.hh'),
-    join_paths(meson.source_root(), 'src/libutil/args.hh'),
-    join_paths(meson.source_root(), 'src/libutil/compression.hh'),
-    join_paths(meson.source_root(), 'src/libutil/config.hh'),
-    join_paths(meson.source_root(), 'src/libutil/finally.hh'),
-    join_paths(meson.source_root(), 'src/libutil/hash.hh'),
-    join_paths(meson.source_root(), 'src/libutil/istringstream_nocopy.hh'),
-    join_paths(meson.source_root(), 'src/libutil/json.hh'),
-    join_paths(meson.source_root(), 'src/libutil/lazy.hh'),
-    join_paths(meson.source_root(), 'src/libutil/logging.hh'),
-    join_paths(meson.source_root(), 'src/libutil/lru-cache.hh'),
-    join_paths(meson.source_root(), 'src/libutil/monitor-fd.hh'),
-    join_paths(meson.source_root(), 'src/libutil/pool.hh'),
-    join_paths(meson.source_root(), 'src/libutil/ref.hh'),
-    join_paths(meson.source_root(), 'src/libutil/serialise.hh'),
-    join_paths(meson.source_root(), 'src/libutil/sync.hh'),
-    join_paths(meson.source_root(), 'src/libutil/thread-pool.hh'),
-    join_paths(meson.source_root(), 'src/libutil/types.hh'),
-    join_paths(meson.source_root(), 'src/libutil/util.hh'),
-    join_paths(meson.source_root(), 'src/libutil/xml-writer.hh')
+    'abstract-setting-to-json.hh',
+    'affinity.hh',
+    'ansicolor.hh',
+    'archive.hh',
+    'args.hh',
+    'callback.hh',
+    'compression.hh',
+    'config.hh',
+    'error.hh',
+    'finally.hh',
+    'fmt.hh',
+    'hash.hh',
+    'json.hh',
+    'logging.hh',
+    'lru-cache.hh',
+    'monitor-fd.hh',
+    'pool.hh',
+    'ref.hh',
+    'rust-ffi.hh',
+    'serialise.hh',
+    'split.hh',
+    'sync.hh',
+    'tarfile.hh',
+    'thread-pool.hh',
+    'topo-sort.hh',
+    'types.hh',
+    'url.hh',
+    'url-parts.hh',
+    'util.hh',
+    'xml-writer.hh',
 )
 
 
@@ -53,13 +66,16 @@ libutil_headers = files(
 #============================================================================
 
 libutil_dep_list = [
+    libarchive_dep,
     boost_dep,
     libbz2_dep,
     liblzma_dep,
     libbrotli_dep,
     openssl_dep,
     pthread_dep,
-    libsodium_dep]
+    libsodium_dep,
+    zlib_dep,
+]
 
 
 

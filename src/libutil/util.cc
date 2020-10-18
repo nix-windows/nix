@@ -1,4 +1,3 @@
-#include "lazy.hh"
 #include "util.hh"
 #include "affinity.hh"
 #include "sync.hh"
@@ -10,15 +9,38 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <climits>
 #include <iostream>
 #include <sstream>
 #include <thread>
 #include <future>
 
 #include <fcntl.h>
+<<<<<<< HEAD
 #include <limits.h>
+||||||| merged common ancestors
+#include <grp.h>
+#include <limits.h>
+#include <pwd.h>
+#include <sys/ioctl.h>
+=======
+#include <grp.h>
+#include <pwd.h>
+#include <sys/ioctl.h>
+>>>>>>> meson
 #include <sys/types.h>
+<<<<<<< HEAD
 #ifndef _MSC_VER
+||||||| merged common ancestors
+#include <sys/socket.h>
+#include <sys/wait.h>
+#include <sys/un.h>
+=======
+#include <sys/socket.h>
+#include <sys/wait.h>
+#include <sys/time.h>
+#include <sys/un.h>
+>>>>>>> meson
 #include <unistd.h>
 #endif
 
@@ -57,6 +79,7 @@ extern char * * environ __attribute__((weak));
 
 namespace nix {
 
+<<<<<<< HEAD
 #ifdef _WIN32
 std::string to_bytes(const std::wstring & path) {
     std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
@@ -145,7 +168,7 @@ std::string PosixError::addErrno(const std::string & s)
 }
 
 #ifdef _WIN32
-std::string WinError::addLastError(const std::string & s)
+hintfmt WinError::addLastError(hintfmt && hf)
 {
     lastError = GetLastError();
     LPSTR errorText = NULL;
@@ -161,11 +184,11 @@ std::string WinError::addLastError(const std::string & s)
                     NULL);   // arguments - see note
 
     if (NULL != errorText ) {
-        std::string s2 = (format("%1% lastError=%2% %3%") % s % lastError % errorText).str();
+        auto s2 = hintfmt("%1% lastError=%2% %3%", hf, lastError, errorText);
         LocalFree(errorText);
         return s2;
     }
-    return (format("%1% lastError=%2%") % s % lastError).str();
+    return hintfmt("%1% lastError=%2%", hf, lastError);
 }
 #endif
 
@@ -223,6 +246,29 @@ std::wstring getEnvW(const std::wstring & key, const std::wstring & def)
 }
 
 string getEnv(const string & key, const string & def)
+||||||| merged common ancestors
+
+const std::string nativeSystem = SYSTEM;
+
+
+BaseError & BaseError::addPrefix(const FormatOrString & fs)
+{
+    prefix_ = fs.s + prefix_;
+    return *this;
+}
+
+
+std::string SysError::addErrno(const std::string & s)
+{
+    errNo = errno;
+    return s + ": " + strerror(errNo);
+}
+
+
+string getEnv(const string & key, const string & def)
+=======
+std::optional<std::string> getEnv(const std::string & key)
+>>>>>>> meson
 {
     return to_bytes(getEnvW(from_bytes(key), from_bytes(def)));
 }
@@ -260,7 +306,8 @@ std::map<std::string, std::string> getEnv()
 string getEnv(const string & key, const string & def)
 {
     char * value = getenv(key.c_str());
-    return value ? string(value) : def;
+    if (!value) return {};
+    return std::string(value);
 }
 
 std::map<std::string, std::string> getEnv()
@@ -294,13 +341,19 @@ void replaceEnv(std::map<std::string, std::string> newEnv)
 #endif
 
 
+<<<<<<< HEAD
 
 #ifndef _WIN32
 Path absPath(Path path, Path dir)
+||||||| merged common ancestors
+Path absPath(Path path, Path dir)
+=======
+Path absPath(Path path, std::optional<Path> dir, bool resolveSymlinks)
+>>>>>>> meson
 {
 //  std::cerr << "absPath("<<path<<", "<<dir<<")"<<std::endl;
     if (path[0] != '/') {
-        if (dir == "") {
+        if (!dir) {
 #ifdef __GNU__
             /* GNU (aka. GNU/Hurd) doesn't have any limitation on path
                lengths and doesn't define `PATH_MAX'.  */
@@ -316,9 +369,9 @@ Path absPath(Path path, Path dir)
             free(buf);
 #endif
         }
-        path = dir + "/" + path;
+        path = *dir + "/" + path;
     }
-    return canonPath(path);
+    return canonPath(path, resolveSymlinks);
 }
 #else
 Path absPath(Path path, Path dir)
@@ -365,8 +418,14 @@ std::optional<Path> maybeCanonPath(const Path & path, bool resolveSymlinks)
         return std::optional<Path>();
 #else
     if (path[0] != '/')
+<<<<<<< HEAD
         return std::optional<Path>();
 #endif
+||||||| merged common ancestors
+        throw Error(format("not an absolute path: '%1%'") % path);
+=======
+        throw Error("not an absolute path: '%1%'", path);
+>>>>>>> meson
 
     string temp;
 
@@ -401,7 +460,7 @@ std::optional<Path> maybeCanonPath(const Path & path, bool resolveSymlinks)
                the symlink target might contain new symlinks). */
             if (resolveSymlinks && isLink(s)) {
                 if (++followCount >= maxFollow)
-                    throw Error(format("infinite symlink recursion in path '%1%'") % path);
+                    throw Error("infinite symlink recursion in path '%1%'", path);
                 temp = absPath(readLink(s), dirOf(s))
                     + string(i, end);
                 end = temp.end();
@@ -501,25 +560,45 @@ Path dirOf(const Path & path)
 }
 
 
-string baseNameOf(const Path & path)
+std::string_view baseNameOf(std::string_view path)
 {
 // fprintf(stderr, "baseNameOf(%s)\n", path.c_str());
     if (path.empty())
         return "";
 
+<<<<<<< HEAD
     Path::size_type last = path.length() - 1;
     if (isslash(path[last]) && last > 0)
+||||||| merged common ancestors
+    Path::size_type last = path.length() - 1;
+    if (path[last] == '/' && last > 0)
+=======
+    auto last = path.size() - 1;
+    if (path[last] == '/' && last > 0)
+>>>>>>> meson
         last -= 1;
 
+<<<<<<< HEAD
     Path::size_type pos = rfindSlash(path, last);
+||||||| merged common ancestors
+    Path::size_type pos = path.rfind('/', last);
+=======
+    auto pos = path.rfind('/', last);
+>>>>>>> meson
     if (pos == string::npos)
         pos = 0;
     else
         pos += 1;
 
+<<<<<<< HEAD
     Path rc = string(path, pos, last - pos + 1);
 // fprintf(stderr, "baseNameOf(%s) -> [%s]\n", path.c_str(), rc.c_str());
     return rc;
+||||||| merged common ancestors
+    return string(path, pos, last - pos + 1);
+=======
+    return path.substr(pos, last - pos + 1);
+>>>>>>> meson
 }
 
 
@@ -556,10 +635,16 @@ struct stat lstatPath(const Path & path)
     struct stat st;
 #ifndef _WIN32
     if (lstat(path.c_str(), &st))
+<<<<<<< HEAD
 #else
     if (stat(path.c_str(), &st))
 #endif
         throw PosixError(format("getting status-1 of '%1%'") % path);
+||||||| merged common ancestors
+        throw SysError(format("getting status of '%1%'") % path);
+=======
+        throw SysError("getting status of '%1%'", path);
+>>>>>>> meson
     return st;
 }
 
@@ -570,12 +655,22 @@ bool pathExists(const Path & path)
     int res;
     struct stat st;
     res = lstat(path.c_str(), &st);
+<<<<<<< HEAD
     if (!res) {
         return true;
     }
     if (errno != ENOENT && errno != ENOTDIR) {
         throw PosixError(format("getting status-2 of %1%") % path);
     }
+||||||| merged common ancestors
+    if (!res) return true;
+    if (errno != ENOENT && errno != ENOTDIR)
+        throw SysError(format("getting status of %1%") % path);
+=======
+    if (!res) return true;
+    if (errno != ENOENT && errno != ENOTDIR)
+        throw SysError("getting status of %1%", path);
+>>>>>>> meson
     return false;
 }
 #else
@@ -698,17 +793,30 @@ bool isDirectory(const Path & path)
     return getFileType(path) == DT_DIR;
 }
 
+<<<<<<< HEAD
 #ifndef _WIN32
 DirEntries readDirectory(const Path & path)
+||||||| merged common ancestors
+DirEntries readDirectory(const Path & path)
+=======
+DirEntries readDirectory(DIR *dir, const Path & path)
+>>>>>>> meson
 {
     DirEntries entries;
     entries.reserve(64);
 
+<<<<<<< HEAD
     AutoCloseDir dir(opendir(path.c_str()));
     if (!dir) throw PosixError(format("opening directory '%1%'") % path);
 
+||||||| merged common ancestors
+    AutoCloseDir dir(opendir(path.c_str()));
+    if (!dir) throw SysError(format("opening directory '%1%'") % path);
+
+=======
+>>>>>>> meson
     struct dirent * dirent;
-    while (errno = 0, dirent = readdir(dir.get())) { /* sic */
+    while (errno = 0, dirent = readdir(dir)) { /* sic */
         checkInterrupt();
         string name = dirent->d_name;
         if (name == "." || name == "..") continue;
@@ -720,7 +828,13 @@ DirEntries readDirectory(const Path & path)
 #endif
         );
     }
+<<<<<<< HEAD
     if (errno) throw PosixError(format("reading directory '%1%'") % path);
+||||||| merged common ancestors
+    if (errno) throw SysError(format("reading directory '%1%'") % path);
+=======
+    if (errno) throw SysError("reading directory '%1%'", path);
+>>>>>>> meson
 
     return entries;
 }
@@ -755,6 +869,14 @@ std::cerr << "readDirectory("<<path<<")"<<std::endl;
 }
 #endif
 
+DirEntries readDirectory(const Path & path)
+{
+    AutoCloseDir dir(opendir(path.c_str()));
+    if (!dir) throw SysError("opening directory '%1%'", path);
+
+    return readDirectory(dir.get(), path);
+}
+
 
 unsigned char getFileType(const Path & path)
 {
@@ -785,10 +907,7 @@ string readFile(int fd)
     if (fstat(fd, &st) == -1)
         throw PosixError("statting file");
 
-    std::vector<unsigned char> buf(st.st_size);
-    readFull(fd, buf.data(), st.st_size);
-
-    return string((char *) buf.data(), st.st_size);
+    return drainFD(fd, true, st.st_size);
 }
 #else
 string readFile(HANDLE handle)
@@ -805,12 +924,13 @@ string readFile(HANDLE handle)
 #endif
 
 
-string readFile(const Path & path, bool drain)
+string readFile(const Path & path)
 {
 // std::cerr << "readFile("<<path<<", drain="<<drain<<")" << std::endl;
 #ifndef _WIN32
     AutoCloseFD fd = open(path.c_str(), O_RDONLY | O_CLOEXEC );
     if (!fd)
+<<<<<<< HEAD
         throw PosixError(format("opening file '%1%'") % path);
 #else
 //std::cerr << "readFile-1(" << path << ")" << std::endl;
@@ -819,6 +939,13 @@ string readFile(const Path & path, bool drain)
         throw WinError("CreateFileW when readFile '%1%' drain=%2%", path, drain);
 #endif
     return drain ? drainFD(fd.get()) : readFile(fd.get());
+||||||| merged common ancestors
+        throw SysError(format("opening file '%1%'") % path);
+    return drain ? drainFD(fd.get()) : readFile(fd.get());
+=======
+        throw SysError("opening file '%1%'", path);
+    return readFile(fd.get());
+>>>>>>> meson
 }
 
 
@@ -827,6 +954,7 @@ void readFile(const Path & path, Sink & sink)
 // std::cerr << "readFile("<<path<<")" << std::endl;
 #ifndef _WIN32
     AutoCloseFD fd = open(path.c_str(), O_RDONLY | O_CLOEXEC);
+<<<<<<< HEAD
     if (!fd) throw PosixError("opening file '%s'", path);
 #else
 //std::cerr << "readFile-2(" << path << ")" << std::endl;
@@ -834,6 +962,12 @@ void readFile(const Path & path, Sink & sink)
     if (fd.get() == INVALID_HANDLE_VALUE)
         throw WinError("CreateFileW when readFile '%1%'", path);
 #endif
+||||||| merged common ancestors
+    if (!fd) throw SysError("opening file '%s'", path);
+=======
+    if (!fd)
+        throw SysError("opening file '%s'", path);
+>>>>>>> meson
     drainFD(fd.get(), sink);
 }
 
@@ -843,6 +977,7 @@ void writeFile(const Path & path, const string & s, mode_t mode)
 {
     AutoCloseFD fd = open(path.c_str(), O_WRONLY | O_TRUNC | O_CREAT | O_CLOEXEC, mode);
     if (!fd)
+<<<<<<< HEAD
         throw PosixError(format("opening file '%1%'") % path);
 #else
 void writeFile(const Path & path, const string & s, bool setReadOnlyAttribute)
@@ -854,6 +989,18 @@ void writeFile(const Path & path, const string & s, bool setReadOnlyAttribute)
         throw WinError("CreateFileW when writeFile '%1%' s.length=%2%", path, s.length());
 #endif
     writeFull(fd.get(), s);
+||||||| merged common ancestors
+        throw SysError(format("opening file '%1%'") % path);
+    writeFull(fd.get(), s);
+=======
+        throw SysError("opening file '%1%'", path);
+    try {
+        writeFull(fd.get(), s);
+    } catch (Error & e) {
+        e.addTrace({}, "writing file '%1%'", path);
+        throw;
+    }
+>>>>>>> meson
 }
 
 
@@ -862,6 +1009,7 @@ void writeFile(const Path & path, Source & source, mode_t mode)
 {
     AutoCloseFD fd = open(path.c_str(), O_WRONLY | O_TRUNC | O_CREAT | O_CLOEXEC, mode);
     if (!fd)
+<<<<<<< HEAD
         throw PosixError(format("opening file '%1%'") % path);
 #else
 void writeFile(const Path & path, Source & source, bool setReadOnlyAttribute)
@@ -872,18 +1020,33 @@ void writeFile(const Path & path, Source & source, bool setReadOnlyAttribute)
     if (fd.get() == INVALID_HANDLE_VALUE)
         throw WinError("CreateFileW when writeFile '%1%'", path);
 #endif
+||||||| merged common ancestors
+        throw SysError(format("opening file '%1%'") % path);
+=======
+        throw SysError("opening file '%1%'", path);
+>>>>>>> meson
 
     std::vector<unsigned char> buf(64 * 1024);
 
-    while (true) {
-        try {
-            auto n = source.read(buf.data(), buf.size());
-            writeFull(fd.get(), (unsigned char *) buf.data(), n);
-        } catch (EndOfFile &) { break; }
+    try {
+        while (true) {
+            try {
+                auto n = source.read(buf.data(), buf.size());
+                writeFull(fd.get(), (unsigned char *) buf.data(), n);
+            } catch (EndOfFile &) { break; }
+        }
+    } catch (Error & e) {
+        e.addTrace({}, "writing file '%1%'", path);
+        throw;
     }
 }
 
+<<<<<<< HEAD
 #ifndef _WIN32
+||||||| merged common ancestors
+
+=======
+>>>>>>> meson
 string readLine(int fd)
 {
     string s;
@@ -938,15 +1101,37 @@ void writeLine(HANDLE handle, string s)
 }
 #endif
 
+<<<<<<< HEAD
 #ifndef _WIN32
 static void _deletePath(const Path & path, unsigned long long & bytesFreed)
+||||||| merged common ancestors
+
+static void _deletePath(const Path & path, unsigned long long & bytesFreed)
+=======
+
+static void _deletePath(int parentfd, const Path & path, uint64_t & bytesFreed)
+>>>>>>> meson
 {
     checkInterrupt();
 
+    string name(baseNameOf(path));
+
     struct stat st;
+<<<<<<< HEAD
     if (stat(path.c_str(), &st) == -1) {
+||||||| merged common ancestors
+    if (lstat(path.c_str(), &st) == -1) {
+=======
+    if (fstatat(parentfd, name.c_str(), &st, AT_SYMLINK_NOFOLLOW) == -1) {
+>>>>>>> meson
         if (errno == ENOENT) return;
+<<<<<<< HEAD
         throw PosixError(format("getting status-3 of '%1%'") % path);
+||||||| merged common ancestors
+        throw SysError(format("getting status of '%1%'") % path);
+=======
+        throw SysError("getting status of '%1%'", path);
+>>>>>>> meson
     }
 
     if (!S_ISDIR(st.st_mode) && st.st_nlink == 1)
@@ -956,24 +1141,81 @@ static void _deletePath(const Path & path, unsigned long long & bytesFreed)
         /* Make the directory accessible. */
         const auto PERM_MASK = S_IRUSR | S_IWUSR | S_IXUSR;
         if ((st.st_mode & PERM_MASK) != PERM_MASK) {
+<<<<<<< HEAD
             if (chmod(path.c_str(), st.st_mode | PERM_MASK) == -1)
                 throw PosixError(format("chmod '%1%'") % path);
+||||||| merged common ancestors
+            if (chmod(path.c_str(), st.st_mode | PERM_MASK) == -1)
+                throw SysError(format("chmod '%1%'") % path);
+=======
+            if (fchmodat(parentfd, name.c_str(), st.st_mode | PERM_MASK, 0) == -1)
+                throw SysError("chmod '%1%'", path);
+>>>>>>> meson
         }
+<<<<<<< HEAD
         for (auto & i : readDirectory(path))
             _deletePath(path + "/" + i.name(), bytesFreed);
+||||||| merged common ancestors
+
+        for (auto & i : readDirectory(path))
+            _deletePath(path + "/" + i.name, bytesFreed);
+=======
+
+        int fd = openat(parentfd, path.c_str(), O_RDONLY);
+        if (!fd)
+            throw SysError("opening directory '%1%'", path);
+        AutoCloseDir dir(fdopendir(fd));
+        if (!dir)
+            throw SysError("opening directory '%1%'", path);
+        for (auto & i : readDirectory(dir.get(), path))
+            _deletePath(dirfd(dir.get()), path + "/" + i.name, bytesFreed);
     }
 
-    if (remove(path.c_str()) == -1) {
+    int flags = S_ISDIR(st.st_mode) ? AT_REMOVEDIR : 0;
+    if (unlinkat(parentfd, name.c_str(), flags) == -1) {
         if (errno == ENOENT) return;
-        throw PosixError(format("cannot unlink '%1%'") % path);
+        throw SysError("cannot unlink '%1%'", path);
+>>>>>>> meson
     }
+}
+
+static void _deletePath(const Path & path, uint64_t & bytesFreed)
+{
+    Path dir = dirOf(path);
+    if (dir == "")
+        dir = "/";
+
+    AutoCloseFD dirfd(open(dir.c_str(), O_RDONLY));
+    if (!dirfd) {
+        // This really shouldn't fail silently, but it's left this way
+        // for backwards compatibility.
+        if (errno == ENOENT) return;
+<<<<<<< HEAD
+        throw PosixError(format("cannot unlink '%1%'") % path);
+||||||| merged common ancestors
+        throw SysError(format("cannot unlink '%1%'") % path);
+=======
+
+        throw SysError("opening directory '%1%'", path);
+>>>>>>> meson
+    }
+
+    _deletePath(dirfd.get(), path, bytesFreed);
 }
 
 void deletePath(const Path & path, unsigned long long & bytesFreed)
 {
+<<<<<<< HEAD
     //Activity act(*logger, lvlDebug, format("recursively deleting path '%1%'") % path);
     bytesFreed = 0;
     _deletePath(path, bytesFreed);
+||||||| merged common ancestors
+    unsigned long long dummy;
+    deletePath(path, dummy);
+=======
+    uint64_t dummy;
+    deletePath(path, dummy);
+>>>>>>> meson
 }
 
 #else
@@ -1045,7 +1287,7 @@ static void _deletePath(const std::wstring & wpath, const DWORD * pdwFileAttribu
     }
 }
 
-void deletePath(const Path & path, unsigned long long & bytesFreed)
+void deletePath(const Path & path, uint64_t & bytesFreed)
 {
     std::cerr << "deletePath("<<path<<")"<<std::endl;
     //Activity act(*logger, lvlDebug, format("recursively deleting path '%1%'") % path);
@@ -1066,10 +1308,16 @@ void deletePath(const Path & path)
 static Path tempName(Path tmpRoot, const Path & prefix, bool includePid,
     int & counter)
 {
+<<<<<<< HEAD
 //std::cerr << "tempName("<<tmpRoot<<", "<<prefix<<", includePid="<<includePid<<", counter="<<counter<<")"<<std::endl;
 #ifndef _WIN32
     if (tmpRoot.empty()) tmpRoot = getEnv("TMPDIR", "/tmp");
     tmpRoot = canonPath(tmpRoot, true);
+||||||| merged common ancestors
+    tmpRoot = canonPath(tmpRoot.empty() ? getEnv("TMPDIR", "/tmp") : tmpRoot, true);
+=======
+    tmpRoot = canonPath(tmpRoot.empty() ? getEnv("TMPDIR").value_or("/tmp") : tmpRoot, true);
+>>>>>>> meson
     if (includePid)
         return (format("%1%/%2%-%3%-%4%") % tmpRoot % prefix % getpid() % counter++).str();
     else
@@ -1110,12 +1358,24 @@ Path createTempDir(const Path & tmpRoot, const Path & prefix, bool includePid, b
                "wheel", then "tar" will fail to unpack archives that
                have the setgid bit set on directories. */
             if (chown(tmpDir.c_str(), (uid_t) -1, getegid()) != 0)
+<<<<<<< HEAD
                 throw PosixError(format("setting group of directory '%1%'") % tmpDir);
+||||||| merged common ancestors
+                throw SysError(format("setting group of directory '%1%'") % tmpDir);
+=======
+                throw SysError("setting group of directory '%1%'", tmpDir);
+>>>>>>> meson
 #endif
             return tmpDir;
         }
         if (errno != EEXIST)
+<<<<<<< HEAD
             throw PosixError(format("creating directory '%1%'") % tmpDir);
+||||||| merged common ancestors
+            throw SysError(format("creating directory '%1%'") % tmpDir);
+=======
+            throw SysError("creating directory '%1%'", tmpDir);
+>>>>>>> meson
     }
 }
 #else
@@ -1140,20 +1400,39 @@ Path createTempDir(const Path & tmpRoot, const Path & prefix, bool includePid, b
 #endif
 
 
+std::pair<AutoCloseFD, Path> createTempFile(const Path & prefix)
+{
+    Path tmpl(getEnv("TMPDIR").value_or("/tmp") + "/" + prefix + ".XXXXXX");
+    // Strictly speaking, this is UB, but who cares...
+    // FIXME: use O_TMPFILE.
+    AutoCloseFD fd(mkstemp((char *) tmpl.c_str()));
+    if (!fd)
+        throw SysError("creating temporary file '%s'", tmpl);
+    return {std::move(fd), tmpl};
+}
+
+
 std::string getUserName()
 {
 #ifndef _WIN32
     auto pw = getpwuid(geteuid());
+<<<<<<< HEAD
     std::string name = pw ? pw->pw_name : getEnv("USER", "");
 #else
     std::string name = getEnv("USER", "");
 #endif
+||||||| merged common ancestors
+    std::string name = pw ? pw->pw_name : getEnv("USER", "");
+=======
+    std::string name = pw ? pw->pw_name : getEnv("USER").value_or("");
+>>>>>>> meson
     if (name.empty())
         throw Error("cannot figure out user name");
     return name;
 }
 
 
+<<<<<<< HEAD
 static Lazy<Path> getHome2([]() {
 #ifndef _WIN32
     Path homeDir = getEnv("HOME");
@@ -1171,33 +1450,57 @@ static Lazy<Path> getHome2([]() {
     assert(!homeDir.empty());
     homeDir = canonPath(homeDir);
 #endif
+||||||| merged common ancestors
+static Lazy<Path> getHome2([]() {
+    Path homeDir = getEnv("HOME");
+    if (homeDir.empty()) {
+        std::vector<char> buf(16384);
+        struct passwd pwbuf;
+        struct passwd * pw;
+        if (getpwuid_r(geteuid(), &pwbuf, buf.data(), buf.size(), &pw) != 0
+            || !pw || !pw->pw_dir || !pw->pw_dir[0])
+            throw Error("cannot determine user's home directory");
+        homeDir = pw->pw_dir;
+    }
+=======
+Path getHome()
+{
+    static Path homeDir = []()
+    {
+        auto homeDir = getEnv("HOME");
+        if (!homeDir) {
+            std::vector<char> buf(16384);
+            struct passwd pwbuf;
+            struct passwd * pw;
+            if (getpwuid_r(geteuid(), &pwbuf, buf.data(), buf.size(), &pw) != 0
+                || !pw || !pw->pw_dir || !pw->pw_dir[0])
+                throw Error("cannot determine user's home directory");
+            homeDir = pw->pw_dir;
+        }
+        return *homeDir;
+    }();
+>>>>>>> meson
     return homeDir;
-});
-
-Path getHome() { return getHome2(); }
+}
 
 
 Path getCacheDir()
 {
-    Path cacheDir = getEnv("XDG_CACHE_HOME");
-    if (cacheDir.empty())
-        cacheDir = getHome() + "/.cache";
-    return cacheDir;
+    auto cacheDir = getEnv("XDG_CACHE_HOME");
+    return cacheDir ? *cacheDir : getHome() + "/.cache";
 }
 
 
 Path getConfigDir()
 {
-    Path configDir = getEnv("XDG_CONFIG_HOME");
-    if (configDir.empty())
-        configDir = getHome() + "/.config";
-    return configDir;
+    auto configDir = getEnv("XDG_CONFIG_HOME");
+    return configDir ? *configDir : getHome() + "/.config";
 }
 
 std::vector<Path> getConfigDirs()
 {
     Path configHome = getConfigDir();
-    string configDirs = getEnv("XDG_CONFIG_DIRS");
+    string configDirs = getEnv("XDG_CONFIG_DIRS").value_or("");
     std::vector<Path> result = tokenizeString<std::vector<string>>(configDirs, ":");
     result.insert(result.begin(), configHome);
     return result;
@@ -1206,10 +1509,8 @@ std::vector<Path> getConfigDirs()
 
 Path getDataDir()
 {
-    Path dataDir = getEnv("XDG_DATA_HOME");
-    if (dataDir.empty())
-        dataDir = getHome() + "/.local/share";
-    return dataDir;
+    auto dataDir = getEnv("XDG_DATA_HOME");
+    return dataDir ? *dataDir : getHome() + "/.local/share";
 }
 
 
@@ -1225,6 +1526,7 @@ Paths createDirs(const Path & path)
     if (lstat(path.c_str(), &st) == -1) {
         created = createDirs(dirOf(path));
         if (mkdir(path.c_str(), 0777) == -1 && errno != EEXIST)
+<<<<<<< HEAD
             throw PosixError(format("creating directory '%1%'") % path);
         st = lstatPath(path);
         created.push_back(path);
@@ -1258,29 +1560,72 @@ Paths createDirs(const Path & path)
         dw = GetFileAttributesW(wpath.c_str());
         if (dw == 0xFFFFFFFF)
             throw WinError("GetFileAttributesW after CreateDirectoryW of '%1%'", path);
+||||||| merged common ancestors
+            throw SysError(format("creating directory '%1%'") % path);
+        st = lstat(path);
+=======
+            throw SysError("creating directory '%1%'", path);
+        st = lstat(path);
+>>>>>>> meson
         created.push_back(path);
     }
 
+<<<<<<< HEAD
     if (dw & FILE_ATTRIBUTE_REPARSE_POINT) {
         std::cerr << "todo: follow symlink? '"<<path<<"' dw="<<dw<<std::endl;
         //_exit(112);
     }
+||||||| merged common ancestors
+    if (S_ISLNK(st.st_mode) && stat(path.c_str(), &st) == -1)
+        throw SysError(format("statting symlink '%1%'") % path);
+=======
+    if (S_ISLNK(st.st_mode) && stat(path.c_str(), &st) == -1)
+        throw SysError("statting symlink '%1%'", path);
+>>>>>>> meson
 
+<<<<<<< HEAD
     if (!(dw & FILE_ATTRIBUTE_DIRECTORY)) {
         throw Error(format("'%1%' is not a directory") % path);
     }
 #endif
+||||||| merged common ancestors
+    if (!S_ISDIR(st.st_mode)) throw Error(format("'%1%' is not a directory") % path);
+=======
+    if (!S_ISDIR(st.st_mode)) throw Error("'%1%' is not a directory", path);
+>>>>>>> meson
 
     return created;
 }
 
 
+<<<<<<< HEAD
 #ifndef _WIN32
 void createSymlink(const Path & target, const Path & link)
+||||||| merged common ancestors
+void createSymlink(const Path & target, const Path & link)
+=======
+void createSymlink(const Path & target, const Path & link,
+    std::optional<time_t> mtime)
+>>>>>>> meson
 {
     assert(!target.empty() && !link.empty());
     if (symlink(target.c_str(), link.c_str()))
+<<<<<<< HEAD
         throw PosixError(format("creating symlink from '%1%' to '%2%'") % link % target);
+||||||| merged common ancestors
+        throw SysError(format("creating symlink from '%1%' to '%2%'") % link % target);
+=======
+        throw SysError("creating symlink from '%1%' to '%2%'", link, target);
+    if (mtime) {
+        struct timeval times[2];
+        times[0].tv_sec = *mtime;
+        times[0].tv_usec = 0;
+        times[1].tv_sec = *mtime;
+        times[1].tv_usec = 0;
+        if (lutimes(link.c_str(), times))
+            throw SysError("setting time of symlink '%s'", link);
+    }
+>>>>>>> meson
 }
 #else
 SymlinkType createSymlink(const Path & target, const Path & link)
@@ -1329,7 +1674,8 @@ SymlinkType createSymlink(const Path & target, const Path & link)
 }
 #endif
 
-void replaceSymlink(const Path & target, const Path & link)
+void replaceSymlink(const Path & target, const Path & link,
+    std::optional<time_t> mtime)
 {
     assert(!target.empty() && !link.empty());
 #ifdef _WIN32
@@ -1340,13 +1686,22 @@ void replaceSymlink(const Path & target, const Path & link)
 
 #ifndef _WIN32
         try {
+<<<<<<< HEAD
             createSymlink(target, tmp);
         } catch (PosixError & e) {
+||||||| merged common ancestors
+            createSymlink(target, tmp);
+        } catch (SysError & e) {
+=======
+            createSymlink(target, tmp, mtime);
+        } catch (SysError & e) {
+>>>>>>> meson
             if (e.errNo == EEXIST) continue;
             throw;
         }
 
         if (rename(tmp.c_str(), link.c_str()) != 0)
+<<<<<<< HEAD
             throw PosixError(format("renaming '%1%' to '%2%'") % tmp % link);
 #else
         SymlinkType st;
@@ -1356,6 +1711,11 @@ void replaceSymlink(const Path & target, const Path & link)
             if (e.lastError == ERROR_ALREADY_EXISTS) continue;
             throw;
         }
+||||||| merged common ancestors
+            throw SysError(format("renaming '%1%' to '%2%'") % tmp % link);
+=======
+            throw SysError("renaming '%1%' to '%2%'", tmp, link);
+>>>>>>> meson
 
         if (!MoveFileExW(pathW(tmp).c_str(), pathW(link).c_str(), MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH)) {
             // MOVEFILE_REPLACE_EXISTING might fail with access denied, so try once more harder (atomicity suffers here)
@@ -1459,10 +1819,16 @@ void writeFull(HANDLE handle, const string & s, bool allowInterrupts)
 #endif
 
 
+<<<<<<< HEAD
 #ifndef _WIN32
 string drainFD(int fd, bool block)
+||||||| merged common ancestors
+string drainFD(int fd, bool block)
+=======
+string drainFD(int fd, bool block, const size_t reserveSize)
+>>>>>>> meson
 {
-    StringSink sink;
+    StringSink sink(reserveSize);
     drainFD(fd, sink, block);
     return std::move(*sink.s);
 }
@@ -1548,11 +1914,17 @@ AutoDelete::~AutoDelete()
             else {
 #ifndef _WIN32
                 if (remove(path.c_str()) == -1)
+<<<<<<< HEAD
                     throw PosixError(format("cannot unlink '%1%'") % path);
 #else
                 if (!DeleteFileW(pathW(path).c_str()))
                     throw WinError("DeleteFileW '%1%'", path);
 #endif
+||||||| merged common ancestors
+                    throw SysError(format("cannot unlink '%1%'") % path);
+=======
+                    throw SysError("cannot unlink '%1%'", path);
+>>>>>>> meson
             }
         }
     } catch (...) {
@@ -1618,7 +1990,13 @@ void AutoCloseFD::close()
     if (fd != -1) {
         if (::close(fd) == -1)
             /* This should never happen. */
+<<<<<<< HEAD
             throw PosixError(format("closing file descriptor %1%") % fd);
+||||||| merged common ancestors
+            throw SysError(format("closing file descriptor %1%") % fd);
+=======
+            throw SysError("closing file descriptor %1%", fd);
+>>>>>>> meson
     }
 }
 
@@ -1803,7 +2181,7 @@ int Pid::kill()
 {
     assert(pid != -1);
 
-    debug(format("killing process %1%") % pid);
+    debug("killing process %1%", pid);
 
     /* Send the requested signal to the child.  If it has its own
        process group, send the signal to every process in the child
@@ -1815,7 +2193,13 @@ int Pid::kill()
 #if __FreeBSD__ || __APPLE__
         if (errno != EPERM || ::kill(pid, 0) != 0)
 #endif
+<<<<<<< HEAD
             printError((PosixError("killing process %d", pid).msg()));
+||||||| merged common ancestors
+            printError((SysError("killing process %d", pid).msg()));
+=======
+            logError(SysError("killing process %d", pid).info());
+>>>>>>> meson
     }
 
     return wait();
@@ -1934,7 +2318,7 @@ int Pid::wait()
 #ifndef _WIN32
 void killUser(uid_t uid)
 {
-    debug(format("killing all processes running under uid '%1%'") % uid);
+    debug("killing all processes running under uid '%1%'", uid);
 
     assert(uid != 0); /* just to be safe... */
 
@@ -1963,7 +2347,13 @@ void killUser(uid_t uid)
 #endif
             if (errno == ESRCH) break; /* no more processes */
             if (errno != EINTR)
+<<<<<<< HEAD
                 throw PosixError(format("cannot kill processes for uid '%1%'") % uid);
+||||||| merged common ancestors
+                throw SysError(format("cannot kill processes for uid '%1%'") % uid);
+=======
+                throw SysError("cannot kill processes for uid '%1%'", uid);
+>>>>>>> meson
         }
 
         _exit(0);
@@ -1971,7 +2361,7 @@ void killUser(uid_t uid)
 
     int status = pid.wait();
     if (status != 0)
-        throw Error(format("cannot kill processes for uid '%1%': %2%") % uid % statusToString(status));
+        throw Error("cannot kill processes for uid '%1%': %2%", uid, statusToString(status));
 
     /* !!! We should really do some check to make sure that there are
        no processes left running under `uid', but there is no portable
@@ -2003,7 +2393,7 @@ pid_t startProcess(std::function<void()> fun, const ProcessOptions & options)
 {
     auto wrapper = [&]() {
         if (!options.allowVfork)
-            logger = makeDefaultLogger();
+            logger = makeSimpleLogger();
         try {
 #if __linux__
             if (options.dieWithParent && prctl(PR_SET_PDEATHSIG, SIGKILL) == -1)
@@ -2037,11 +2427,21 @@ std::vector<char *> stringsToCharPtrs(const Strings & ss)
     return res;
 }
 
+<<<<<<< HEAD
 RunOptions basic_options(Path program, bool searchPath, const Strings & args,
+||||||| merged common ancestors
+
+string runProgram(Path program, bool searchPath, const Strings & args,
+=======
+// Output = "standard out" output stream
+string runProgram(Path program, bool searchPath, const Strings & args,
+>>>>>>> meson
     const std::optional<std::string> & input)
 {
     RunOptions opts(program, args);
     opts.searchPath = searchPath;
+    // This allows you to refer to a program with a pathname relative to the
+    // PATH variable.
     opts.input = input;
     return opts;
 }
@@ -2064,7 +2464,14 @@ string runProgramGetStdout(const RunOptions & options_)
     return std::move(*sink.s);
 }
 
+<<<<<<< HEAD
 std::pair<int, std::string> runProgramWithStatus(const RunOptions & options_)
+||||||| merged common ancestors
+std::pair<int, std::string> runProgram(const RunOptions & options_)
+=======
+// Output = error code + "standard out" output stream
+std::pair<int, std::string> runProgram(const RunOptions & options_)
+>>>>>>> meson
 {
     RunOptions options(options_);
     StringSink sink;
@@ -2144,6 +2551,8 @@ void runProgram(const RunOptions & options)
 
         if (options.searchPath)
             execvp(options.program.c_str(), stringsToCharPtrs(args_).data());
+            // This allows you to refer to a program with a pathname relative
+            // to the PATH variable.
         else
             execv(options.program.c_str(), stringsToCharPtrs(args_).data());
 
@@ -2482,7 +2891,7 @@ void _interrupted()
 //////////////////////////////////////////////////////////////////////
 
 
-template<class C> C tokenizeString(const string & s, const string & separators)
+template<class C> C tokenizeString(std::string_view s, const string & separators)
 {
     C result;
     string::size_type pos = s.find_first_not_of(separators, 0);
@@ -2496,31 +2905,9 @@ template<class C> C tokenizeString(const string & s, const string & separators)
     return result;
 }
 
-template Strings tokenizeString(const string & s, const string & separators);
-template StringSet tokenizeString(const string & s, const string & separators);
-template vector<string> tokenizeString(const string & s, const string & separators);
-
-
-string concatStringsSep(const string & sep, const Strings & ss)
-{
-    string s;
-    for (auto & i : ss) {
-        if (s.size() != 0) s += sep;
-        s += i;
-    }
-    return s;
-}
-
-
-string concatStringsSep(const string & sep, const StringSet & ss)
-{
-    string s;
-    for (auto & i : ss) {
-        if (s.size() != 0) s += sep;
-        s += i;
-    }
-    return s;
-}
+template Strings tokenizeString(std::string_view s, const string & separators);
+template StringSet tokenizeString(std::string_view s, const string & separators);
+template vector<string> tokenizeString(std::string_view s, const string & separators);
 
 
 string chomp(const string & s)
@@ -2603,15 +2990,16 @@ bool statusOk(int status)
 }
 
 
-bool hasPrefix(const string & s, const string & prefix)
+bool hasPrefix(std::string_view s, std::string_view prefix)
 {
     return s.compare(0, prefix.size(), prefix) == 0;
 }
 
 
-bool hasSuffix(const string & s, const string & suffix)
+bool hasSuffix(std::string_view s, std::string_view suffix)
 {
-    return s.size() >= suffix.size() && string(s, s.size() - suffix.size()) == suffix;
+    return s.size() >= suffix.size()
+        && s.substr(s.size() - suffix.size()) == suffix;
 }
 
 
@@ -2710,7 +3098,7 @@ void ignoreException()
     try {
         throw;
     } catch (std::exception & e) {
-        printError(format("error (ignored): %1%") % e.what());
+        printError("error (ignored): %1%", e.what());
     }
 }
 
@@ -2767,7 +3155,7 @@ std::string filterANSIEscapes(const std::string & s, bool filterAll, unsigned in
 static char base64Chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 
-string base64Encode(const string & s)
+string base64Encode(std::string_view s)
 {
     string res;
     int data = 0, nbits = 0;
@@ -2788,7 +3176,7 @@ string base64Encode(const string & s)
 }
 
 
-string base64Decode(const string & s)
+string base64Decode(std::string_view s)
 {
     bool init = false;
     char decode[256];
@@ -2809,7 +3197,7 @@ string base64Decode(const string & s)
 
         char digit = decode[(unsigned char) c];
         if (digit == -1)
-            throw Error("invalid character in Base64 string");
+            throw Error("invalid character in Base64 string: '%c'", c);
 
         bits += 6;
         d = d << 6 | digit;
@@ -2823,15 +3211,45 @@ string base64Decode(const string & s)
 }
 
 
-void callFailure(const std::function<void(std::exception_ptr exc)> & failure, std::exception_ptr exc)
+std::string stripIndentation(std::string_view s)
 {
-    try {
-        failure(exc);
-    } catch (std::exception & e) {
-        printError(format("uncaught exception: %s") % e.what());
-        abort();
+    size_t minIndent = 10000;
+    size_t curIndent = 0;
+    bool atStartOfLine = true;
+
+    for (auto & c : s) {
+        if (atStartOfLine && c == ' ')
+            curIndent++;
+        else if (c == '\n') {
+            if (atStartOfLine)
+                minIndent = std::max(minIndent, curIndent);
+            curIndent = 0;
+            atStartOfLine = true;
+        } else {
+            if (atStartOfLine) {
+                minIndent = std::min(minIndent, curIndent);
+                atStartOfLine = false;
+            }
+        }
     }
+
+    std::string res;
+
+    size_t pos = 0;
+    while (pos < s.size()) {
+        auto eol = s.find('\n', pos);
+        if (eol == s.npos) eol = s.size();
+        if (eol - pos > minIndent)
+            res.append(s.substr(pos + minIndent, eol - pos - minIndent));
+        res.push_back('\n');
+        pos = eol + 1;
+    }
+
+    return res;
 }
+
+
+//////////////////////////////////////////////////////////////////////
 
 
 static Sync<std::pair<unsigned short, unsigned short>> windowSize{{0, 0}};
@@ -2840,7 +3258,7 @@ static Sync<std::pair<unsigned short, unsigned short>> windowSize{{0, 0}};
 static void updateWindowSize()
 {
     struct winsize ws;
-    if (ioctl(1, TIOCGWINSZ, &ws) == 0) {
+    if (ioctl(2, TIOCGWINSZ, &ws) == 0) {
         auto windowSize_(windowSize.lock());
         windowSize_->first = ws.ws_row;
         windowSize_->second = ws.ws_col;
@@ -2939,7 +3357,11 @@ std::unique_ptr<InterruptCallback> createInterruptCallback(std::function<void()>
 
 AutoCloseFD createUnixDomainSocket(const Path & path, mode_t mode)
 {
-    AutoCloseFD fdSocket = socket(PF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    AutoCloseFD fdSocket = socket(PF_UNIX, SOCK_STREAM
+        #ifdef SOCK_CLOEXEC
+        | SOCK_CLOEXEC
+        #endif
+        , 0);
     if (!fdSocket)
         throw PosixError("cannot create Unix domain socket");
 
@@ -2947,7 +3369,7 @@ AutoCloseFD createUnixDomainSocket(const Path & path, mode_t mode)
 
     struct sockaddr_un addr;
     addr.sun_family = AF_UNIX;
-    if (path.size() >= sizeof(addr.sun_path))
+    if (path.size() + 1 >= sizeof(addr.sun_path))
         throw Error("socket path '%1%' is too long", path);
     strcpy(addr.sun_path, path.c_str());
 
@@ -2965,5 +3387,41 @@ AutoCloseFD createUnixDomainSocket(const Path & path, mode_t mode)
     return fdSocket;
 }
 #endif
+
+
+string showBytes(uint64_t bytes)
+{
+    return fmt("%.2f MiB", bytes / (1024.0 * 1024.0));
+}
+
+
+void commonChildInit(Pipe & logPipe)
+{
+    const static string pathNullDevice = "/dev/null";
+    restoreSignals();
+
+    /* Put the child in a separate session (and thus a separate
+       process group) so that it has no controlling terminal (meaning
+       that e.g. ssh cannot open /dev/tty) and it doesn't receive
+       terminal signals. */
+    if (setsid() == -1)
+        throw SysError("creating a new session");
+
+    /* Dup the write side of the logger pipe into stderr. */
+    if (dup2(logPipe.writeSide.get(), STDERR_FILENO) == -1)
+        throw SysError("cannot pipe standard error into log file");
+
+    /* Dup stderr to stdout. */
+    if (dup2(STDERR_FILENO, STDOUT_FILENO) == -1)
+        throw SysError("cannot dup stderr into stdout");
+
+    /* Reroute stdin to /dev/null. */
+    int fdDevNull = open(pathNullDevice.c_str(), O_RDWR);
+    if (fdDevNull == -1)
+        throw SysError("cannot open '%1%'", pathNullDevice);
+    if (dup2(fdDevNull, STDIN_FILENO) == -1)
+        throw SysError("cannot dup null device into stdin");
+    close(fdDevNull);
+}
 
 }

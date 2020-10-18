@@ -1,6 +1,7 @@
 #include "archive.hh"
 #include "fs-accessor.hh"
 #include "store-api.hh"
+#include "local-fs-store.hh"
 #include "globals.hh"
 #include "compression.hh"
 #include "derivations.hh"
@@ -20,9 +21,9 @@ struct LocalStoreAccessor : public FSAccessor
 
     Path toRealPath(const Path & path)
     {
-        Path storePath = store->toStorePath(path);
+        auto storePath = store->toStorePath(path).first;
         if (!store->isValidPath(storePath))
-            throw InvalidPath(format("path '%1%' is not a valid store path") % storePath);
+            throw InvalidPath("path '%1%' is not a valid store path", store->printStorePath(storePath));
         return store->getRealStoreDir() + std::string(path, store->storeDir.size());
     }
 
@@ -33,11 +34,17 @@ struct LocalStoreAccessor : public FSAccessor
         struct stat st;
         if (lstat(realPath.c_str(), &st)) {
             if (errno == ENOENT || errno == ENOTDIR) return {Type::tMissing, 0, false};
+<<<<<<< HEAD
             throw PosixError(format("getting status-7 of '%1%'") % path);
+||||||| merged common ancestors
+            throw SysError(format("getting status of '%1%'") % path);
+=======
+            throw SysError("getting status of '%1%'", path);
+>>>>>>> meson
         }
 
         if (!S_ISREG(st.st_mode) && !S_ISDIR(st.st_mode) && !S_ISLNK(st.st_mode))
-            throw Error(format("file '%1%' has unsupported type") % path);
+            throw Error("file '%1%' has unsupported type", path);
 
         return {
             S_ISREG(st.st_mode) ? Type::tRegular :
@@ -98,34 +105,32 @@ ref<FSAccessor> LocalFSStore::getFSAccessor()
             std::dynamic_pointer_cast<LocalFSStore>(shared_from_this())));
 }
 
-void LocalFSStore::narFromPath(const Path & path, Sink & sink)
+void LocalFSStore::narFromPath(const StorePath & path, Sink & sink)
 {
     if (!isValidPath(path))
-        throw Error(format("path '%s' is not valid") % path);
-    dumpPath(getRealStoreDir() + std::string(path, storeDir.size()), sink);
+        throw Error("path '%s' is not valid", printStorePath(path));
+    dumpPath(getRealStoreDir() + std::string(printStorePath(path), storeDir.size()), sink);
 }
 
 const string LocalFSStore::drvsLogDir = "drvs";
 
 
 
-std::shared_ptr<std::string> LocalFSStore::getBuildLog(const Path & path_)
+std::shared_ptr<std::string> LocalFSStore::getBuildLog(const StorePath & path_)
 {
-    auto path(path_);
+    auto path = path_;
 
-    assertStorePath(path);
-
-
-    if (!isDerivation(path)) {
+    if (!path.isDerivation()) {
         try {
-            path = queryPathInfo(path)->deriver;
+            auto info = queryPathInfo(path);
+            if (!info->deriver) return nullptr;
+            path = *info->deriver;
         } catch (InvalidPath &) {
             return nullptr;
         }
-        if (path == "") return nullptr;
     }
 
-    string baseName = baseNameOf(path);
+    auto baseName = std::string(baseNameOf(printStorePath(path)));
 
     for (int j = 0; j < 2; j++) {
 

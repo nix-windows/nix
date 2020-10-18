@@ -32,7 +32,8 @@ option(
     value : [
         '-Wdeprecated', 
         '-Wno-non-virtual-dtor',
-        '-Wno-unused-parameter'],
+        '-Wno-unused-parameter',
+    ],
     description : 'C build flags')
 
 
@@ -67,6 +68,14 @@ option(
         '-L/usr/local/lib',
         '-lbz2'],
     description : 'link args for libbz2')
+
+option(
+    'zlib_link_args',
+    type : 'array',
+    value : [
+        '-L/usr/local/lib',
+        '-lz'],
+    description : 'link args for libzlib')
 
 option(
     'curl_link_args',
@@ -151,8 +160,8 @@ option(
 
 option(
     'with_s3',
-    type : 'boolean',
-    value : 'false',
+    type : 'feature',
+    value : 'auto',
     description : 'Build nix with s3')
 
 option(

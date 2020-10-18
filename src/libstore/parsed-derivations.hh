@@ -1,22 +1,26 @@
-#include "derivations.hh"
+#pragma once
 
-#include <nlohmann/json.hpp>
+#include "store-api.hh"
+
+#include <nlohmann/json_fwd.hpp>
 
 namespace nix {
 
 class ParsedDerivation
 {
-    Path drvPath;
+    StorePath drvPath;
     BasicDerivation & drv;
-    std::optional<nlohmann::json> structuredAttrs;
+    std::unique_ptr<nlohmann::json> structuredAttrs;
 
 public:
 
-    ParsedDerivation(const Path & drvPath, BasicDerivation & drv);
+    ParsedDerivation(const StorePath & drvPath, BasicDerivation & drv);
 
-    const std::optional<nlohmann::json> & getStructuredAttrs() const
+    ~ParsedDerivation();
+
+    const nlohmann::json * getStructuredAttrs() const
     {
-        return structuredAttrs;
+        return structuredAttrs.get();
     }
 
     std::optional<std::string> getStringAttr(const std::string & name) const;
@@ -27,9 +31,9 @@ public:
 
     StringSet getRequiredSystemFeatures() const;
 
-    bool canBuildLocally() const;
+    bool canBuildLocally(Store & localStore) const;
 
-    bool willBuildLocally() const;
+    bool willBuildLocally(Store & localStore) const;
 
     bool substitutesAllowed() const;
 };

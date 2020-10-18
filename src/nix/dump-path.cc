@@ -5,11 +5,6 @@ using namespace nix;
 
 struct CmdDumpPath : StorePathCommand
 {
-    std::string name() override
-    {
-        return "dump-path";
-    }
-
     std::string description() override
     {
         return "dump a store path to stdout (in NAR format)";
@@ -25,7 +20,9 @@ struct CmdDumpPath : StorePathCommand
         };
     }
 
-    void run(ref<Store> store, const Path & storePath) override
+    Category category() override { return catUtility; }
+
+    void run(ref<Store> store, const StorePath & storePath) override
     {
 #ifndef _WIN32
         FdSink sink(STDOUT_FILENO);
@@ -37,4 +34,4 @@ struct CmdDumpPath : StorePathCommand
     }
 };
 
-static RegisterCommand r1(make_ref<CmdDumpPath>());
+static auto rDumpPath = registerCommand<CmdDumpPath>("dump-path");

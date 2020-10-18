@@ -1,7 +1,7 @@
 #include "primops.hh"
 #include "eval-inline.hh"
 
-#include "cpptoml/cpptoml.h"
+#include "../../cpptoml/cpptoml.h"
 
 namespace nix {
 
@@ -81,10 +81,13 @@ static void prim_fromTOML(EvalState & state, const Pos & pos, Value * * args, Va
     try {
         visit(v, parser(tomlStream).parse());
     } catch (std::runtime_error & e) {
-        throw EvalError("while parsing a TOML string at %s: %s", pos, e.what());
+        throw EvalError({
+            .hint = hintfmt("while parsing a TOML string: %s", e.what()),
+            .errPos = pos
+        });
     }
 }
 
-static RegisterPrimOp r("fromTOML", 1, prim_fromTOML);
+static RegisterPrimOp primop_fromTOML("fromTOML", 1, prim_fromTOML);
 
 }

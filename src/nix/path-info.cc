@@ -24,15 +24,12 @@ struct CmdPathInfo : StorePathsCommand, MixJSON
         mkFlag(0, "sigs", "show signatures", &showSigs);
     }
 
-    std::string name() override
-    {
-        return "path-info";
-    }
-
     std::string description() override
     {
         return "query information about store paths";
     }
+
+    Category category() override { return catSecondary; }
 
     Examples examples() override
     {
@@ -43,7 +40,7 @@ struct CmdPathInfo : StorePathsCommand, MixJSON
             },
             Example{
                 "To show a package's closure size and all its dependencies with human readable sizes:",
-                "nix path-info -rsSh nixpkgs.rust"
+                "nix path-info -rsSh nixpkgs#rust"
             },
             Example{
                 "To check the existence of a path in a binary cache:",
@@ -64,7 +61,7 @@ struct CmdPathInfo : StorePathsCommand, MixJSON
         };
     }
 
-    void printSize(unsigned long long value)
+    void printSize(uint64_t value)
     {
         if (!humanReadable) {
             std::cout << fmt("\t%11d", value);
@@ -83,42 +80,42 @@ struct CmdPathInfo : StorePathsCommand, MixJSON
         std::cout << fmt("\t%6.1f%c", res, idents.at(power));
     }
 
-    void run(ref<Store> store, Paths storePaths) override
+    void run(ref<Store> store, StorePaths storePaths) override
     {
         size_t pathLen = 0;
         for (auto & storePath : storePaths)
-            pathLen = std::max(pathLen, storePath.size());
+            pathLen = std::max(pathLen, store->printStorePath(storePath).size());
 
         if (json) {
             JSONPlaceholder jsonRoot(std::cout);
             store->pathInfoToJSON(jsonRoot,
                 // FIXME: preserve order?
-                PathSet(storePaths.begin(), storePaths.end()),
-                true, showClosureSize, AllowInvalid);
+                StorePathSet(storePaths.begin(), storePaths.end()),
+                true, showClosureSize, SRI, AllowInvalid);
         }
 
         else {
 
-            for (auto storePath : storePaths) {
+            for (auto & storePath : storePaths) {
                 auto info = store->queryPathInfo(storePath);
-                storePath = info->path; // FIXME: screws up padding
+                auto storePathS = store->printStorePath(storePath);
 
-                std::cout << storePath;
+                std::cout << storePathS;
 
                 if (showSize || showClosureSize || showSigs)
-                    std::cout << std::string(std::max(0, (int) pathLen - (int) storePath.size()), ' ');
+                    std::cout << std::string(std::max(0, (int) pathLen - (int) storePathS.size()), ' ');
 
                 if (showSize)
                     printSize(info->narSize);
 
                 if (showClosureSize)
-                    printSize(store->getClosureSize(storePath).first);
+                    printSize(store->getClosureSize(info->path).first);
 
                 if (showSigs) {
                     std::cout << '\t';
                     Strings ss;
                     if (info->ultimate) ss.push_back("ultimate");
-                    if (info->ca != "") ss.push_back("ca:" + info->ca);
+                    if (info->ca) ss.push_back("ca:" + renderContentAddress(*info->ca));
                     for (auto & sig : info->sigs) ss.push_back(sig);
                     std::cout << concatStringsSep(" ", ss);
                 }
@@ -130,4 +127,4 @@ struct CmdPathInfo : StorePathsCommand, MixJSON
     }
 };
 
-static RegisterCommand r1(make_ref<CmdPathInfo>());
+static auto rCmdPathInfo = registerCommand<CmdPathInfo>("path-info");

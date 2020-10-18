@@ -10,72 +10,104 @@
 src_inc += include_directories('.')
 
 libstore_src = files(
-    join_paths(meson.source_root(), 'src/libstore/binary-cache-store.cc'),
-    join_paths(meson.source_root(), 'src/libstore/build.cc'),
-    join_paths(meson.source_root(), 'src/libstore/crypto.cc'),
-    join_paths(meson.source_root(), 'src/libstore/daemon.cc'),
-    join_paths(meson.source_root(), 'src/libstore/derivations.cc'),
-    join_paths(meson.source_root(), 'src/libstore/download.cc'),
-    join_paths(meson.source_root(), 'src/libstore/export-import.cc'),
-    join_paths(meson.source_root(), 'src/libstore/gc.cc'),
-    join_paths(meson.source_root(), 'src/libstore/globals.cc'),
-    join_paths(meson.source_root(), 'src/libstore/http-binary-cache-store.cc'),
-    join_paths(meson.source_root(), 'src/libstore/legacy-ssh-store.cc'),
-    join_paths(meson.source_root(), 'src/libstore/local-binary-cache-store.cc'),
-    join_paths(meson.source_root(), 'src/libstore/local-fs-store.cc'),
-    join_paths(meson.source_root(), 'src/libstore/local-store.cc'),
-    join_paths(meson.source_root(), 'src/libstore/machines.cc'),
-    join_paths(meson.source_root(), 'src/libstore/misc.cc'),
-    join_paths(meson.source_root(), 'src/libstore/nar-accessor.cc'),
-    join_paths(meson.source_root(), 'src/libstore/nar-info.cc'),
-    join_paths(meson.source_root(), 'src/libstore/nar-info-disk-cache.cc'),
-    join_paths(meson.source_root(), 'src/libstore/optimise-store.cc'),
-    join_paths(meson.source_root(), 'src/libstore/parsed-derivations.cc'),
-    join_paths(meson.source_root(), 'src/libstore/pathlocks.cc'),
-    join_paths(meson.source_root(), 'src/libstore/profiles.cc'),
-    join_paths(meson.source_root(), 'src/libstore/references.cc'),
-    join_paths(meson.source_root(), 'src/libstore/remote-fs-accessor.cc'),
-    join_paths(meson.source_root(), 'src/libstore/remote-store.cc'),
-    join_paths(meson.source_root(), 'src/libstore/s3-binary-cache-store.cc'),
-    join_paths(meson.source_root(), 'src/libstore/sqlite.cc'),
-    join_paths(meson.source_root(), 'src/libstore/ssh.cc'),
-    join_paths(meson.source_root(), 'src/libstore/ssh-store.cc'),
-    join_paths(meson.source_root(), 'src/libstore/store-api.cc'),
-    join_paths(meson.source_root(), 'src/libstore/builtins/buildenv.cc'),
-    join_paths(meson.source_root(), 'src/libstore/builtins/fetchurl.cc'))
+    'binary-cache-store.cc',
+    'content-address.cc',
+    'crypto.cc',
+    'daemon.cc',
+    'derivations.cc',
+    'dummy-store.cc',
+    'export-import.cc',
+    'filetransfer.cc',
+    'gc.cc',
+    'globals.cc',
+    'http-binary-cache-store.cc',
+    'legacy-ssh-store.cc',
+    'local-binary-cache-store.cc',
+    'local-fs-store.cc',
+    'local-store.cc',
+    'lock.cc',
+    'machines.cc',
+    'misc.cc',
+    'names.cc',
+    'nar-accessor.cc',
+    'nar-info.cc',
+    'nar-info-disk-cache.cc',
+    'optimise-store.cc',
+    'parsed-derivations.cc',
+    'path.cc',
+    'pathlocks.cc',
+    'profiles.cc',
+    'references.cc',
+    'remote-fs-accessor.cc',
+    'remote-store.cc',
+    's3-binary-cache-store.cc',
+    'sqlite.cc',
+    'ssh.cc',
+    'ssh-store.cc',
+    'store-api.cc',
+    'uds-remote-store.cc',
+
+    'build/derivation-goal.cc',
+    'build/goal.cc',
+    'build/hook-instance.cc',
+    'build/local-store-build.cc',
+    'build/substitution-goal.cc',
+    'build/worker.cc',
+
+    'builtins/buildenv.cc',
+    'builtins/fetchurl.cc',
+    'builtins/unpack-channel.cc',
+)
 
 libstore_headers = files(
-    join_paths(meson.source_root(), 'src/libstore/binary-cache-store.hh'),
-    join_paths(meson.source_root(), 'src/libstore/builtins.hh'),
-    join_paths(meson.source_root(), 'src/libstore/crypto.hh'),
-    join_paths(meson.source_root(), 'src/libstore/daemon.hh'),
-    join_paths(meson.source_root(), 'src/libstore/derivations.hh'),
-    join_paths(meson.source_root(), 'src/libstore/download.hh'),
-    join_paths(meson.source_root(), 'src/libstore/fs-accessor.hh'),
-    join_paths(meson.source_root(), 'src/libstore/globals.hh'),
-    join_paths(meson.source_root(), 'src/libstore/local-store.hh'),
-    join_paths(meson.source_root(), 'src/libstore/machines.hh'),
-    join_paths(meson.source_root(), 'src/libstore/nar-accessor.hh'),
-    join_paths(meson.source_root(), 'src/libstore/nar-info-disk-cache.hh'),
-    join_paths(meson.source_root(), 'src/libstore/nar-info.hh'),
-    join_paths(meson.source_root(), 'src/libstore/parsed-derivations.hh'),
-    join_paths(meson.source_root(), 'src/libstore/pathlocks.hh'),
-    join_paths(meson.source_root(), 'src/libstore/profiles.hh'),
-    join_paths(meson.source_root(), 'src/libstore/references.hh'),
-    join_paths(meson.source_root(), 'src/libstore/remote-fs-accessor.hh'),
-    join_paths(meson.source_root(), 'src/libstore/remote-store.hh'),
-    join_paths(meson.source_root(), 'src/libstore/s3-binary-cache-store.hh'),
-    join_paths(meson.source_root(), 'src/libstore/s3.hh'),
-    join_paths(meson.source_root(), 'src/libstore/serve-protocol.hh'),
-    join_paths(meson.source_root(), 'src/libstore/sqlite.hh'),
-    join_paths(meson.source_root(), 'src/libstore/ssh.hh'),
-    join_paths(meson.source_root(), 'src/libstore/store-api.hh'),
-    join_paths(meson.source_root(), 'src/libstore/worker-protocol.hh'))
+    'binary-cache-store.hh',
+    'builtins.hh',
+    'content-address.hh',
+    'crypto.hh',
+    'daemon.hh',
+    'derivations.hh',
+    'filetransfer.hh',
+    'fs-accessor.hh',
+    'globals.hh',
+    'local-fs-store.hh',
+    'local-store.hh',
+    'lock.hh',
+    'machines.hh',
+    'names.hh',
+    'nar-accessor.hh',
+    'nar-info-disk-cache.hh',
+    'nar-info.hh',
+    'parsed-derivations.hh',
+    'path.hh',
+    'path-info.hh',
+    'pathlocks.hh',
+    'profiles.hh',
+    'references.hh',
+    'remote-fs-accessor.hh',
+    'remote-store.hh',
+    's3-binary-cache-store.hh',
+    's3.hh',
+    'serve-protocol.hh',
+    'sqlite.hh',
+    'ssh.hh',
+    'store-api.hh',
+    'uds-remote-store.hh',
+    'worker-protocol.hh',
+
+    'build/derivation-goal.hh',
+    'build/goal.hh',
+    'build/hook-instance.hh',
+    'build/substitution-goal.hh',
+    'build/worker.hh',
+
+    'builtins/buildenv.hh',
+)
 
 libstore_data = files(
-    join_paths(meson.source_root(), 'src/libstore/sandbox-defaults.sb'),
-    join_paths(meson.source_root(), 'src/libstore/sandbox-minimal.sb'),
-    join_paths(meson.source_root(), 'src/libstore/sandbox-network.sb'))
+    'sandbox-defaults.sb',
+    'sandbox-minimal.sb',
+    'sandbox-network.sb',
+)
 
 # dependancies
 #============================================================================
@@ -104,7 +136,8 @@ endif
 #============================================================================
 
 libstore_link_list = [
-    libutil_lib]
+    libutil_lib,
+]
 
 libstore_link_args = []
 
@@ -133,18 +166,11 @@ libstore_cxx_args = [
 # targets
 #============================================================================
 
-gen_header = '''
-  echo 'R"foo(' >> "$1"
-  cat @INPUT@ >> "$1"
-  echo ')foo"' >> "$1"
-'''
-
 libstore_src += custom_target(
   'schema.sql.gen.hh',
   output : 'schema.sql.gen.hh',
   input : 'schema.sql',
   command : [bash, '-c', gen_header, 'sh', '@OUTPUT@'])
-
 
 
 

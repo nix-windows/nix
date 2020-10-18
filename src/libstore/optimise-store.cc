@@ -23,11 +23,25 @@ namespace nix {
 #ifndef _WIN32
 static void makeWritable(const Path & path)
 {
+<<<<<<< HEAD
     struct stat st;
     if (lstat(path.c_str(), &st))
         throw PosixError(format("getting attributes of path '%1%'") % path);
+||||||| merged common ancestors
+    struct stat st;
+    if (lstat(path.c_str(), &st))
+        throw SysError(format("getting attributes of path '%1%'") % path);
+=======
+    auto st = lstat(path);
+>>>>>>> meson
     if (chmod(path.c_str(), st.st_mode | S_IWUSR) == -1)
+<<<<<<< HEAD
         throw PosixError(format("changing writability of '%1%'") % path);
+||||||| merged common ancestors
+        throw SysError(format("changing writability of '%1%'") % path);
+=======
+        throw SysError("changing writability of '%1%'", path);
+>>>>>>> meson
 }
 
 
@@ -53,7 +67,13 @@ LocalStore::InodeHash LocalStore::loadInodeHash()
     InodeHash inodeHash;
 #ifndef _WIN32
     AutoCloseDir dir(opendir(linksDir.c_str()));
+<<<<<<< HEAD
     if (!dir) throw PosixError(format("opening directory '%1%'") % linksDir);
+||||||| merged common ancestors
+    if (!dir) throw SysError(format("opening directory '%1%'") % linksDir);
+=======
+    if (!dir) throw SysError("opening directory '%1%'", linksDir);
+>>>>>>> meson
 
     struct dirent * dirent;
     while (errno = 0, dirent = readdir(dir.get())) { /* sic */
@@ -61,6 +81,7 @@ LocalStore::InodeHash LocalStore::loadInodeHash()
         // We don't care if we hit non-hash files, anything goes
         inodeHash.insert(dirent->d_ino);
     }
+<<<<<<< HEAD
     if (errno) throw PosixError(format("reading directory '%1%'") % linksDir);
 #else
     WIN32_FIND_DATAW wfd;
@@ -98,6 +119,13 @@ LocalStore::InodeHash LocalStore::loadInodeHash()
         FindClose(hFind);
     }
 #endif
+||||||| merged common ancestors
+    if (errno) throw SysError(format("reading directory '%1%'") % linksDir);
+
+=======
+    if (errno) throw SysError("reading directory '%1%'", linksDir);
+
+>>>>>>> meson
     printMsg(lvlTalkative, format("loaded %1% hash inodes") % inodeHash.size());
 
     return inodeHash;
@@ -109,7 +137,13 @@ Strings LocalStore::readDirectoryIgnoringInodes(const Path & path, const InodeHa
     Strings names;
 #ifndef _WIN32
     AutoCloseDir dir(opendir(path.c_str()));
+<<<<<<< HEAD
     if (!dir) throw PosixError(format("opening directory '%1%'") % path);
+||||||| merged common ancestors
+    if (!dir) throw SysError(format("opening directory '%1%'") % path);
+=======
+    if (!dir) throw SysError("opening directory '%1%'", path);
+>>>>>>> meson
 
     struct dirent * dirent;
     while (errno = 0, dirent = readdir(dir.get())) { /* sic */
@@ -124,6 +158,7 @@ Strings LocalStore::readDirectoryIgnoringInodes(const Path & path, const InodeHa
         if (name == "." || name == "..") continue;
         names.push_back(name);
     }
+<<<<<<< HEAD
     if (errno) throw PosixError(format("reading directory '%1%'") % path);
 #else
     WIN32_FIND_DATAW wfd;
@@ -171,6 +206,13 @@ Strings LocalStore::readDirectoryIgnoringInodes(const Path & path, const InodeHa
         FindClose(hFind);
     }
 #endif
+||||||| merged common ancestors
+    if (errno) throw SysError(format("reading directory '%1%'") % path);
+
+=======
+    if (errno) throw SysError("reading directory '%1%'", path);
+
+>>>>>>> meson
     return names;
 }
 
@@ -180,11 +222,19 @@ void LocalStore::optimisePath_(Activity * act, OptimiseStats & stats,
 {
     checkInterrupt();
 
+<<<<<<< HEAD
 
 #ifndef _WIN32
     struct stat st;
     if (lstat(path.c_str(), &st))
         throw PosixError(format("getting attributes of path '%1%'") % path);
+||||||| merged common ancestors
+    struct stat st;
+    if (lstat(path.c_str(), &st))
+        throw SysError(format("getting attributes of path '%1%'") % path);
+=======
+    auto st = lstat(path);
+>>>>>>> meson
 
 #if __APPLE__
     /* HFS/macOS has some undocumented security feature disabling hardlinking for
@@ -239,10 +289,19 @@ void LocalStore::optimisePath_(Activity * act, OptimiseStats & stats,
        those files.  FIXME: check the modification time. */
 #ifndef _WIN32
     if (S_ISREG(st.st_mode) && (st.st_mode & S_IWUSR)) {
+<<<<<<< HEAD
 #else
     if ((wfad.dwFileAttributes & FILE_ATTRIBUTE_READONLY) == 0) {
 #endif
         printError(format("skipping suspicious writable file '%1%'") % path);
+||||||| merged common ancestors
+        printError(format("skipping suspicious writable file '%1%'") % path);
+=======
+        logWarning({
+            .name = "Suspicious file",
+            .hint = hintfmt("skipping suspicious writable file '%1%'", path)
+        });
+>>>>>>> meson
         return;
     }
 
@@ -281,7 +340,7 @@ void LocalStore::optimisePath_(Activity * act, OptimiseStats & stats,
        contents of the symlink (i.e. the result of readlink()), not
        the contents of the target (which may not even exist). */
     Hash hash = hashPath(htSHA256, path).first;
-    debug(format("'%1%' has hash '%2%'") % path % hash.to_string());
+    debug(format("'%1%' has hash '%2%'") % path % hash.to_string(Base32, true));
 
     /* Check if this is a known hash. */
     Path linkPath = linksDir + "/" + hash.to_string(Base32, false);
@@ -326,6 +385,7 @@ void LocalStore::optimisePath_(Activity * act, OptimiseStats & stats,
 #ifndef _WIN32
     /* Yes!  We've seen a file with the same contents.  Replace the
        current file with a hard link to that file. */
+<<<<<<< HEAD
     struct stat stLink;
     if (lstat(linkPath.c_str(), &stLink))
         throw PosixError(format("getting attributes of path '%1%'") % linkPath);
@@ -340,6 +400,13 @@ void LocalStore::optimisePath_(Activity * act, OptimiseStats & stats,
 
     const uint64_t ino2 = (uint64_t(bhfi2.nFileIndexHigh)<<32) +  bhfi2.nFileIndexLow;
 #endif
+||||||| merged common ancestors
+    struct stat stLink;
+    if (lstat(linkPath.c_str(), &stLink))
+        throw SysError(format("getting attributes of path '%1%'") % linkPath);
+=======
+    auto stLink = lstat(linkPath);
+>>>>>>> meson
 
 #ifndef _WIN32
     if (st.st_ino == stLink.st_ino) {
@@ -353,11 +420,20 @@ void LocalStore::optimisePath_(Activity * act, OptimiseStats & stats,
 
 #ifndef _WIN32
     if (st.st_size != stLink.st_size) {
+<<<<<<< HEAD
 #else
     if (((uint64_t(bhfi.nFileSizeHigh) << 32) + bhfi.nFileSizeLow) != ((uint64_t(bhfi2.nFileSizeHigh) << 32) + bhfi2.nFileSizeLow)) {
 #endif
         printError(format("removing corrupted link '%1%'") % linkPath);
 #ifndef _WIN32
+||||||| merged common ancestors
+        printError(format("removing corrupted link '%1%'") % linkPath);
+=======
+        logWarning({
+            .name = "Corrupted link",
+            .hint = hintfmt("removing corrupted link '%1%'", linkPath)
+        });
+>>>>>>> meson
         unlink(linkPath.c_str());
 #else
         DeleteFileW(pathW(linkPath).c_str());
@@ -411,7 +487,10 @@ void LocalStore::optimisePath_(Activity * act, OptimiseStats & stats,
 #ifndef _WIN32
     if (rename(tempLink.c_str(), path.c_str()) == -1) {
         if (unlink(tempLink.c_str()) == -1)
-            printError(format("unable to unlink '%1%'") % tempLink);
+            logError({
+                .name = "Unlink error",
+                .hint = hintfmt("unable to unlink '%1%'", tempLink)
+            });
         if (errno == EMLINK) {
             /* Some filesystems generate too many links on the rename,
                rather than on the original link.  (Probably it
@@ -420,6 +499,7 @@ void LocalStore::optimisePath_(Activity * act, OptimiseStats & stats,
             debug("'%s' has reached maximum number of links", linkPath);
             return;
         }
+<<<<<<< HEAD
         throw PosixError(format("cannot rename '%1%' to '%2%'") % tempLink % path);
     }
     const bool optimized = true;
@@ -447,6 +527,11 @@ void LocalStore::optimisePath_(Activity * act, OptimiseStats & stats,
         }
     } else {
         optimized = true;
+||||||| merged common ancestors
+        throw SysError(format("cannot rename '%1%' to '%2%'") % tempLink % path);
+=======
+        throw SysError("cannot rename '%1%' to '%2%'", tempLink, path);
+>>>>>>> meson
     }
 
 #ifdef _NDEBUG
@@ -478,7 +563,7 @@ void LocalStore::optimiseStore(OptimiseStats & stats)
 {
     Activity act(*logger, actOptimiseStore);
 
-    PathSet paths = queryAllValidPaths();
+    auto paths = queryAllValidPaths();
     InodeHash inodeHash = loadInodeHash();
 
     act.progress(0, paths.size());
@@ -489,17 +574,12 @@ void LocalStore::optimiseStore(OptimiseStats & stats)
         addTempRoot(i);
         if (!isValidPath(i)) continue; /* path was GC'ed, probably */
         {
-            Activity act(*logger, lvlTalkative, actUnknown, fmt("optimising path '%s'", i));
-            optimisePath_(&act, stats, realStoreDir + "/" + baseNameOf(i), inodeHash);
+            Activity act(*logger, lvlTalkative, actUnknown, fmt("optimising path '%s'", printStorePath(i)));
+            optimisePath_(&act, stats, realStoreDir + "/" + std::string(i.to_string()), inodeHash);
         }
         done++;
         act.progress(done, paths.size());
     }
-}
-
-static string showBytes(unsigned long long bytes)
-{
-    return (format("%.2f MiB") % (bytes / (1024.0 * 1024.0))).str();
 }
 
 void LocalStore::optimiseStore()
@@ -508,10 +588,9 @@ void LocalStore::optimiseStore()
 
     optimiseStore(stats);
 
-    printInfo(
-        format("%1% freed by hard-linking %2% files")
-        % showBytes(stats.bytesFreed)
-        % stats.filesLinked);
+    printInfo("%s freed by hard-linking %d files",
+        showBytes(stats.bytesFreed),
+        stats.filesLinked);
 }
 
 void LocalStore::optimisePath(const Path & path)

@@ -56,7 +56,7 @@ basicTests
 
 
 # Test HttpBinaryCacheStore.
-export _NIX_FORCE_HTTP_BINARY_CACHE_STORE=1
+export _NIX_FORCE_HTTP=1
 basicTests
 
 
@@ -113,10 +113,24 @@ mv $cacheDir/nar2 $cacheDir/nar
 # incomplete closure.
 clearStore
 
-rm $(grep -l "StorePath:.*dependencies-input-2" $cacheDir/*.narinfo)
+rm -v $(grep -l "StorePath:.*dependencies-input-2" $cacheDir/*.narinfo)
 
 nix-build --substituters "file://$cacheDir" --no-require-sigs dependencies.nix -o $TEST_ROOT/result 2>&1 | tee $TEST_ROOT/log
-grep -q "copying path" $TEST_ROOT/log
+grep -q "copying path.*input-0" $TEST_ROOT/log
+grep -q "copying path.*input-2" $TEST_ROOT/log
+grep -q "copying path.*top" $TEST_ROOT/log
+
+
+# Idem, but without cached .narinfo.
+clearStore
+clearCacheCache
+
+nix-build --substituters "file://$cacheDir" --no-require-sigs dependencies.nix -o $TEST_ROOT/result 2>&1 | tee $TEST_ROOT/log
+grep -q "don't know how to build" $TEST_ROOT/log
+grep -q "building.*input-1" $TEST_ROOT/log
+grep -q "building.*input-2" $TEST_ROOT/log
+grep -q "copying path.*input-0" $TEST_ROOT/log
+grep -q "copying path.*top" $TEST_ROOT/log
 
 
 if [ -n "$HAVE_SODIUM" ]; then
@@ -134,7 +148,7 @@ badKey="$(cat $TEST_ROOT/pk2)"
 res=($(nix-store --generate-binary-cache-key foo.nixos.org-1 $TEST_ROOT/sk3 $TEST_ROOT/pk3))
 otherKey="$(cat $TEST_ROOT/pk3)"
 
-_NIX_FORCE_HTTP_BINARY_CACHE_STORE= nix copy --to file://$cacheDir?secret-key=$TEST_ROOT/sk1 $outPath
+_NIX_FORCE_HTTP= nix copy --to file://$cacheDir?secret-key=$TEST_ROOT/sk1 $outPath
 
 
 # Downloading should fail if we don't provide a key.
@@ -180,3 +194,60 @@ clearCacheCache
 nix-store -r $outPath --substituters "file://$cacheDir2 file://$cacheDir" --trusted-public-keys "$publicKey"
 
 fi # HAVE_LIBSODIUM
+
+
+unset _NIX_FORCE_HTTP
+
+
+# Test 'nix verify --all' on a binary cache.
+nix verify -vvvvv --all --store file://$cacheDir --no-trust
+
+
+# Test local NAR caching.
+narCache=$TEST_ROOT/nar-cache
+rm -rf $narCache
+mkdir $narCache
+
+[[ $(nix cat-store --store "file://$cacheDir?local-nar-cache=$narCache" $outPath/foobar) = FOOBAR ]]
+
+rm -rfv "$cacheDir/nar"
+
+[[ $(nix cat-store --store "file://$cacheDir?local-nar-cache=$narCache" $outPath/foobar) = FOOBAR ]]
+
+(! nix cat-store --store file://$cacheDir $outPath/foobar)
+
+
+# Test NAR listing generation.
+clearCache
+
+outPath=$(nix-build --no-out-link -E '
+  with import ./config.nix;
+  mkDerivation {
+    name = "nar-listing";
+    buildCommand = "mkdir $out; echo foo > $out/bar; ln -s xyzzy $out/link";
+  }
+')
+
+nix copy --to file://$cacheDir?write-nar-listing=1 $outPath
+
+diff -u \
+    <(jq -S < $cacheDir/$(basename $outPath | cut -c1-32).ls) \
+    <(echo '{"version":1,"root":{"type":"directory","entries":{"bar":{"type":"regular","size":4,"narOffset":232},"link":{"type":"symlink","target":"xyzzy"}}}}' | jq -S)
+
+
+# Test debug info index generation.
+clearCache
+
+outPath=$(nix-build --no-out-link -E '
+  with import ./config.nix;
+  mkDerivation {
+    name = "debug-info";
+    buildCommand = "mkdir -p $out/lib/debug/.build-id/02; echo foo > $out/lib/debug/.build-id/02/623eda209c26a59b1a8638ff7752f6b945c26b.debug";
+  }
+')
+
+nix copy --to "file://$cacheDir?index-debug-info=1&compression=none" $outPath
+
+diff -u \
+    <(cat $cacheDir/debuginfo/02623eda209c26a59b1a8638ff7752f6b945c26b.debug | jq -S) \
+    <(echo '{"archive":"../nar/100vxs724qr46phz8m24iswmg9p3785hsyagz0kchf6q6gf06sw6.nar","member":"lib/debug/.build-id/02/623eda209c26a59b1a8638ff7752f6b945c26b.debug"}' | jq -S)

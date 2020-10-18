@@ -2,13 +2,21 @@
 #include "util.hh"
 #include "archive.hh"
 #include "args.hh"
+#include "abstract-setting-to-json.hh"
 
 #include <algorithm>
 #include <map>
 #include <thread>
 #ifndef _WIN32
 #include <dlfcn.h>
+<<<<<<< HEAD
 #endif
+||||||| merged common ancestors
+=======
+#include <sys/utsname.h>
+
+#include <nlohmann/json.hpp>
+>>>>>>> meson
 
 
 namespace nix {
@@ -22,18 +30,12 @@ namespace nix {
 #define DEFAULT_SOCKET_PATH "/daemon-socket/socket"
 #endif
 
-/* chroot-like behavior from Apple's sandbox */
-#if __APPLE__
-    #define DEFAULT_ALLOWED_IMPURE_PREFIXES "/System/Library /usr/lib /dev /bin/sh"
-#else
-    #define DEFAULT_ALLOWED_IMPURE_PREFIXES ""
-#endif
-
 Settings settings;
 
-static GlobalConfig::Register r1(&settings);
+static GlobalConfig::Register rSettings(&settings);
 
 Settings::Settings()
+<<<<<<< HEAD
     : nixStore(canonPath(getEnv("NIX_STORE_DIR", getEnv("NIX_STORE", NIX_STORE_DIR))))
     , nixDataDir(canonPath(getEnv("NIX_DATA_DIR", NIX_DATA_DIR)))
     , nixLogDir(canonPath(getEnv("NIX_LOG_DIR", NIX_LOG_DIR)))
@@ -43,9 +45,35 @@ Settings::Settings()
 #ifndef _WIN32
     , nixPrefix(NIX_PREFIX)
     , nixLibexecDir(canonPath(getEnv("NIX_LIBEXEC_DIR", NIX_LIBEXEC_DIR)))
+||||||| merged common ancestors
+    : nixPrefix(NIX_PREFIX)
+    , nixStore(canonPath(getEnv("NIX_STORE_DIR", getEnv("NIX_STORE", NIX_STORE_DIR))))
+    , nixDataDir(canonPath(getEnv("NIX_DATA_DIR", NIX_DATA_DIR)))
+    , nixLogDir(canonPath(getEnv("NIX_LOG_DIR", NIX_LOG_DIR)))
+    , nixStateDir(canonPath(getEnv("NIX_STATE_DIR", NIX_STATE_DIR)))
+    , nixConfDir(canonPath(getEnv("NIX_CONF_DIR", NIX_CONF_DIR)))
+    , nixLibexecDir(canonPath(getEnv("NIX_LIBEXEC_DIR", NIX_LIBEXEC_DIR)))
+    , nixBinDir(canonPath(getEnv("NIX_BIN_DIR", NIX_BIN_DIR)))
+=======
+    : nixPrefix(NIX_PREFIX)
+    , nixStore(canonPath(getEnv("NIX_STORE_DIR").value_or(getEnv("NIX_STORE").value_or(NIX_STORE_DIR))))
+    , nixDataDir(canonPath(getEnv("NIX_DATA_DIR").value_or(NIX_DATA_DIR)))
+    , nixLogDir(canonPath(getEnv("NIX_LOG_DIR").value_or(NIX_LOG_DIR)))
+    , nixStateDir(canonPath(getEnv("NIX_STATE_DIR").value_or(NIX_STATE_DIR)))
+    , nixConfDir(canonPath(getEnv("NIX_CONF_DIR").value_or(NIX_CONF_DIR)))
+    , nixUserConfFiles(getUserConfigFiles())
+    , nixLibexecDir(canonPath(getEnv("NIX_LIBEXEC_DIR").value_or(NIX_LIBEXEC_DIR)))
+    , nixBinDir(canonPath(getEnv("NIX_BIN_DIR").value_or(NIX_BIN_DIR)))
+>>>>>>> meson
     , nixManDir(canonPath(NIX_MAN_DIR))
+<<<<<<< HEAD
     , nixDaemonSocketFile(canonPath(nixStateDir + DEFAULT_SOCKET_PATH))
 #endif
+||||||| merged common ancestors
+    , nixDaemonSocketFile(canonPath(nixStateDir + DEFAULT_SOCKET_PATH))
+=======
+    , nixDaemonSocketFile(canonPath(getEnv("NIX_DAEMON_SOCKET_PATH").value_or(nixStateDir + DEFAULT_SOCKET_PATH)))
+>>>>>>> meson
 {
     fprintf(stderr, "NixStore=%s\n",        nixStore.c_str());
     fprintf(stderr, "NixDataDir=%s\n",      nixDataDir.c_str());
@@ -62,10 +90,17 @@ Settings::Settings()
 
 #ifndef _WIN32
     buildUsersGroup = getuid() == 0 ? "nixbld" : "";
+<<<<<<< HEAD
 #endif
     lockCPU = getEnv("NIX_AFFINITY_HACK", "1") == "1";
+||||||| merged common ancestors
+    lockCPU = getEnv("NIX_AFFINITY_HACK", "1") == "1";
+=======
+    lockCPU = getEnv("NIX_AFFINITY_HACK") == "1";
+    allowSymlinkedStore = getEnv("NIX_IGNORE_SYMLINK_STORE") == "1";
+>>>>>>> meson
 
-    caFile = getEnv("NIX_SSL_CERT_FILE", getEnv("SSL_CERT_FILE", ""));
+    caFile = getEnv("NIX_SSL_CERT_FILE").value_or(getEnv("SSL_CERT_FILE").value_or(""));
     if (caFile == "") {
         for (auto & fn : {
 #ifndef _WIN32
@@ -82,9 +117,9 @@ Settings::Settings()
 
     /* Backwards compatibility. */
     auto s = getEnv("NIX_REMOTE_SYSTEMS");
-    if (s != "") {
+    if (s) {
         Strings ss;
-        for (auto & p : tokenizeString<Strings>(s, ":"))
+        for (auto & p : tokenizeString<Strings>(*s, ":"))
             ss.push_back("@" + p);
         builders = concatStringsSep(" ", ss);
     }
@@ -93,7 +128,12 @@ Settings::Settings()
     sandboxPaths = tokenizeString<StringSet>("/bin/sh=" SANDBOX_SHELL);
 #endif
 
-    allowedImpureHostPrefixes = tokenizeString<StringSet>(DEFAULT_ALLOWED_IMPURE_PREFIXES);
+
+/* chroot-like behavior from Apple's sandbox */
+#if __APPLE__
+    sandboxPaths = tokenizeString<StringSet>("/System/Library/Frameworks /System/Library/PrivateFrameworks /bin/sh /bin/bash /private/tmp /private/var/tmp /usr/lib");
+    allowedImpureHostPrefixes = tokenizeString<StringSet>("/System/Library /usr/lib /dev /bin/sh");
+#endif
 }
 
 void loadConfFile()
@@ -104,11 +144,27 @@ void loadConfFile()
        ~/.nix/nix.conf or the command line. */
     globalConfig.resetOverriden();
 
-    auto dirs = getConfigDirs();
-    // Iterate over them in reverse so that the ones appearing first in the path take priority
-    for (auto dir = dirs.rbegin(); dir != dirs.rend(); dir++) {
-        globalConfig.applyConfigFile(*dir + "/nix/nix.conf");
+    auto files = settings.nixUserConfFiles;
+    for (auto file = files.rbegin(); file != files.rend(); file++) {
+        globalConfig.applyConfigFile(*file);
     }
+}
+
+std::vector<Path> getUserConfigFiles()
+{
+    // Use the paths specified in NIX_USER_CONF_FILES if it has been defined
+    auto nixConfFiles = getEnv("NIX_USER_CONF_FILES");
+    if (nixConfFiles.has_value()) {
+        return tokenizeString<std::vector<string>>(nixConfFiles.value(), ":");
+    }
+
+    // Use the paths specified by the XDG spec
+    std::vector<Path> files;
+    auto dirs = getConfigDirs();
+    for (auto & dir : dirs) {
+        files.insert(files.end(), dir + "/nix/nix.conf");
+    }
+    return files;
 }
 
 unsigned int Settings::getDefaultCores()
@@ -121,7 +177,7 @@ StringSet Settings::getDefaultSystemFeatures()
     /* For backwards compatibility, accept some "features" that are
        used in Nixpkgs to route builds to certain machines but don't
        actually require anything special on the machines. */
-    StringSet features{"nixos-test", "benchmark", "big-parallel"};
+    StringSet features{"nixos-test", "benchmark", "big-parallel", "recursive-nix"};
 
     #if __linux__
     if (access("/dev/kvm", R_OK | W_OK) == 0)
@@ -131,14 +187,34 @@ StringSet Settings::getDefaultSystemFeatures()
     return features;
 }
 
-void Settings::requireExperimentalFeature(const std::string & name)
+bool Settings::isExperimentalFeatureEnabled(const std::string & name)
 {
     auto & f = experimentalFeatures.get();
-    if (std::find(f.begin(), f.end(), name) == f.end())
-        throw Error("experimental Nix feature '%s' is disabled", name);
+    return std::find(f.begin(), f.end(), name) != f.end();
+}
+
+void Settings::requireExperimentalFeature(const std::string & name)
+{
+    if (!isExperimentalFeatureEnabled(name))
+        throw Error("experimental Nix feature '%1%' is disabled; use '--experimental-features %1%' to override", name);
+}
+
+bool Settings::isWSL1()
+{
+    struct utsname utsbuf;
+    uname(&utsbuf);
+    // WSL1 uses -Microsoft suffix
+    // WSL2 uses -microsoft-standard suffix
+    return hasSuffix(utsbuf.release, "-Microsoft");
 }
 
 const string nixVersion = PACKAGE_VERSION;
+
+NLOHMANN_JSON_SERIALIZE_ENUM(SandboxMode, {
+    {SandboxMode::smEnabled, true},
+    {SandboxMode::smRelaxed, "relaxed"},
+    {SandboxMode::smDisabled, false},
+});
 
 template<> void BaseSetting<SandboxMode>::set(const std::string & str)
 {
@@ -148,7 +224,7 @@ template<> void BaseSetting<SandboxMode>::set(const std::string & str)
     else throw UsageError("option '%s' has invalid value '%s'", name, str);
 }
 
-template<> std::string BaseSetting<SandboxMode>::to_string()
+template<> std::string BaseSetting<SandboxMode>::to_string() const
 {
     if (value == smEnabled) return "true";
     else if (value == smRelaxed) return "relaxed";
@@ -156,28 +232,26 @@ template<> std::string BaseSetting<SandboxMode>::to_string()
     else abort();
 }
 
-template<> void BaseSetting<SandboxMode>::toJSON(JSONPlaceholder & out)
-{
-    AbstractSetting::toJSON(out);
-}
-
 template<> void BaseSetting<SandboxMode>::convertToArg(Args & args, const std::string & category)
 {
-    args.mkFlag()
-        .longName(name)
-        .description("Enable sandboxing.")
-        .handler([=](std::vector<std::string> ss) { override(smEnabled); })
-        .category(category);
-    args.mkFlag()
-        .longName("no-" + name)
-        .description("Disable sandboxing.")
-        .handler([=](std::vector<std::string> ss) { override(smDisabled); })
-        .category(category);
-    args.mkFlag()
-        .longName("relaxed-" + name)
-        .description("Enable sandboxing, but allow builds to disable it.")
-        .handler([=](std::vector<std::string> ss) { override(smRelaxed); })
-        .category(category);
+    args.addFlag({
+        .longName = name,
+        .description = "Enable sandboxing.",
+        .category = category,
+        .handler = {[=]() { override(smEnabled); }}
+    });
+    args.addFlag({
+        .longName = "no-" + name,
+        .description = "Disable sandboxing.",
+        .category = category,
+        .handler = {[=]() { override(smDisabled); }}
+    });
+    args.addFlag({
+        .longName = "relaxed-" + name,
+        .description = "Enable sandboxing, but allow builds to disable it.",
+        .category = category,
+        .handler = {[=]() { override(smRelaxed); }}
+    });
 }
 
 void MaxBuildJobsSetting::set(const std::string & str)

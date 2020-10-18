@@ -4,14 +4,20 @@ clearStore
 
 max=500
 
+<<<<<<< HEAD
 if [[ "$(uname)" =~ ^MINGW|^MSYS ]]; then
     reference=$(cygpath -m "$NIX_STORE_DIR/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 else
     reference=$NIX_STORE_DIR/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 fi
 
+||||||| merged common ancestors
+reference=$NIX_STORE_DIR/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+=======
+reference=$NIX_STORE_DIR/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bla
+>>>>>>> meson
 touch $reference
-(echo $reference && echo && echo 0) | nix-store --register-validity 
+(echo $reference && echo && echo 0) | nix-store --register-validity
 
 echo "making registration..."
 

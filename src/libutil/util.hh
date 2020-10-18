@@ -1,7 +1,9 @@
 #pragma once
 
 #include "types.hh"
+#include "error.hh"
 #include "logging.hh"
+#include "ansicolor.hh"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -12,12 +14,9 @@
 #include <signal.h>
 
 #include <functional>
-#include <limits>
-#include <cstdio>
 #include <map>
 #include <sstream>
 #include <optional>
-#include <future>
 
 #ifdef _WIN32
 #include <iostream>
@@ -41,7 +40,7 @@ extern const std::string nativeSystem;
 
 
 /* Return an environment variable. */
-string getEnv(const string & key, const string & def = "");
+std::optional<std::string> getEnv(const std::string & key);
 
 /* Get the entire environment. */
 std::map<std::string, std::string> getEnv();
@@ -52,7 +51,9 @@ void clearEnv();
 /* Return an absolutized path, resolving paths relative to the
    specified directory, or the current directory otherwise.  The path
    is also canonicalised. */
-Path absPath(Path path, Path dir = "");
+Path absPath(Path path,
+    std::optional<Path> dir = {},
+    bool resolveSymlinks = false);
 
 /* Canonicalise a path by removing all `.' or `..' components and
    double or trailing slashes.  Optionally resolves all symlink
@@ -65,13 +66,13 @@ Path canonNarPath(const Path & path);
 
 /* Return the directory part of the given canonical path, i.e.,
    everything before the final `/'.  If the path is the root or an
-   immediate child thereof (e.g., `/foo'), this means an empty string
-   is returned. */
+   immediate child thereof (e.g., `/foo'), this means `/'
+   is returned.*/
 Path dirOf(const Path & path);
 
 /* Return the base name of the given canonical path, i.e., everything
-   following the final `/'. */
-string baseNameOf(const Path & path);
+   following the final `/' (trailing slashes are removed). */
+std::string_view baseNameOf(std::string_view path);
 
 /* Check whether 'path' is a descendant of 'dir'. */
 bool isInDir(const Path & path, const Path & dir);
@@ -137,7 +138,7 @@ string readFile(int fd);
 #else
 string readFile(HANDLE handle);
 #endif
-string readFile(const Path & path, bool drain = false);
+string readFile(const Path & path);
 void readFile(const Path & path, Sink & sink);
 
 /* Write a string to a file. */
@@ -168,15 +169,7 @@ void writeLine(HANDLE handle, string s);
    second variant returns the number of bytes and blocks freed. */
 void deletePath(const Path & path);
 
-void deletePath(const Path & path, unsigned long long & bytesFreed);
-
-/* Create a temporary directory. */
-Path createTempDir(const Path & tmpRoot = "", const Path & prefix = "nix",
-    bool includePid = true, bool useGlobalCounter = true
-#ifndef _WIN32
-    , mode_t mode = 0755
-#endif
-    );
+void deletePath(const Path & path, uint64_t & bytesFreed);
 
 std::string getUserName();
 
@@ -201,14 +194,17 @@ Paths createDirs(const Path & path);
 
 /* Create a symlink. */
 #ifndef _WIN32
-void createSymlink(const Path & target, const Path & link);
+void createSymlink(const Path & target, const Path & link,
+    std::optional<time_t> mtime = {});
 #else
 enum SymlinkType { SymlinkTypeDangling, SymlinkTypeDirectory, SymlinkTypeFile };
 SymlinkType createSymlink(const Path & target, const Path & link);
+// TODO mtime optional arg?
 #endif
 
 /* Atomically create or replace a symlink. */
-void replaceSymlink(const Path & target, const Path & link);
+void replaceSymlink(const Path & target, const Path & link,
+    std::optional<time_t> mtime = {});
 
 
 /* Wrappers arount read()/write() that read/write exactly the
@@ -228,11 +224,11 @@ MakeError(EndOfFile, Error);
 
 /* Read a file descriptor until EOF occurs. */
 #ifndef _WIN32
-string drainFD(int fd, bool block = true);
+string drainFD(int fd, bool block = true, const size_t reserveSize=0);
 
 void drainFD(int fd, Sink & sink, bool block = true);
 #else
-string drainFD(HANDLE handle/*, bool block = true*/);
+string drainFD(HANDLE handle/*, bool block = true, const size_t reserveSize=0*/);
 
 void drainFD(HANDLE handle, Sink & sink/*, bool block = true*/);
 #endif
@@ -291,6 +287,18 @@ public:
     HANDLE release();
 };
 #endif
+
+
+/* Create a temporary directory. */
+Path createTempDir(const Path & tmpRoot = "", const Path & prefix = "nix",
+    bool includePid = true, bool useGlobalCounter = true
+#ifndef _WIN32
+    , mode_t mode = 0755
+#endif
+    );
+
+/* Create a temporary file, returning a file handle and its path. */
+std::pair<AutoCloseFD, Path> createTempFile(const Path & prefix = "nix");
 
 
 class Pipe
@@ -438,7 +446,7 @@ public:
     int status;
 
     template<typename... Args>
-    ExecError(int status, Args... args)
+    ExecError(int status, const Args & ... args)
         : Error(args...), status(status)
     { }
 };
@@ -479,13 +487,31 @@ MakeError(FormatError, Error);
 
 
 /* String tokenizer. */
-template<class C> C tokenizeString(const string & s, const string & separators = " \t\n\r");
+template<class C> C tokenizeString(std::string_view s, const string & separators = " \t\n\r");
 
 
 /* Concatenate the given strings with a separator between the
    elements. */
-string concatStringsSep(const string & sep, const Strings & ss);
-string concatStringsSep(const string & sep, const StringSet & ss);
+template<class C>
+string concatStringsSep(const string & sep, const C & ss)
+{
+    string s;
+    for (auto & i : ss) {
+        if (s.size() != 0) s += sep;
+        s += i;
+    }
+    return s;
+}
+
+
+/* Add quotes around a collection of strings. */
+template<class C> Strings quoteStrings(const C & c)
+{
+    Strings res;
+    for (auto & s : c)
+        res.push_back("'" + s + "'");
+    return res;
+}
 
 
 /* Remove trailing whitespace from a string. */
@@ -502,17 +528,6 @@ string replaceStrings(const std::string & s,
 
 
 std::string rewriteStrings(const std::string & s, const StringMap & rewrites);
-
-
-/* If a set contains 'from', remove it and insert 'to'. */
-template<typename T>
-void replaceInSet(std::set<T> & set, const T & from, const T & to)
-{
-    auto i = set.find(from);
-    if (i == set.end()) return;
-    set.erase(i);
-    set.insert(to);
-}
 
 
 /* Convert the exit status of a child as returned by wait() into an
@@ -542,11 +557,11 @@ template<class N> bool string2Float(const string & s, N & n)
 
 
 /* Return true iff `s' starts with `prefix'. */
-bool hasPrefix(const string & s, const string & prefix);
+bool hasPrefix(std::string_view s, std::string_view prefix);
 
 
 /* Return true iff `s' ends in `suffix'. */
-bool hasSuffix(const string & s, const string & suffix);
+bool hasSuffix(std::string_view s, std::string_view suffix);
 
 
 /* Convert a string to lower case. */
@@ -567,22 +582,13 @@ std::wstring windowsEscapeW(const std::wstring & s);
 void ignoreException();
 
 
-/* Some ANSI escape sequences. */
-#ifndef _WIN32
-#define ANSI_NORMAL "\x1B[0m"
-#define ANSI_BOLD "\x1B[1m"
-#define ANSI_FAINT "\x1B[2m"
-#define ANSI_RED "\x1B[31;1m"
-#define ANSI_GREEN "\x1B[32;1m"
-#define ANSI_BLUE "\x1B[34;1m"
-#else
-#define ANSI_NORMAL ""
-#define ANSI_BOLD ""
-#define ANSI_FAINT ""
-#define ANSI_RED ""
-#define ANSI_GREEN ""
-#define ANSI_BLUE ""
-#endif
+
+/* Tree formatting. */
+constexpr char treeConn[] = "├───";
+constexpr char treeLast[] = "└───";
+constexpr char treeLine[] = "│   ";
+constexpr char treeNull[] = "    ";
+
 
 /* Truncate a string to 'width' printable characters. If 'filterAll'
    is true, all ANSI escape sequences are filtered out. Otherwise,
@@ -595,57 +601,28 @@ std::string filterANSIEscapes(const std::string & s,
 
 
 /* Base64 encoding/decoding. */
-string base64Encode(const string & s);
-string base64Decode(const string & s);
+string base64Encode(std::string_view s);
+string base64Decode(std::string_view s);
 
 
-/* Get a value for the specified key from an associate container, or a
-   default value if the key doesn't exist. */
+/* Remove common leading whitespace from the lines in the string
+   's'. For example, if every line is indented by at least 3 spaces,
+   then we remove 3 spaces from the start of every line. */
+std::string stripIndentation(std::string_view s);
+
+
+/* Get a value for the specified key from an associate container. */
 template <class T>
-string get(const T & map, const string & key, const string & def = "")
+std::optional<typename T::mapped_type> get(const T & map, const typename T::key_type & key)
 {
     auto i = map.find(key);
-    return i == map.end() ? def : i->second;
+    if (i == map.end()) return {};
+    return std::optional<typename T::mapped_type>(i->second);
 }
 
 
-/* A callback is a wrapper around a lambda that accepts a valid of
-   type T or an exception. (We abuse std::future<T> to pass the value or
-   exception.) */
 template<typename T>
-class Callback
-{
-    std::function<void(std::future<T>)> fun;
-    std::atomic_flag done = ATOMIC_FLAG_INIT;
-
-public:
-
-    Callback(std::function<void(std::future<T>)> fun) : fun(fun) { }
-
-    Callback(Callback && callback) : fun(std::move(callback.fun))
-    {
-        auto prev = callback.done.test_and_set();
-        if (prev) done.test_and_set();
-    }
-
-    void operator()(T && t) noexcept
-    {
-        auto prev = done.test_and_set();
-        assert(!prev);
-        std::promise<T> promise;
-        promise.set_value(std::move(t));
-        fun(promise.get_future());
-    }
-
-    void rethrow(const std::exception_ptr & exc = std::current_exception()) noexcept
-    {
-        auto prev = done.test_and_set();
-        assert(!prev);
-        std::promise<T> promise;
-        promise.set_exception(exc);
-        fun(promise.get_future());
-    }
-};
+class Callback;
 
 #ifndef _WIN32
 /* Start a thread that handles various signals. Also block those signals
@@ -724,11 +701,49 @@ inline bool isslash(int c) { return c == '/' || c == '\\'; }
 inline bool isslash(int c) { return c == '/'; }
 #endif
 
+/* Common initialisation performed in child processes. */
+void commonChildInit(Pipe & logPipe);
+
 
 #ifndef _WIN32
 /* Create a Unix domain socket in listen mode. */
 AutoCloseFD createUnixDomainSocket(const Path & path, mode_t mode);
 #endif
+
+
+// A Rust/Python-like enumerate() iterator adapter.
+// Borrowed from http://reedbeta.com/blog/python-like-enumerate-in-cpp17.
+template <typename T,
+          typename TIter = decltype(std::begin(std::declval<T>())),
+          typename = decltype(std::end(std::declval<T>()))>
+constexpr auto enumerate(T && iterable)
+{
+    struct iterator
+    {
+        size_t i;
+        TIter iter;
+        bool operator != (const iterator & other) const { return iter != other.iter; }
+        void operator ++ () { ++i; ++iter; }
+        auto operator * () const { return std::tie(i, *iter); }
+    };
+
+    struct iterable_wrapper
+    {
+        T iterable;
+        auto begin() { return iterator{ 0, std::begin(iterable) }; }
+        auto end() { return iterator{ 0, std::end(iterable) }; }
+    };
+
+    return iterable_wrapper{ std::forward<T>(iterable) };
+}
+
+
+// C++17 std::visit boilerplate
+template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
+template<class... Ts> overloaded(Ts...) -> overloaded<Ts...>;
+
+
+std::string showBytes(uint64_t bytes);
 
 
 }

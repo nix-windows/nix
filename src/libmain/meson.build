@@ -10,13 +10,19 @@
 src_inc += include_directories('.')
 
 libmain_src = files(
-    join_paths(meson.source_root(), 'src/libmain/common-args.cc'),
-    join_paths(meson.source_root(), 'src/libmain/shared.cc'),
-    join_paths(meson.source_root(), 'src/libmain/stack.cc'))
+    'common-args.cc',
+    'loggers.cc',
+    'progress-bar.cc',
+    'shared.cc',
+    'stack.cc',
+)
 
 libmain_headers = files(
-    join_paths(meson.source_root(), 'src/libmain/common-args.hh'),
-    join_paths(meson.source_root(), 'src/libmain/shared.hh'))
+    'common-args.hh',
+    'loggers.hh',
+    'progress-bar.hh',
+    'shared.hh',
+)
 
 
 
@@ -27,7 +33,8 @@ libmain_headers = files(
 libmain_dep_list = [
     pthread_dep,
     openssl_dep,
-    libsodium_dep]
+    libsodium_dep,
+]
 
 
 
@@ -38,7 +45,7 @@ libmain_dep_list = [
 
 libmain_link_list = [
     libutil_lib,
-    libstore_lib
+    libstore_lib,
 ]
 
 libmain_link_args = []

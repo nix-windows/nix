@@ -5,8 +5,9 @@
 #include "derivations.hh"
 #include "globals.hh"
 #include "eval-inline.hh"
-#include "download.hh"
+#include "filetransfer.hh"
 #include "json.hh"
+#include "function-trace.hh"
 
 #include <algorithm>
 #include <chrono>
@@ -22,6 +23,8 @@
 #endif
 
 #if HAVE_BOEHMGC
+
+#define GC_INCLUDE_NEW
 
 #include <gc/gc.h>
 #include <gc/gc_cpp.h>
@@ -41,6 +44,25 @@ static char * dupString(const char * s)
 #endif
     if (!t) throw std::bad_alloc();
     return t;
+}
+
+
+static char * dupStringWithLen(const char * s, size_t size)
+{
+    char * t;
+#if HAVE_BOEHMGC
+    t = GC_STRNDUP(s, size);
+#else
+    t = strndup(s, size);
+#endif
+    if (!t) throw std::bad_alloc();
+    return t;
+}
+
+
+RootValue allocRootValue(Value * v)
+{
+    return std::allocate_shared<Value *>(traceable_allocator<Value *>(), v);
 }
 
 
@@ -67,6 +89,7 @@ static void printValue(std::ostream & str, std::set<const Value *> & active, con
             else if (*i == '\n') str << "\\n";
             else if (*i == '\r') str << "\\r";
             else if (*i == '\t') str << "\\t";
+            else if (*i == '$' && *(i+1) == '{') str << "\\" << *i;
             else str << *i;
         str << "\"";
         break;
@@ -141,12 +164,12 @@ const Value *getPrimOp(const Value &v) {
 }
 
 
-string showType(const Value & v)
+string showType(ValueType type)
 {
-    switch (v.type) {
+    switch (type) {
         case tInt: return "an integer";
-        case tBool: return "a boolean";
-        case tString: return v.string.context ? "a string with context" : "a string";
+        case tBool: return "a Boolean";
+        case tString: return "a string";
         case tPath: return "a path";
         case tNull: return "null";
         case tAttrs: return "a set";
@@ -155,14 +178,39 @@ string showType(const Value & v)
         case tApp: return "a function application";
         case tLambda: return "a function";
         case tBlackhole: return "a black hole";
+        case tPrimOp: return "a built-in function";
+        case tPrimOpApp: return "a partially applied built-in function";
+        case tExternal: return "an external value";
+        case tFloat: return "a float";
+    }
+    abort();
+}
+
+
+string showType(const Value & v)
+{
+    switch (v.type) {
+        case tString: return v.string.context ? "a string with context" : "a string";
         case tPrimOp:
             return fmt("the built-in function '%s'", string(v.primOp->name));
         case tPrimOpApp:
             return fmt("the partially applied built-in function '%s'", string(getPrimOp(v)->primOp->name));
         case tExternal: return v.external->showType();
-        case tFloat: return "a float";
+    default:
+        return showType(v.type);
     }
-    abort();
+}
+
+
+bool Value::isTrivial() const
+{
+    return
+        type != tApp
+        && type != tPrimOpApp
+        && (type != tThunk
+            || (dynamic_cast<ExprAttrs *>(thunk.expr)
+                && ((ExprAttrs *) thunk.expr)->dynamicAttrs.empty())
+            || dynamic_cast<ExprLambda *>(thunk.expr));
 }
 
 
@@ -219,7 +267,7 @@ void initGC()
        that GC_expand_hp() causes a lot of virtual, but not physical
        (resident) memory to be allocated.  This might be a problem on
        systems that don't overcommit. */
-    if (!getenv("GC_INITIAL_HEAP_SIZE")) {
+    if (!getEnv("GC_INITIAL_HEAP_SIZE")) {
         size_t size = 32 * 1024 * 1024;
 #if HAVE_SYSCONF && defined(_SC_PAGESIZE) && defined(_SC_PHYS_PAGES)
         size_t maxSize = 384 * 1024 * 1024;
@@ -305,15 +353,21 @@ EvalState::EvalState(const Strings & _searchPath, ref<Store> store)
     , sStructuredAttrs(symbols.create("__structuredAttrs"))
     , sBuilder(symbols.create("builder"))
     , sArgs(symbols.create("args"))
+    , sContentAddressed(symbols.create("__contentAddressed"))
     , sOutputHash(symbols.create("outputHash"))
     , sOutputHashAlgo(symbols.create("outputHashAlgo"))
     , sOutputHashMode(symbols.create("outputHashMode"))
+    , sRecurseForDerivations(symbols.create("recurseForDerivations"))
+    , sDescription(symbols.create("description"))
+    , sSelf(symbols.create("self"))
+    , sEpsilon(symbols.create(""))
     , repair(NoRepair)
     , store(store)
+    , regexCache(makeRegexCache())
     , baseEnv(allocEnv(128))
     , staticBaseEnv(false, 0)
 {
-    countCalls = getEnv("NIX_COUNT_CALLS", "0") != "0";
+    countCalls = getEnv("NIX_COUNT_CALLS").value_or("0") != "0";
 
     assert(gcInitialised);
 
@@ -321,11 +375,14 @@ EvalState::EvalState(const Strings & _searchPath, ref<Store> store)
 
     /* Initialise the Nix expression search path. */
     if (!evalSettings.pureEval) {
-        Strings paths = parseNixPath(getEnv("NIX_PATH", ""));
         for (auto & i : _searchPath) addToSearchPath(i);
-        for (auto & i : paths) addToSearchPath(i);
+        for (auto & i : evalSettings.nixPath.get()) addToSearchPath(i);
     }
-    addToSearchPath("nix=" + canonPath(settings.nixDataDir + "/nix/corepkgs", true));
+
+    try {
+        addToSearchPath("nix=" + canonPath(settings.nixDataDir + "/nix/corepkgs", true));
+    } catch (Error &) {
+    }
 
     if (evalSettings.restrictEval || evalSettings.pureEval) {
         allowedPaths = PathSet();
@@ -337,10 +394,14 @@ EvalState::EvalState(const Strings & _searchPath, ref<Store> store)
             auto path = r.second;
 
             if (store->isInStore(r.second)) {
-                PathSet closure;
-                store->computeFSClosure(store->toStorePath(r.second), closure);
-                for (auto & path : closure)
-                    allowedPaths->insert(path);
+                try {
+                    StorePathSet closure;
+                    store->computeFSClosure(store->toStorePath(r.second).first, closure);
+                    for (auto & path : closure)
+                        allowedPaths->insert(store->printStorePath(path));
+                } catch (InvalidPath &) {
+                    allowedPaths->insert(r.second);
+                }
             } else
                 allowedPaths->insert(r.second);
         }
@@ -463,19 +524,54 @@ Value * EvalState::addConstant(const string & name, Value & v)
 Value * EvalState::addPrimOp(const string & name,
     size_t arity, PrimOpFun primOp)
 {
+    auto name2 = string(name, 0, 2) == "__" ? string(name, 2) : name;
+    Symbol sym = symbols.create(name2);
+
+    /* Hack to make constants lazy: turn them into a application of
+       the primop to a dummy value. */
     if (arity == 0) {
+        auto vPrimOp = allocValue();
+        vPrimOp->type = tPrimOp;
+        vPrimOp->primOp = new PrimOp { .fun = primOp, .arity = 1, .name = sym };
         Value v;
-        primOp(*this, noPos, nullptr, v);
+        mkApp(v, *vPrimOp, *vPrimOp);
         return addConstant(name, v);
     }
+
     Value * v = allocValue();
-    string name2 = string(name, 0, 2) == "__" ? string(name, 2) : name;
-    Symbol sym = symbols.create(name2);
     v->type = tPrimOp;
-    v->primOp = new PrimOp(primOp, arity, sym);
+    v->primOp = new PrimOp { .fun = primOp, .arity = arity, .name = sym };
     staticBaseEnv.vars[symbols.create(name)] = baseEnvDispl;
     baseEnv.values[baseEnvDispl++] = v;
     baseEnv.values[0]->attrs->push_back(Attr(sym, v));
+    return v;
+}
+
+
+Value * EvalState::addPrimOp(PrimOp && primOp)
+{
+    /* Hack to make constants lazy: turn them into a application of
+       the primop to a dummy value. */
+    if (primOp.arity == 0) {
+        primOp.arity = 1;
+        auto vPrimOp = allocValue();
+        vPrimOp->type = tPrimOp;
+        vPrimOp->primOp = new PrimOp(std::move(primOp));
+        Value v;
+        mkApp(v, *vPrimOp, *vPrimOp);
+        return addConstant(primOp.name, v);
+    }
+
+    Symbol envName = primOp.name;
+    if (hasPrefix(primOp.name, "__"))
+        primOp.name = symbols.create(std::string(primOp.name, 2));
+
+    Value * v = allocValue();
+    v->type = tPrimOp;
+    v->primOp = new PrimOp(std::move(primOp));
+    staticBaseEnv.vars[envName] = baseEnvDispl;
+    baseEnv.values[baseEnvDispl++] = v;
+    baseEnv.values[0]->attrs->push_back(Attr(primOp.name, v));
     return v;
 }
 
@@ -486,6 +582,25 @@ Value & EvalState::getBuiltin(const string & name)
 }
 
 
+std::optional<EvalState::Doc> EvalState::getDoc(Value & v)
+{
+    if (v.type == tPrimOp || v.type == tPrimOpApp) {
+        auto v2 = &v;
+        while (v2->type == tPrimOpApp)
+            v2 = v2->primOpApp.left;
+        if (v2->primOp->doc)
+            return Doc {
+                .pos = noPos,
+                .name = v2->primOp->name,
+                .arity = v2->primOp->arity,
+                .args = v2->primOp->args,
+                .doc = v2->primOp->doc,
+            };
+    }
+    return {};
+}
+
+
 /* Every "format" object (even temporary) takes up a few hundred bytes
    of stack space, which is a real killer in the recursive
    evaluator.  So here are some helper functions for throwing
@@ -493,67 +608,84 @@ Value & EvalState::getBuiltin(const string & name)
 
 LocalNoInlineNoReturn(void throwEvalError(const char * s, const string & s2))
 {
-    throw EvalError(format(s) % s2);
+    throw EvalError(s, s2);
 }
 
-LocalNoInlineNoReturn(void throwEvalError(const char * s, const string & s2, const Pos & pos))
+LocalNoInlineNoReturn(void throwEvalError(const Pos & pos, const char * s, const string & s2))
 {
-    throw EvalError(format(s) % s2 % pos);
+    throw EvalError({
+        .hint = hintfmt(s, s2),
+        .errPos = pos
+    });
 }
 
 LocalNoInlineNoReturn(void throwEvalError(const char * s, const string & s2, const string & s3))
 {
-    throw EvalError(format(s) % s2 % s3);
+    throw EvalError(s, s2, s3);
 }
 
-LocalNoInlineNoReturn(void throwEvalError(const char * s, const string & s2, const string & s3, const Pos & pos))
+LocalNoInlineNoReturn(void throwEvalError(const Pos & pos, const char * s, const string & s2, const string & s3))
 {
-    throw EvalError(format(s) % s2 % s3 % pos);
+    throw EvalError({
+        .hint = hintfmt(s, s2, s3),
+        .errPos = pos
+    });
 }
 
-LocalNoInlineNoReturn(void throwEvalError(const char * s, const Symbol & sym, const Pos & p1, const Pos & p2))
+LocalNoInlineNoReturn(void throwEvalError(const Pos & p1, const char * s, const Symbol & sym, const Pos & p2))
 {
-    throw EvalError(format(s) % sym % p1 % p2);
+    // p1 is where the error occurred; p2 is a position mentioned in the message.
+    throw EvalError({
+        .hint = hintfmt(s, sym, p2),
+        .errPos = p1
+    });
 }
 
-LocalNoInlineNoReturn(void throwTypeError(const char * s, const Pos & pos))
+LocalNoInlineNoReturn(void throwTypeError(const Pos & pos, const char * s))
 {
-    throw TypeError(format(s) % pos);
+    throw TypeError({
+        .hint = hintfmt(s),
+        .errPos = pos
+    });
 }
 
 LocalNoInlineNoReturn(void throwTypeError(const char * s, const string & s1))
 {
-    throw TypeError(format(s) % s1);
+    throw TypeError(s, s1);
 }
 
-LocalNoInlineNoReturn(void throwTypeError(const char * s, const ExprLambda & fun, const Symbol & s2, const Pos & pos))
+LocalNoInlineNoReturn(void throwTypeError(const Pos & pos, const char * s, const ExprLambda & fun, const Symbol & s2))
 {
-    throw TypeError(format(s) % fun.showNamePos() % s2 % pos);
+    throw TypeError({
+        .hint = hintfmt(s, fun.showNamePos(), s2),
+        .errPos = pos
+    });
 }
 
-LocalNoInlineNoReturn(void throwAssertionError(const char * s, const Pos & pos))
+LocalNoInlineNoReturn(void throwAssertionError(const Pos & pos, const char * s, const string & s1))
 {
-    throw AssertionError(format(s) % pos);
+    throw AssertionError({
+        .hint = hintfmt(s, s1),
+        .errPos = pos
+    });
 }
 
-LocalNoInlineNoReturn(void throwUndefinedVarError(const char * s, const string & s1, const Pos & pos))
+LocalNoInlineNoReturn(void throwUndefinedVarError(const Pos & pos, const char * s, const string & s1))
 {
-    throw UndefinedVarError(format(s) % s1 % pos);
+    throw UndefinedVarError({
+        .hint = hintfmt(s, s1),
+        .errPos = pos
+    });
 }
 
-LocalNoInline(void addErrorPrefix(Error & e, const char * s, const string & s2))
+LocalNoInline(void addErrorTrace(Error & e, const char * s, const string & s2))
 {
-    e.addPrefix(format(s) % s2);
+    e.addTrace(std::nullopt, s, s2);
 }
 
-LocalNoInline(void addErrorPrefix(Error & e, const char * s, const ExprLambda & fun, const Pos & pos))
+LocalNoInline(void addErrorTrace(Error & e, const Pos & pos, const char * s, const string & s2))
 {
-    e.addPrefix(format(s) % fun.showNamePos() % pos);
-}
-
-LocalNoInline(void addErrorPrefix(Error & e, const char * s, const string & s2, const Pos & pos))
-{
-    e.addPrefix(format(s) % s2 % pos);
+    e.addTrace(pos, s, s2);
 }
 
 
@@ -563,9 +695,11 @@ void mkString(Value & v, const char * s)
 }
 
 
-Value & mkString(Value & v, const string & s, const PathSet & context)
+Value & mkString(Value & v, std::string_view s, const PathSet & context)
 {
-    mkString(v, s.c_str());
+    v.type = tString;
+    v.string.s = dupStringWithLen(s.data(), s.size());
+    v.string.context = 0;
     if (!context.empty()) {
         size_t n = 0;
         v.string.context = (const char * *)
@@ -604,7 +738,7 @@ inline Value * EvalState::lookupVar(Env * env, const ExprVar & var, bool noEval)
             return j->value;
         }
         if (!env->prevWith)
-            throwUndefinedVarError("undefined variable '%1%' at %2%", var.name, var.pos);
+            throwUndefinedVarError(var.pos, "undefined variable '%1%'", var.name);
         for (size_t l = env->prevWith; l; --l, env = env->up) ;
     }
 }
@@ -628,13 +762,9 @@ Value * EvalState::allocValue()
 
 Env & EvalState::allocEnv(size_t size)
 {
-    if (size > std::numeric_limits<decltype(Env::size)>::max())
-        throw Error("environment size %d is too big", size);
-
     nrEnvs++;
     nrValuesInEnvs += size;
     Env * env = (Env *) allocBytes(sizeof(Env) + size * sizeof(Value *));
-    env->size = (decltype(Env::size)) size;
     env->type = Env::Plain;
 
     /* We assume that env->values has been cleared by the allocator; maybeThunk() and lookupVar fromWith expect this. */
@@ -738,7 +868,7 @@ Value * ExprPath::maybeThunk(EvalState & state, Env & env)
 }
 
 
-void EvalState::evalFile(const Path & path_, Value & v)
+void EvalState::evalFile(const Path & path_, Value & v, bool mustBeTrivial)
 {
     auto path = checkSourcePath(path_);
 
@@ -767,9 +897,14 @@ void EvalState::evalFile(const Path & path_, Value & v)
     fileParseCache[path2] = e;
 
     try {
+        // Enforce that 'flake.nix' is a direct attrset, not a
+        // computation.
+        if (mustBeTrivial &&
+            !(dynamic_cast<ExprAttrs *>(e)))
+            throw Error("file '%s' must be an attribute set", path);
         eval(e, v);
     } catch (Error & e) {
-        addErrorPrefix(e, "while evaluating the file '%1%':\n", path2);
+        addErrorTrace(e, "while evaluating the file '%1%':", path2);
         throw;
     }
 
@@ -806,7 +941,7 @@ inline bool EvalState::evalBool(Env & env, Expr * e, const Pos & pos)
     Value v;
     e->eval(*this, env, v);
     if (v.type != tBool)
-        throwTypeError("value is %1% while a Boolean was expected, at %2%", v, pos);
+        throwTypeError(pos, "value is %1% while a Boolean was expected", v);
     return v.boolean;
 }
 
@@ -889,7 +1024,7 @@ void ExprAttrs::eval(EvalState & state, Env & env, Value & v)
         if (hasOverrides) {
             Value * vOverrides = (*v.attrs)[overrides->second.displ].value;
             state.forceAttrs(*vOverrides);
-            Bindings * newBnds = state.allocBindings(v.attrs->size() + vOverrides->attrs->size());
+            Bindings * newBnds = state.allocBindings(v.attrs->capacity() + vOverrides->attrs->size());
             for (auto & i : *v.attrs)
                 newBnds->push_back(i);
             for (auto & i : *vOverrides->attrs) {
@@ -920,7 +1055,7 @@ void ExprAttrs::eval(EvalState & state, Env & env, Value & v)
         Symbol nameSym = state.symbols.create(nameVal.string.s);
         Bindings::iterator j = v.attrs->find(nameSym);
         if (j != v.attrs->end())
-            throwEvalError("dynamic attribute '%1%' at %2% already defined at %3%", nameSym, i.pos, *j->pos);
+            throwEvalError(i.pos, "dynamic attribute '%1%' already defined at %2%", nameSym, *j->pos);
 
         i.valueExpr->setName(nameSym);
         /* Keep sorted order so find can catch duplicates */
@@ -1008,7 +1143,7 @@ void ExprSelect::eval(EvalState & state, Env & env, Value & v)
             } else {
                 state.forceAttrs(*vAttrs, pos);
                 if ((j = vAttrs->attrs->find(name)) == vAttrs->attrs->end())
-                    throwEvalError("attribute '%1%' missing, at %2%", name, pos);
+                    throwEvalError(pos, "attribute '%1%' missing", name);
             }
             vAttrs = j->value;
             pos2 = j->pos;
@@ -1019,8 +1154,8 @@ void ExprSelect::eval(EvalState & state, Env & env, Value & v)
 
     } catch (Error & e) {
         if (pos2 && pos2->file != state.sDerivationNix)
-            addErrorPrefix(e, "while evaluating the attribute '%1%' at %2%:\n",
-                showAttrPath(state, env, attrPath), *pos2);
+            addErrorTrace(e, *pos2, "while evaluating the attribute '%1%'",
+                showAttrPath(state, env, attrPath));
         throw;
     }
 
@@ -1112,10 +1247,7 @@ void EvalState::callPrimOp(Value & fun, Value & arg, Value & v, const Pos & pos)
 
 void EvalState::callFunction(Value & fun, Value & arg, Value & v, const Pos & pos)
 {
-    std::optional<FunctionCallTrace> trace;
-    if (evalSettings.traceFunctionCalls) {
-        trace.emplace(pos);
-    }
+    auto trace = evalSettings.traceFunctionCalls ? std::make_unique<FunctionCallTrace>(pos) : nullptr;
 
     forceValue(fun, pos);
 
@@ -1141,7 +1273,7 @@ void EvalState::callFunction(Value & fun, Value & arg, Value & v, const Pos & po
     }
 
     if (fun.type != tLambda)
-        throwTypeError("attempt to call something which is not a function but %1%, at %2%", fun, pos);
+        throwTypeError(pos, "attempt to call something which is not a function but %1%", fun);
 
     ExprLambda & lambda(*fun.lambda.fun);
 
@@ -1169,8 +1301,8 @@ void EvalState::callFunction(Value & fun, Value & arg, Value & v, const Pos & po
         for (auto & i : lambda.formals->formals) {
             Bindings::iterator j = arg.attrs->find(i.name);
             if (j == arg.attrs->end()) {
-                if (!i.def) throwTypeError("%1% called without required argument '%2%', at %3%",
-                    lambda, i.name, pos);
+                if (!i.def) throwTypeError(pos, "%1% called without required argument '%2%'",
+                    lambda, i.name);
                 env2.values[displ++] = i.def->maybeThunk(*this, env2);
             } else {
                 attrsUsed++;
@@ -1185,7 +1317,7 @@ void EvalState::callFunction(Value & fun, Value & arg, Value & v, const Pos & po
                user. */
             for (auto & i : *arg.attrs)
                 if (lambda.formals->argNames.find(i.name) == lambda.formals->argNames.end())
-                    throwTypeError("%1% called with unexpected argument '%2%', at %3%", lambda, i.name, pos);
+                    throwTypeError(pos, "%1% called with unexpected argument '%2%'", lambda, i.name);
             abort(); // can't happen
         }
     }
@@ -1195,11 +1327,15 @@ void EvalState::callFunction(Value & fun, Value & arg, Value & v, const Pos & po
 
     /* Evaluate the body.  This is conditional on showTrace, because
        catching exceptions makes this function not tail-recursive. */
-    if (settings.showTrace)
+    if (loggerSettings.showTrace.get())
         try {
             lambda.body->eval(*this, env2, v);
         } catch (Error & e) {
-            addErrorPrefix(e, "while evaluating %1%, called from %2%:\n", lambda, pos);
+            addErrorTrace(e, lambda.pos, "while evaluating %s",
+              (lambda.name.set()
+                  ? "'" + (string) lambda.name + "'"
+                  : "anonymous lambda"));
+            addErrorTrace(e, pos, "from call site%s", "");
             throw;
         }
     else
@@ -1235,14 +1371,25 @@ void EvalState::autoCallFunction(Bindings & args, Value & fun, Value & res)
     }
 
     Value * actualArgs = allocValue();
-    mkAttrs(*actualArgs, fun.lambda.fun->formals->formals.size());
+    mkAttrs(*actualArgs, std::max(static_cast<uint32_t>(fun.lambda.fun->formals->formals.size()), args.size()));
 
-    for (auto & i : fun.lambda.fun->formals->formals) {
-        Bindings::iterator j = args.find(i.name);
-        if (j != args.end())
-            actualArgs->attrs->push_back(*j);
-        else if (!i.def)
-            throwTypeError("cannot auto-call a function that has an argument without a default value ('%1%')", i.name);
+    if (fun.lambda.fun->formals->ellipsis) {
+        // If the formals have an ellipsis (eg the function accepts extra args) pass
+        // all available automatic arguments (which includes arguments specified on
+        // the command line via --arg/--argstr)
+        for (auto& v : args) {
+            actualArgs->attrs->push_back(v);
+        }
+    } else {
+        // Otherwise, only pass the arguments that the function accepts
+        for (auto & i : fun.lambda.fun->formals->formals) {
+            Bindings::iterator j = args.find(i.name);
+            if (j != args.end()) {
+                actualArgs->attrs->push_back(*j);
+            } else if (!i.def) {
+                throwTypeError("cannot auto-call a function that has an argument without a default value ('%1%')", i.name);
+            }
+        }
     }
 
     actualArgs->attrs->sort();
@@ -1265,14 +1412,17 @@ void ExprWith::eval(EvalState & state, Env & env, Value & v)
 
 void ExprIf::eval(EvalState & state, Env & env, Value & v)
 {
-    (state.evalBool(env, cond) ? then : else_)->eval(state, env, v);
+    (state.evalBool(env, cond, pos) ? then : else_)->eval(state, env, v);
 }
 
 
 void ExprAssert::eval(EvalState & state, Env & env, Value & v)
 {
-    if (!state.evalBool(env, cond, pos))
-        throwAssertionError("assertion failed at %1%", pos);
+    if (!state.evalBool(env, cond, pos)) {
+        std::ostringstream out;
+        cond->show(out);
+        throwAssertionError(pos, "assertion '%1%' failed at %2%", out.str());
+    }
     body->eval(state, env, v);
 }
 
@@ -1423,14 +1573,14 @@ void ExprConcatStrings::eval(EvalState & state, Env & env, Value & v)
                 nf = n;
                 nf += vTmp.fpoint;
             } else
-                throwEvalError("cannot add %1% to an integer, at %2%", showType(vTmp), pos);
+                throwEvalError(pos, "cannot add %1% to an integer", showType(vTmp));
         } else if (firstType == tFloat) {
             if (vTmp.type == tInt) {
                 nf += vTmp.integer;
             } else if (vTmp.type == tFloat) {
                 nf += vTmp.fpoint;
             } else
-                throwEvalError("cannot add %1% to a float, at %2%", showType(vTmp), pos);
+                throwEvalError(pos, "cannot add %1% to a float", showType(vTmp));
         } else
             s << state.coerceToString(pos, vTmp, context, false, firstType == tString);
     }
@@ -1441,7 +1591,7 @@ void ExprConcatStrings::eval(EvalState & state, Env & env, Value & v)
         mkFloat(v, nf);
     else if (firstType == tPath) {
         if (!context.empty())
-            throwEvalError("a string that refers to a store path cannot be appended to a path, at %1%", pos);
+            throwEvalError(pos, "a string that refers to a store path cannot be appended to a path");
         auto path = canonPath(s.str());
         mkPath(v, path.c_str());
     } else
@@ -1471,7 +1621,7 @@ void EvalState::forceValueDeep(Value & v)
                 try {
                     recurse(*i.value);
                 } catch (Error & e) {
-                    addErrorPrefix(e, "while evaluating the attribute '%1%' at %2%:\n", i.name, *i.pos);
+                    addErrorTrace(e, *i.pos, "while evaluating the attribute '%1%'", i.name);
                     throw;
                 }
         }
@@ -1490,7 +1640,7 @@ NixInt EvalState::forceInt(Value & v, const Pos & pos)
 {
     forceValue(v, pos);
     if (v.type != tInt)
-        throwTypeError("value is %1% while an integer was expected, at %2%", v, pos);
+        throwTypeError(pos, "value is %1% while an integer was expected", v);
     return v.integer;
 }
 
@@ -1501,16 +1651,16 @@ NixFloat EvalState::forceFloat(Value & v, const Pos & pos)
     if (v.type == tInt)
         return v.integer;
     else if (v.type != tFloat)
-        throwTypeError("value is %1% while a float was expected, at %2%", v, pos);
+        throwTypeError(pos, "value is %1% while a float was expected", v);
     return v.fpoint;
 }
 
 
 bool EvalState::forceBool(Value & v, const Pos & pos)
 {
-    forceValue(v);
+    forceValue(v, pos);
     if (v.type != tBool)
-        throwTypeError("value is %1% while a Boolean was expected, at %2%", v, pos);
+        throwTypeError(pos, "value is %1% while a Boolean was expected", v);
     return v.boolean;
 }
 
@@ -1523,9 +1673,9 @@ bool EvalState::isFunctor(Value & fun)
 
 void EvalState::forceFunction(Value & v, const Pos & pos)
 {
-    forceValue(v);
+    forceValue(v, pos);
     if (v.type != tLambda && v.type != tPrimOp && v.type != tPrimOpApp && !isFunctor(v))
-        throwTypeError("value is %1% while a function was expected, at %2%", v, pos);
+        throwTypeError(pos, "value is %1% while a function was expected", v);
 }
 
 
@@ -1534,11 +1684,23 @@ string EvalState::forceString(Value & v, const Pos & pos)
     forceValue(v, pos);
     if (v.type != tString) {
         if (pos)
-            throwTypeError("value is %1% while a string was expected, at %2%", v, pos);
+            throwTypeError(pos, "value is %1% while a string was expected", v);
         else
             throwTypeError("value is %1% while a string was expected", v);
     }
     return string(v.string.s);
+}
+
+
+/* Decode a context string ‘!<name>!<path>’ into a pair <path,
+   name>. */
+std::pair<string, string> decodeContext(std::string_view s)
+{
+    if (s.at(0) == '!') {
+        size_t index = s.find("!", 1);
+        return {std::string(s.substr(index + 1)), std::string(s.substr(1, index - 1))};
+    } else
+        return {s.at(0) == '/' ? std::string(s) : std::string(s.substr(1)), ""};
 }
 
 
@@ -1547,6 +1709,17 @@ void copyContext(const Value & v, PathSet & context)
     if (v.string.context)
         for (const char * * p = v.string.context; *p; ++p)
             context.insert(*p);
+}
+
+
+std::vector<std::pair<Path, std::string>> Value::getContext()
+{
+    std::vector<std::pair<Path, std::string>> res;
+    assert(type == tString);
+    if (string.context)
+        for (const char * * p = string.context; *p; ++p)
+            res.push_back(decodeContext(*p));
+    return res;
 }
 
 
@@ -1563,8 +1736,8 @@ string EvalState::forceStringNoCtx(Value & v, const Pos & pos)
     string s = forceString(v, pos);
     if (v.string.context) {
         if (pos)
-            throwEvalError("the string '%1%' is not allowed to refer to a store path (such as '%2%'), at %3%",
-                v.string.s, v.string.context[0], pos);
+            throwEvalError(pos, "the string '%1%' is not allowed to refer to a store path (such as '%2%')",
+                v.string.s, v.string.context[0]);
         else
             throwEvalError("the string '%1%' is not allowed to refer to a store path (such as '%2%')",
                 v.string.s, v.string.context[0]);
@@ -1600,7 +1773,7 @@ std::optional<string> EvalState::tryAttrsToString(const Pos & pos, Value & v,
 string EvalState::coerceToString(const Pos & pos, Value & v, PathSet & context,
     bool coerceMore, bool copyToStore)
 {
-    forceValue(v);
+    forceValue(v, pos);
 
     string s;
 
@@ -1620,7 +1793,7 @@ string EvalState::coerceToString(const Pos & pos, Value & v, PathSet & context,
             return *maybeString;
         }
         auto i = v.attrs->find(sOutPath);
-        if (i == v.attrs->end()) throwTypeError("cannot coerce a set to a string, at %1%", pos);
+        if (i == v.attrs->end()) throwTypeError(pos, "cannot coerce a set to a string");
         return coerceToString(pos, *i->value, context, coerceMore, copyToStore);
     }
 
@@ -1651,7 +1824,7 @@ string EvalState::coerceToString(const Pos & pos, Value & v, PathSet & context,
         }
     }
 
-    throwTypeError("cannot coerce %1% to a string, at %2%", v, pos);
+    throwTypeError(pos, "cannot coerce %1% to a string", v);
 }
 
 
@@ -1661,15 +1834,16 @@ string EvalState::copyPathToStore(PathSet & context, const Path & path)
         throwEvalError("file names are not allowed to end in '%1%'", drvExtension);
 
     Path dstPath;
-    if (srcToStore[path] != "")
-        dstPath = srcToStore[path];
+    auto i = srcToStore.find(path);
+    if (i != srcToStore.end())
+        dstPath = store->printStorePath(i->second);
     else {
-        dstPath = settings.readOnlyMode
-            ? store->computeStorePathForPath(baseNameOf(path), checkSourcePath(path)).first
-            : store->addToStore(baseNameOf(path), checkSourcePath(path), true, htSHA256, defaultPathFilter, repair);
-        srcToStore[path] = dstPath;
-        printMsg(lvlChatty, format("copied source '%1%' -> '%2%'")
-            % path % dstPath);
+        auto p = settings.readOnlyMode
+            ? store->computeStorePathForPath(std::string(baseNameOf(path)), checkSourcePath(path)).first
+            : store->addToStore(std::string(baseNameOf(path)), checkSourcePath(path), FileIngestionMethod::Recursive, htSHA256, defaultPathFilter, repair);
+        dstPath = store->printStorePath(p);
+        srcToStore.insert_or_assign(path, std::move(p));
+        printMsg(lvlChatty, "copied source '%1%' -> '%2%'", path, dstPath);
     }
 
     context.insert(dstPath);
@@ -1691,7 +1865,7 @@ Path EvalState::coerceToPath(const Pos & pos, Value & v, PathSet & context)
     throwEvalError("string '%1%' doesn't represent an absolute path, at %2%", path, pos);
 #endif
     if (path == "" || path[0] != '/')
-        throwEvalError("string '%1%' doesn't represent an absolute path, at %2%", path, pos);
+        throwEvalError(pos, "string '%1%' doesn't represent an absolute path", path);
     return path;
 }
 
@@ -1780,7 +1954,7 @@ bool EvalState::eqValues(Value & v1, Value & v2)
 
 void EvalState::printStats()
 {
-    bool showStats = getEnv("NIX_SHOW_STATS", "0") != "0";
+    bool showStats = getEnv("NIX_SHOW_STATS").value_or("0") != "0";
 
 #ifndef _WIN32
     struct rusage buf;
@@ -1797,7 +1971,7 @@ void EvalState::printStats()
     GC_get_heap_usage_safe(&heapSize, 0, 0, 0, &totalBytes);
 #endif
     if (showStats) {
-        auto outPath = getEnv("NIX_SHOW_STATS_PATH","-");
+        auto outPath = getEnv("NIX_SHOW_STATS_PATH").value_or("-");
         std::fstream fs;
         if (outPath != "-")
             fs.open(outPath, std::fstream::out);
@@ -1891,7 +2065,7 @@ void EvalState::printStats()
             }
         }
 
-        if (getEnv("NIX_SHOW_SYMBOLS", "0") != "0") {
+        if (getEnv("NIX_SHOW_SYMBOLS").value_or("0") != "0") {
             auto list = topObj.list("symbols");
             symbols.dump([&](const std::string & s) { list.elem(s); });
         }
@@ -1899,97 +2073,12 @@ void EvalState::printStats()
 }
 
 
-size_t valueSize(Value & v)
-{
-    std::set<const void *> seen;
-
-    auto doString = [&](const char * s) -> size_t {
-        if (!seen.insert(s).second) return 0;
-        return strlen(s) + 1;
-    };
-
-    std::function<size_t(Value & v)> doValue;
-    std::function<size_t(Env & v)> doEnv;
-
-    doValue = [&](Value & v) -> size_t {
-        if (!seen.insert(&v).second) return 0;
-
-        size_t sz = sizeof(Value);
-
-        switch (v.type) {
-        case tString:
-            sz += doString(v.string.s);
-            if (v.string.context)
-                for (const char * * p = v.string.context; *p; ++p)
-                    sz += doString(*p);
-            break;
-        case tPath:
-            sz += doString(v.path);
-            break;
-        case tAttrs:
-            if (seen.insert(v.attrs).second) {
-                sz += sizeof(Bindings) + sizeof(Attr) * v.attrs->capacity();
-                for (auto & i : *v.attrs)
-                    sz += doValue(*i.value);
-            }
-            break;
-        case tList1:
-        case tList2:
-        case tListN:
-            if (seen.insert(v.listElems()).second) {
-                sz += v.listSize() * sizeof(Value *);
-                for (size_t n = 0; n < v.listSize(); ++n)
-                    sz += doValue(*v.listElems()[n]);
-            }
-            break;
-        case tThunk:
-            sz += doEnv(*v.thunk.env);
-            break;
-        case tApp:
-            sz += doValue(*v.app.left);
-            sz += doValue(*v.app.right);
-            break;
-        case tLambda:
-            sz += doEnv(*v.lambda.env);
-            break;
-        case tPrimOpApp:
-            sz += doValue(*v.primOpApp.left);
-            sz += doValue(*v.primOpApp.right);
-            break;
-        case tExternal:
-            if (!seen.insert(v.external).second) break;
-            sz += v.external->valueSize(seen);
-            break;
-        default:
-            ;
-        }
-
-        return sz;
-    };
-
-    doEnv = [&](Env & env) -> size_t {
-        if (!seen.insert(&env).second) return 0;
-
-        size_t sz = sizeof(Env) + sizeof(Value *) * env.size;
-
-        if (env.type != Env::HasWithExpr)
-            for (size_t i = 0; i < env.size; ++i)
-                if (env.values[i])
-                    sz += doValue(*env.values[i]);
-
-        if (env.up) sz += doEnv(*env.up);
-
-        return sz;
-    };
-
-    return doValue(v);
-}
-
-
 string ExternalValueBase::coerceToString(const Pos & pos, PathSet & context, bool copyMore, bool copyToStore) const
 {
-    throw TypeError(format("cannot coerce %1% to a string, at %2%") %
-        showType() % pos);
+    throw TypeError({
+        .hint = hintfmt("cannot coerce %1% to a string", showType()),
+        .errPos = pos
+    });
 }
 
 
@@ -2004,9 +2093,25 @@ std::ostream & operator << (std::ostream & str, const ExternalValueBase & v) {
 }
 
 
+EvalSettings::EvalSettings()
+{
+    auto var = getEnv("NIX_PATH");
+    if (var) nixPath = parseNixPath(*var);
+}
+
+Strings EvalSettings::getDefaultNixPath()
+{
+    Strings res;
+    auto add = [&](const Path & p) { if (pathExists(p)) { res.push_back(p); } };
+    add(getHome() + "/.nix-defexpr/channels");
+    add("nixpkgs=" + settings.nixStateDir + "/nix/profiles/per-user/root/channels/nixpkgs");
+    add(settings.nixStateDir + "/nix/profiles/per-user/root/channels");
+    return res;
+}
+
 EvalSettings evalSettings;
 
-static GlobalConfig::Register r1(&evalSettings);
+static GlobalConfig::Register rEvalSettings(&evalSettings);
 
 
 }

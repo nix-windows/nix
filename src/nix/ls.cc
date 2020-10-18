@@ -37,16 +37,14 @@ struct MixLs : virtual Args, MixJSON
                         "-r--r--r--") :
                     st.type == FSAccessor::Type::tSymlink ? "lrwxrwxrwx" :
                     "dr-xr-xr-x";
-                std::cout <<
-                    (format("%s %20d %s") % tp % st.fileSize % relPath);
+                auto line = fmt("%s %20d %s", tp, st.fileSize, relPath);
                 if (st.type == FSAccessor::Type::tSymlink)
-                    std::cout << " -> " << accessor->readLink(curPath)
-                    ;
-                std::cout << "\n";
+                    line += " -> " + accessor->readLink(curPath);
+                logger->cout(line);
                 if (recursive && st.type == FSAccessor::Type::tDirectory)
                     doPath(st, curPath, relPath, false);
             } else {
-                std::cout << relPath << "\n";
+                logger->cout(relPath);
                 if (recursive) {
                     auto st = accessor->stat1(curPath);
                     if (st.type == FSAccessor::Type::tDirectory)
@@ -68,9 +66,9 @@ struct MixLs : virtual Args, MixJSON
 
         auto st = accessor->stat1(path);
         if (st.type == FSAccessor::Type::tMissing)
-            throw Error(format("path '%1%' does not exist") % path);
+            throw Error("path '%1%' does not exist", path);
         doPath(st, path,
-            st.type == FSAccessor::Type::tDirectory ? "." : baseNameOf(path),
+            st.type == FSAccessor::Type::tDirectory ? "." : std::string(baseNameOf(path)),
             showDirectory);
     }
 
@@ -90,7 +88,11 @@ struct CmdLsStore : StoreCommand, MixLs
 {
     CmdLsStore()
     {
-        expectArg("path", &path);
+        expectArgs({
+            .label = "path",
+            .handler = {&path},
+            .completer = completePath
+        });
     }
 
     Examples examples() override
@@ -103,15 +105,12 @@ struct CmdLsStore : StoreCommand, MixLs
         };
     }
 
-    std::string name() override
-    {
-        return "ls-store";
-    }
-
     std::string description() override
     {
-        return "show information about a store path";
+        return "show information about a path in the Nix store";
     }
+
+    Category category() override { return catUtility; }
 
     void run(ref<Store> store) override
     {
@@ -125,7 +124,11 @@ struct CmdLsNar : Command, MixLs
 
     CmdLsNar()
     {
-        expectArg("nar", &narPath);
+        expectArgs({
+            .label = "nar",
+            .handler = {&narPath},
+            .completer = completePath
+        });
         expectArg("path", &path);
     }
 
@@ -139,21 +142,18 @@ struct CmdLsNar : Command, MixLs
         };
     }
 
-    std::string name() override
-    {
-        return "ls-nar";
-    }
-
     std::string description() override
     {
-        return "show information about the contents of a NAR file";
+        return "show information about a path inside a NAR file";
     }
+
+    Category category() override { return catUtility; }
 
     void run() override
     {
-        list(makeNarAccessor(make_ref<std::string>(readFile(narPath, true))));
+        list(makeNarAccessor(make_ref<std::string>(readFile(narPath))));
     }
 };
 
-static RegisterCommand r1(make_ref<CmdLsStore>());
-static RegisterCommand r2(make_ref<CmdLsNar>());
+static auto rCmdLsStore = registerCommand<CmdLsStore>("ls-store");
+static auto rCmdLsNar = registerCommand<CmdLsNar>("ls-nar");
