@@ -19,6 +19,7 @@ extern "C" {
 }
 #endif
 
+#include "ansicolor.hh"
 #include "shared.hh"
 #include "eval.hh"
 #include "eval-inline.hh"
@@ -31,21 +32,19 @@ extern "C" {
 #include "globals.hh"
 #include "command.hh"
 #include "finally.hh"
+#include "markdown.hh"
 
+#if HAVE_BOEHMGC
 #define GC_INCLUDE_NEW
 #include <gc/gc_cpp.h>
+#endif
 
 namespace nix {
 
-#define ESC_RED "\033[31m"
-#define ESC_GRE "\033[32m"
-#define ESC_YEL "\033[33m"
-#define ESC_BLU "\033[34;1m"
-#define ESC_MAG "\033[35m"
-#define ESC_CYA "\033[36m"
-#define ESC_END "\033[0m"
-
-struct NixRepl : gc
+struct NixRepl
+    #if HAVE_BOEHMGC
+    : gc
+    #endif
 {
     string curDir;
     std::unique_ptr<EvalState> state;
@@ -66,7 +65,7 @@ struct NixRepl : gc
     void mainLoop(const std::vector<std::string> & files);
     StringSet completePrefix(string prefix);
     bool getLine(string & input, const std::string &prompt);
-    Path getDerivationPath(Value & v);
+    StorePath getDerivationPath(Value & v);
     bool processLine(string line);
     void loadFile(const Path & path);
     void initEnv();
@@ -218,12 +217,12 @@ void NixRepl::mainLoop(const std::vector<std::string> & files)
                 // input without clearing the input so far.
                 continue;
             } else {
-              printMsg(lvlError, error + "%1%%2%", (settings.showTrace ? e.prefix() : ""), e.msg());
+              printMsg(lvlError, e.msg());
             }
         } catch (Error & e) {
-            printMsg(lvlError, error + "%1%%2%", (settings.showTrace ? e.prefix() : ""), e.msg());
+          printMsg(lvlError, e.msg());
         } catch (Interrupted & e) {
-            printMsg(lvlError, error + "%1%%2%", (settings.showTrace ? e.prefix() : ""), e.msg());
+          printMsg(lvlError, e.msg());
         }
 
         // We handled the current input fully, so we should clear it
@@ -377,13 +376,16 @@ bool isVarName(const string & s)
 }
 
 
-Path NixRepl::getDerivationPath(Value & v) {
+StorePath NixRepl::getDerivationPath(Value & v) {
     auto drvInfo = getDerivation(*state, v, false);
     if (!drvInfo)
         throw Error("expression does not evaluate to a derivation, so I can't build it");
-    Path drvPath = drvInfo->queryDrvPath();
-    if (drvPath == "" || !state->store->isValidPath(state->store->parseStorePath(drvPath)))
-        throw Error("expression did not evaluate to a valid derivation");
+    Path drvPathRaw = drvInfo->queryDrvPath();
+    if (drvPathRaw == "")
+        throw Error("expression did not evaluate to a valid derivation (no drv path)");
+    StorePath drvPath = state->store->parseStorePath(drvPathRaw);
+    if (!state->store->isValidPath(drvPath))
+        throw Error("expression did not evaluate to a valid derivation (invalid drv path)");
     return drvPath;
 }
 
@@ -418,7 +420,8 @@ bool NixRepl::processLine(string line)
              << "  :r            Reload all files\n"
              << "  :s <expr>     Build dependencies of derivation, then start nix-shell\n"
              << "  :t <expr>     Describe result of evaluation\n"
-             << "  :u <expr>     Build derivation, then start nix-shell\n";
+             << "  :u <expr>     Build derivation, then start nix-shell\n"
+             << "  :doc <expr>   Show documentation of a builtin function\n";
     }
 
     else if (command == ":a" || command == ":add") {
@@ -476,29 +479,30 @@ bool NixRepl::processLine(string line)
         evalString("drv: (import <nixpkgs> {}).runCommand \"shell\" { buildInputs = [ drv ]; } \"\"", f);
         state->callFunction(f, v, result, Pos());
 
-        Path drvPath = getDerivationPath(result);
-        runProgram(settings.nixBinDir + "/nix-shell", Strings{drvPath});
+        StorePath drvPath = getDerivationPath(result);
+        runProgram(settings.nixBinDir + "/nix-shell", Strings{state->store->printStorePath(drvPath)});
     }
 
     else if (command == ":b" || command == ":i" || command == ":s") {
         Value v;
         evalString(arg, v);
-        Path drvPath = getDerivationPath(v);
+        StorePath drvPath = getDerivationPath(v);
+        Path drvPathRaw = state->store->printStorePath(drvPath);
 
         if (command == ":b") {
             /* We could do the build in this process using buildPaths(),
                but doing it in a child makes it easier to recover from
                problems / SIGINT. */
-            if (runProgram(settings.nixBinDir + "/nix", Strings{"build", "--no-link", drvPath}) == 0) {
-                auto drv = readDerivation(*state->store, drvPath);
+            if (runProgram(settings.nixBinDir + "/nix", Strings{"build", "--no-link", drvPathRaw}) == 0) {
+                auto drv = state->store->readDerivation(drvPath);
                 std::cout << std::endl << "this derivation produced the following outputs:" << std::endl;
-                for (auto & i : drv.outputs)
-                    std::cout << fmt("  %s -> %s\n", i.first, state->store->printStorePath(i.second.path));
+                for (auto & i : drv.outputsAndOptPaths(*state->store))
+                    std::cout << fmt("  %s -> %s\n", i.first, state->store->printStorePath(*i.second.second));
             }
         } else if (command == ":i") {
-            runProgram(settings.nixBinDir + "/nix-env", Strings{"-i", drvPath});
+            runProgram(settings.nixBinDir + "/nix-env", Strings{"-i", drvPathRaw});
         } else {
-            runProgram(settings.nixBinDir + "/nix-shell", Strings{drvPath});
+            runProgram(settings.nixBinDir + "/nix-shell", Strings{drvPathRaw});
         }
     }
 
@@ -510,6 +514,29 @@ bool NixRepl::processLine(string line)
 
     else if (command == ":q" || command == ":quit")
         return false;
+
+    else if (command == ":doc") {
+        Value v;
+        evalString(arg, v);
+        if (auto doc = state->getDoc(v)) {
+            std::string markdown;
+
+            if (!doc->args.empty() && doc->name) {
+                auto args = doc->args;
+                for (auto & arg : args)
+                    arg = "*" + arg + "*";
+
+                markdown +=
+                    "**Synopsis:** `builtins." + (std::string) (*doc->name) + "` "
+                    + concatStringsSep(" ", args) + "\n\n";
+            }
+
+            markdown += trim(stripIndentation(doc->doc));
+
+            std::cout << renderMarkdownToTerminal(markdown);
+        } else
+            throw Error("value does not have documentation");
+    }
 
     else if (command != "")
         throw Error("unknown command '%1%'", command);
@@ -645,25 +672,25 @@ std::ostream & NixRepl::printValue(std::ostream & str, Value & v, unsigned int m
     switch (v.type) {
 
     case tInt:
-        str << ESC_CYA << v.integer << ESC_END;
+        str << ANSI_CYAN << v.integer << ANSI_NORMAL;
         break;
 
     case tBool:
-        str << ESC_CYA << (v.boolean ? "true" : "false") << ESC_END;
+        str << ANSI_CYAN << (v.boolean ? "true" : "false") << ANSI_NORMAL;
         break;
 
     case tString:
-        str << ESC_YEL;
+        str << ANSI_YELLOW;
         printStringValue(str, v.string.s);
-        str << ESC_END;
+        str << ANSI_NORMAL;
         break;
 
     case tPath:
-        str << ESC_GRE << v.path << ESC_END; // !!! escaping?
+        str << ANSI_GREEN << v.path << ANSI_NORMAL; // !!! escaping?
         break;
 
     case tNull:
-        str << ESC_CYA "null" ESC_END;
+        str << ANSI_CYAN "null" ANSI_NORMAL;
         break;
 
     case tAttrs: {
@@ -699,7 +726,7 @@ std::ostream & NixRepl::printValue(std::ostream & str, Value & v, unsigned int m
                     try {
                         printValue(str, *i.second, maxDepth - 1, seen);
                     } catch (AssertionError & e) {
-                        str << ESC_RED "«error: " << e.msg() << "»" ESC_END;
+                        str << ANSI_RED "«error: " << e.msg() << "»" ANSI_NORMAL;
                     }
                 str << "; ";
             }
@@ -725,7 +752,7 @@ std::ostream & NixRepl::printValue(std::ostream & str, Value & v, unsigned int m
                     try {
                         printValue(str, *v.listElems()[n], maxDepth - 1, seen);
                     } catch (AssertionError & e) {
-                        str << ESC_RED "«error: " << e.msg() << "»" ESC_END;
+                        str << ANSI_RED "«error: " << e.msg() << "»" ANSI_NORMAL;
                     }
                 str << " ";
             }
@@ -737,16 +764,16 @@ std::ostream & NixRepl::printValue(std::ostream & str, Value & v, unsigned int m
     case tLambda: {
         std::ostringstream s;
         s << v.lambda.fun->pos;
-        str << ESC_BLU "«lambda @ " << filterANSIEscapes(s.str()) << "»" ESC_END;
+        str << ANSI_BLUE "«lambda @ " << filterANSIEscapes(s.str()) << "»" ANSI_NORMAL;
         break;
     }
 
     case tPrimOp:
-        str << ESC_MAG "«primop»" ESC_END;
+        str << ANSI_MAGENTA "«primop»" ANSI_NORMAL;
         break;
 
     case tPrimOpApp:
-        str << ESC_BLU "«primop-app»" ESC_END;
+        str << ANSI_BLUE "«primop-app»" ANSI_NORMAL;
         break;
 
     case tFloat:
@@ -754,7 +781,7 @@ std::ostream & NixRepl::printValue(std::ostream & str, Value & v, unsigned int m
         break;
 
     default:
-        str << ESC_RED "«unknown»" ESC_END;
+        str << ANSI_RED "«unknown»" ANSI_NORMAL;
         break;
     }
 
@@ -767,7 +794,11 @@ struct CmdRepl : StoreCommand, MixEvalArgs
 
     CmdRepl()
     {
-        expectArgs("files", &files);
+        expectArgs({
+            .label = "files",
+            .handler = {&files},
+            .completer = completePath
+        });
     }
 
     std::string description() override
@@ -780,19 +811,20 @@ struct CmdRepl : StoreCommand, MixEvalArgs
         return {
           Example{
             "Display all special commands within the REPL:",
-              "nix repl\n  nix-repl> :?"
+            "nix repl\nnix-repl> :?"
           }
         };
     }
 
     void run(ref<Store> store) override
     {
+        evalSettings.pureEval = false;
         auto repl = std::make_unique<NixRepl>(searchPath, openStore());
         repl->autoArgs = getAutoArgs(*repl->state);
         repl->mainLoop(files);
     }
 };
 
-static auto r1 = registerCommand<CmdRepl>("repl");
+static auto rCmdRepl = registerCommand<CmdRepl>("repl");
 
 }

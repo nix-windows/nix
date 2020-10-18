@@ -9,6 +9,7 @@ struct CmdAddToStore : MixDryRun, StoreCommand
 {
     Path path;
     std::optional<std::string> namePart;
+    FileIngestionMethod ingestionMethod = FileIngestionMethod::Recursive;
 
     CmdAddToStore()
     {
@@ -21,11 +22,26 @@ struct CmdAddToStore : MixDryRun, StoreCommand
             .labels = {"name"},
             .handler = {&namePart},
         });
+
+        addFlag({
+            .longName = "flat",
+            .shortName = 0,
+            .description = "add flat file to the Nix store",
+            .handler = {&ingestionMethod, FileIngestionMethod::Flat},
+        });
     }
 
     std::string description() override
     {
         return "add a path to the Nix store";
+    }
+
+    std::string doc() override
+    {
+        return R"(
+          Copy the file or directory *path* to the Nix store, and
+          print the resulting store path on standard output.
+        )";
     }
 
     Examples examples() override
@@ -45,18 +61,30 @@ struct CmdAddToStore : MixDryRun, StoreCommand
 
         auto narHash = hashString(htSHA256, *sink.s);
 
-        ValidPathInfo info(store->makeFixedOutputPath(FileIngestionMethod::Recursive, narHash, *namePart));
-        info.narHash = narHash;
+        Hash hash = narHash;
+        if (ingestionMethod == FileIngestionMethod::Flat) {
+            HashSink hsink(htSHA256);
+            readFile(path, hsink);
+            hash = hsink.finish().first;
+        }
+
+        ValidPathInfo info {
+            store->makeFixedOutputPath(ingestionMethod, hash, *namePart),
+            narHash,
+        };
         info.narSize = sink.s->size();
-        info.ca = makeFixedOutputCA(FileIngestionMethod::Recursive, info.narHash);
+        info.ca = std::optional { FixedOutputHash {
+            .method = ingestionMethod,
+            .hash = hash,
+        } };
 
         if (!dryRun) {
             auto source = StringSource { *sink.s };
             store->addToStore(info, source);
         }
 
-        logger->stdout("%s", store->printStorePath(info.path));
+        logger->cout("%s", store->printStorePath(info.path));
     }
 };
 
-static auto r1 = registerCommand<CmdAddToStore>("add-to-store");
+static auto rCmdAddToStore = registerCommand<CmdAddToStore>("add-to-store");

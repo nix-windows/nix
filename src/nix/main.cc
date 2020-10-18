@@ -7,7 +7,6 @@
 #include "legacy.hh"
 #include "shared.hh"
 #include "store-api.hh"
-#include "progress-bar.hh"
 #include "filetransfer.hh"
 #include "finally.hh"
 #include "loggers.hh"
@@ -20,6 +19,8 @@
 #include <ifaddrs.h>
 #include <netdb.h>
 #include <netinet/in.h>
+
+#include <nlohmann/json.hpp>
 
 extern std::string chrootHelperName;
 
@@ -72,7 +73,7 @@ struct NixArgs : virtual MultiCommand, virtual MixCommonArgs
         addFlag({
             .longName = "help",
             .description = "show usage information",
-            .handler = {[&]() { showHelpAndExit(); }},
+            .handler = {[&]() { if (!completions) showHelpAndExit(); }},
         });
 
         addFlag({
@@ -100,7 +101,7 @@ struct NixArgs : virtual MultiCommand, virtual MixCommonArgs
         addFlag({
             .longName = "version",
             .description = "show version information",
-            .handler = {[&]() { printVersion(programName); }},
+            .handler = {[&]() { if (!completions) printVersion(programName); }},
         });
 
         addFlag({
@@ -144,6 +145,11 @@ struct NixArgs : virtual MultiCommand, virtual MixCommonArgs
         printHelp(programName, std::cout);
         throw Exit();
     }
+
+    std::string description() override
+    {
+        return "a tool for reproducible and declarative configuration management";
+    }
 };
 
 void mainWrapped(int argc, char * * argv)
@@ -168,6 +174,7 @@ void mainWrapped(int argc, char * * argv)
 
     verbosity = lvlWarn;
     settings.verboseBuild = false;
+    evalSettings.pureEval = true;
 
     setLogFormat("bar");
 
@@ -175,7 +182,46 @@ void mainWrapped(int argc, char * * argv)
 
     NixArgs args;
 
-    args.parseCmdline(argvToStrings(argc, argv));
+    if (argc == 2 && std::string(argv[1]) == "__dump-args") {
+        std::cout << args.toJSON().dump() << "\n";
+        return;
+    }
+
+    if (argc == 2 && std::string(argv[1]) == "__dump-builtins") {
+        evalSettings.pureEval = false;
+        EvalState state({}, openStore("dummy://"));
+        auto res = nlohmann::json::object();
+        auto builtins = state.baseEnv.values[0]->attrs;
+        for (auto & builtin : *builtins) {
+            auto b = nlohmann::json::object();
+            if (builtin.value->type != tPrimOp) continue;
+            auto primOp = builtin.value->primOp;
+            if (!primOp->doc) continue;
+            b["arity"] = primOp->arity;
+            b["args"] = primOp->args;
+            b["doc"] = trim(stripIndentation(primOp->doc));
+            res[(std::string) builtin.name] = std::move(b);
+        }
+        std::cout << res.dump() << "\n";
+        return;
+    }
+
+    Finally printCompletions([&]()
+    {
+        if (completions) {
+            std::cout << (pathCompletions ? "filenames\n" : "no-filenames\n");
+            for (auto & s : *completions)
+                std::cout << s.completion << "\t" << s.description << "\n";
+        }
+    });
+
+    try {
+        args.parseCmdline(argvToStrings(argc, argv));
+    } catch (UsageError &) {
+        if (!completions) throw;
+    }
+
+    if (completions) return;
 
     initPlugins();
 

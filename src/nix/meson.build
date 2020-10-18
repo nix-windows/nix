@@ -10,47 +10,58 @@
 src_inc += include_directories('.')
 
 nix_src = files(
-    join_paths(meson.source_root(), 'src/nix/add-to-store.cc'),
-    join_paths(meson.source_root(), 'src/nix/build.cc'),
-    join_paths(meson.source_root(), 'src/nix/cat.cc'),
-    join_paths(meson.source_root(), 'src/nix/command.cc'),
-    join_paths(meson.source_root(), 'src/nix/copy.cc'),
-    join_paths(meson.source_root(), 'src/nix/doctor.cc'),
-    join_paths(meson.source_root(), 'src/nix/dump-path.cc'),
-    join_paths(meson.source_root(), 'src/nix/edit.cc'),
-    join_paths(meson.source_root(), 'src/nix/eval.cc'),
-    join_paths(meson.source_root(), 'src/nix/hash.cc'),
-    join_paths(meson.source_root(), 'src/nix/installables.cc'),
-    join_paths(meson.source_root(), 'src/nix/legacy.cc'),
-    join_paths(meson.source_root(), 'src/nix/log.cc'),
-    join_paths(meson.source_root(), 'src/nix/ls.cc'),
-    join_paths(meson.source_root(), 'src/nix/main.cc'),
-    join_paths(meson.source_root(), 'src/nix/optimise-store.cc'),
-    join_paths(meson.source_root(), 'src/nix/path-info.cc'),
-    join_paths(meson.source_root(), 'src/nix/ping-store.cc'),
-    join_paths(meson.source_root(), 'src/nix/repl.cc'),
-    join_paths(meson.source_root(), 'src/nix/run.cc'),
-    join_paths(meson.source_root(), 'src/nix/search.cc'),
-    join_paths(meson.source_root(), 'src/nix/show-config.cc'),
-    join_paths(meson.source_root(), 'src/nix/show-derivation.cc'),
-    join_paths(meson.source_root(), 'src/nix/sigs.cc'),
-    join_paths(meson.source_root(), 'src/nix/upgrade-nix.cc'),
-    join_paths(meson.source_root(), 'src/nix/verify.cc'),
-    join_paths(meson.source_root(), 'src/nix/why-depends.cc'),
+    'add-to-store.cc',
+    'app.cc',
+    'build.cc',
+    'bundle.cc',
+    'cat.cc',
+    'command.cc',
+    'copy.cc',
+    'describe-stores.cc',
+    'develop.cc',
+    'diff-closures.cc',
+    'doctor.cc',
+    'dump-path.cc',
+    'edit.cc',
+    'eval.cc',
+    'flake.cc',
+    'hash.cc',
+    'installables.cc',
+    'legacy.cc',
+    'log.cc',
+    'ls.cc',
+    'main.cc',
+    'make-content-addressable.cc',
+    'markdown.cc',
+    'optimise-store.cc',
+    'path-info.cc',
+    'ping-store.cc',
+    'profile.cc',
+    'registry.cc',
+    'repl.cc',
+    'run.cc',
+    'search.cc',
+    'show-config.cc',
+    'show-derivation.cc',
+    'sigs.cc',
+    'upgrade-nix.cc',
+    'verify.cc',
+    'why-depends.cc',
 
-    join_paths(meson.source_root(), 'src/build-remote/build-remote.cc'),
-    join_paths(meson.source_root(), 'src/nix-build/nix-build.cc'),
-    join_paths(meson.source_root(), 'src/nix-channel/nix-channel.cc'),
-    join_paths(meson.source_root(), 'src/nix-collect-garbage/nix-collect-garbage.cc'),
-    join_paths(meson.source_root(), 'src/nix-copy-closure/nix-copy-closure.cc'),
-    join_paths(meson.source_root(), 'src/nix-daemon/nix-daemon.cc'),
-    join_paths(meson.source_root(), 'src/nix-env/nix-env.cc'),
-    join_paths(meson.source_root(), 'src/nix-env/user-env.cc'),
-    join_paths(meson.source_root(), 'src/nix-instantiate/nix-instantiate.cc'),
-    join_paths(meson.source_root(), 'src/nix-prefetch-url/nix-prefetch-url.cc'),
-    join_paths(meson.source_root(), 'src/nix-store/dotgraph.cc'),
-    join_paths(meson.source_root(), 'src/nix-store/graphml.cc'),
-    join_paths(meson.source_root(), 'src/nix-store/nix-store.cc'))
+    '../build-remote/build-remote.cc',
+    '../nix-build/nix-build.cc',
+    '../nix-channel/nix-channel.cc',
+    '../nix-collect-garbage/nix-collect-garbage.cc',
+    '../nix-copy-closure/nix-copy-closure.cc',
+    '../nix-daemon/nix-daemon.cc',
+    '../nix-env/nix-env.cc',
+    '../nix-env/user-env.cc',
+    '../nix-instantiate/nix-instantiate.cc',
+    '../nix-prefetch-url/nix-prefetch-url.cc',
+    '../nix-store/dotgraph.cc',
+    '../nix-store/graphml.cc',
+    '../nix-store/nix-store.cc',
+)
 
 nix_ln_src = [
     [ bindir, 'nix-build' ],
@@ -67,11 +78,17 @@ nix_ln_src = [
     [ join_paths(libexecdir, 'nix'), 'build-remote' ]]
 
 nix_headers = files (
-    join_paths(meson.source_root(), 'src/nix/command.hh'),
-    join_paths(meson.source_root(), 'src/nix/legacy.hh'),
-    join_paths(meson.source_root(), 'src/nix-env/user-env.hh'),
-    join_paths(meson.source_root(), 'src/nix-store/dotgraph.hh'),
-    join_paths(meson.source_root(), 'src/nix-store/graphml.hh'))
+    'command.hh',
+    'installables.hh',
+    'legacy.hh',
+    'markdown.hh',
+
+    '../nix/command.hh',
+    '../nix/legacy.hh',
+    '../nix-env/user-env.hh',
+    '../nix-store/dotgraph.hh',
+    '../nix-store/graphml.hh',
+)
 
 # dependancies
 #============================================================================
@@ -81,7 +98,10 @@ nix_dep_list = [
     libdl_dep,
     boost_dep,
     editline_dep,
-    libsodium_dep]
+    libsodium_dep,
+    gc_dep,
+    lowdown_dep,
+]
 
 
 
@@ -94,7 +114,8 @@ nix_link_list = [
     libutil_lib,
     libstore_lib,
     libmain_lib,
-    libexpr_lib
+    libexpr_lib,
+    libfetchers_lib,
 ]
 
 nix_link_args = []
@@ -113,14 +134,22 @@ nix_cxx_args = []
 # targets
 #============================================================================
 
-nix_src += custom_target(
-  'buildenv.nix.gen.hh',
-  output : 'buildenv.nix.gen.hh',
-  input : join_paths(meson.source_root(), 'src/nix-env/buildenv.nix'),
-  command : [bash, '-c', gen_header, 'sh', '@OUTPUT@'],
-)
+embedded_file_dirs = [
+  [ 'get-env.sh', '.' ],
+  [ 'buildenv.nix', '../nix-env' ],
+  [ 'unpack-channel.nix', '../nix-channel' ],
+]
 
-
+foreach entry : embedded_file_dirs
+  file = entry[0]
+  dir = entry[1]
+  nix_src += custom_target(
+    (file + '.gen.hh'),
+    output : (file + '.gen.hh'),
+    input : dir + '/' + file,
+    command : [bash, '-c', gen_header, 'sh', '@OUTPUT@'],
+  )
+endforeach
 
 
 # build

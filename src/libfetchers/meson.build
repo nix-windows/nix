@@ -10,22 +10,23 @@
 src_inc += include_directories('.')
 
 libfetchers_src = files(
-    join_paths(meson.source_root(), 'src/libfetchers/attrs.cc'),
-    join_paths(meson.source_root(), 'src/libfetchers/cache.cc'),
-    join_paths(meson.source_root(), 'src/libfetchers/fetchers.cc'),
-    join_paths(meson.source_root(), 'src/libfetchers/git.cc'),
-    join_paths(meson.source_root(), 'src/libfetchers/github.cc'),
-    join_paths(meson.source_root(), 'src/libfetchers/mercurial.cc'),
-    join_paths(meson.source_root(), 'src/libfetchers/path.cc'),
-    join_paths(meson.source_root(), 'src/libfetchers/tarball.cc'),
-    join_paths(meson.source_root(), 'src/libfetchers/tree-info.cc'),
+    'attrs.cc',
+    'cache.cc',
+    'fetchers.cc',
+    'git.cc',
+    'github.cc',
+    'indirect.cc',
+    'mercurial.cc',
+    'path.cc',
+    'registry.cc',
+    'tarball.cc',
 )
 
 libfetchers_headers = files(
-    join_paths(meson.source_root(), 'src/libfetchers/attrs.hh'),
-    join_paths(meson.source_root(), 'src/libfetchers/cache.hh'),
-    join_paths(meson.source_root(), 'src/libfetchers/fetchers.hh'),
-    join_paths(meson.source_root(), 'src/libfetchers/tree-info.hh'),
+    'attrs.hh',
+    'cache.hh',
+    'fetchers.hh',
+    'registry.hh',
 )
 
 

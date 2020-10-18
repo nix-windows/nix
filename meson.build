@@ -16,9 +16,6 @@ project(
     
     default_options : [
         'cpp_std=c++17',
-        'warning_level=3',
-        'optimization=3',
-        'debug=true',
     ],
     version : run_command('cat', './.version').stdout().strip(),
     license : 'MIT'
@@ -149,7 +146,6 @@ rm = find_program('rm', required : true)
 bash = find_program('bash', required : true)
 echo = find_program('echo', required : true)
 patch = find_program('patch', required : true)
-xmllint = find_program('xmllint', required : true)
 flex = find_program('flex', required : true)
 bison = find_program('bison', required : true)
 sed = find_program('sed', required : true)
@@ -196,6 +192,9 @@ boost_dep = declare_dependency(
 if (boost_dep.found())
     config_h.set('HAVE_BOOST', 1, description : 'Define if the Boost library is available.')
 endif
+
+
+libarchive_dep = dependency('libarchive')
 
 
 # Look for liblzma, a required dependency.
@@ -263,6 +262,11 @@ zlib_dep = declare_dependency(
     link_args :  get_option('zlib_link_args'))
 
 
+# Look for lowdown, a required dependency.
+#--------------------------------------------------
+lowdown_dep =  dependency('lowdown')
+
+
 # Look for editline, a required dependency.
 #--------------------------------------------------
 # NOTE: The the libeditline.pc file was added only in libeditline >= 1.15.2, see 
@@ -299,40 +303,29 @@ if (libsodium_lib.found())
         dependencies : libsodium_lib,
         link_args :  get_option('sodium_link_args'))
     config_h.set('HAVE_SODIUM', 1, description : 'Whether to use libsodium for cryptography.')
-else
-    libsodium_dep = dependency('', required: false)
 endif
 
 
 # Look for Boehm garbage collector, an optional dependency.
 #--------------------------------------------------
-if (get_option('with_gc'))
+gc_dep = dependency('bdw-gc', required: get_option('with_gc'))
+if (gc_dep.found())
     gc_dep = declare_dependency(
-        dependencies : dependency('bdw-gc'),
+        dependencies : gc_dep,
         link_args :  get_option('gc_link_args'))
     config_h.set(
         'HAVE_BOEHMGC', 1,
         description : 'Whether to use the Boehm garbage collector.')
-else
-    gc_dep = dependency('', required: false)
 endif
 
 
 # Look for aws-cpp-sdk-s3.
 #--------------------------------------------------
-if (get_option('with_s3'))
-  enable_s3 = meson.get_compiler('cpp').check_header('aws/s3/S3Client.h')
-  
-  aws_version = meson.get_compiler('cpp').get_define(
-    'AWS_SDK_VERSION_STRING',
-    prefix : '#include <aws/core/VersionConfig.h>'
-  ).strip('"').split('.')
-  
-  conf_data.set('ENABLE_S3', 1, description : 'Whether to enable S3 support via aws-sdk-cpp.')
-  conf_data.set('AWS_VERSION_MAJOR', aws_version[0], description : 'Major version of aws-sdk-cpp.')
-  conf_data.set('AWS_VERSION_MINOR', aws_version[1], description : 'Minor version of aws-sdk-cpp.')
-endif
-
+s3_dep = [
+  dependency('aws-cpp-sdk-transfer', required: get_option('with_s3')),
+  dependency('aws-cpp-sdk-s3', required: get_option('with_s3')),
+  dependency('aws-cpp-sdk-core', required: get_option('with_s3')),
+]
 
 
 

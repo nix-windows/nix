@@ -36,7 +36,7 @@ void printGCWarning()
 
 void printMissing(ref<Store> store, const std::vector<StorePathWithOutputs> & paths, Verbosity lvl)
 {
-    unsigned long long downloadSize, narSize;
+    uint64_t downloadSize, narSize;
     StorePathSet willBuild, willSubstitute, unknown;
     store->queryMissing(paths, willBuild, willSubstitute, unknown, downloadSize, narSize);
     printMissing(store, willBuild, willSubstitute, unknown, downloadSize, narSize, lvl);
@@ -45,10 +45,13 @@ void printMissing(ref<Store> store, const std::vector<StorePathWithOutputs> & pa
 
 void printMissing(ref<Store> store, const StorePathSet & willBuild,
     const StorePathSet & willSubstitute, const StorePathSet & unknown,
-    unsigned long long downloadSize, unsigned long long narSize, Verbosity lvl)
+    uint64_t downloadSize, uint64_t narSize, Verbosity lvl)
 {
     if (!willBuild.empty()) {
-        printMsg(lvl, "these derivations will be built:");
+        if (willBuild.size() == 1)
+            printMsg(lvl, fmt("this derivation will be built:"));
+        else
+            printMsg(lvl, fmt("these %d derivations will be built:", willBuild.size()));
         auto sorted = store->topoSortPaths(willBuild);
         reverse(sorted.begin(), sorted.end());
         for (auto & i : sorted)
@@ -56,9 +59,18 @@ void printMissing(ref<Store> store, const StorePathSet & willBuild,
     }
 
     if (!willSubstitute.empty()) {
-        printMsg(lvl, fmt("these paths will be fetched (%.2f MiB download, %.2f MiB unpacked):",
-                downloadSize / (1024.0 * 1024.0),
-                narSize / (1024.0 * 1024.0)));
+        const float downloadSizeMiB = downloadSize / (1024.f * 1024.f);
+        const float narSizeMiB = narSize / (1024.f * 1024.f);
+        if (willSubstitute.size() == 1) {
+            printMsg(lvl, fmt("this path will be fetched (%.2f MiB download, %.2f MiB unpacked):",
+                downloadSizeMiB,
+                narSizeMiB));
+        } else {
+            printMsg(lvl, fmt("these %d paths will be fetched (%.2f MiB download, %.2f MiB unpacked):",
+                willSubstitute.size(),
+                downloadSizeMiB,
+                narSizeMiB));
+        }
         for (auto & i : willSubstitute)
             printMsg(lvl, fmt("  %s", store->printStorePath(i)));
     }
@@ -265,6 +277,8 @@ void printVersion(const string & programName)
 #if HAVE_SODIUM
         cfg.push_back("signed-caches");
 #endif
+        std::cout << "System type: " << settings.thisSystem << "\n";
+        std::cout << "Additional system types: " << concatStringsSep(", ", settings.extraPlatforms.get()) << "\n";
         std::cout << "Features: " << concatStringsSep(", ", cfg) << "\n";
         std::cout << "System configuration file: " << settings.nixConfDir + "/nix.conf" << "\n";
         std::cout << "User configuration files: " <<
@@ -311,10 +325,8 @@ int handleExceptions(const string & programName, std::function<void()> fun)
         printError("Try '%1% --help' for more information.", programName);
         return 1;
     } catch (BaseError & e) {
-        if (settings.showTrace && e.prefix() != "")
-            printError(e.prefix());
         logError(e.info());
-        if (e.prefix() != "" && !settings.showTrace)
+        if (e.hasTrace() && !loggerSettings.showTrace.get())
             printError("(use '--show-trace' to show detailed location information)");
         return e.status;
     } catch (std::bad_alloc & e) {
@@ -374,18 +386,12 @@ RunPager::~RunPager()
 }
 
 
-string showBytes(unsigned long long bytes)
-{
-    return (format("%.2f MiB") % (bytes / (1024.0 * 1024.0))).str();
-}
-
-
 PrintFreed::~PrintFreed()
 {
     if (show)
-        std::cout << format("%1% store paths deleted, %2% freed\n")
-            % results.paths.size()
-            % showBytes(results.bytesFreed);
+        std::cout << fmt("%d store paths deleted, %s freed\n",
+            results.paths.size(),
+            showBytes(results.bytesFreed));
 }
 
 Exit::~Exit() { }

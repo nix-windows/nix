@@ -9,9 +9,7 @@
 
 
 corepkgs_data = files(
-    join_paths(meson.source_root(), 'corepkgs/derivation.nix'),
-    join_paths(meson.source_root(), 'corepkgs/fetchurl.nix'),
-    join_paths(meson.source_root(), 'corepkgs/unpack-channel.nix'),
+    'fetchurl.nix',
 )
 
 
@@ -45,11 +43,6 @@ config_nix.set('storedir', nixstoredir)
 # build
 #============================================================================
 
-
-corepkgs_data += configure_file(
-    input : 'config.nix.in',
-    output : 'config.nix',
-    configuration : config_nix)
 
 install_data(
     corepkgs_data,

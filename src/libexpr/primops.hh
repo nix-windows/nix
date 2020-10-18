@@ -1,3 +1,5 @@
+#pragma once
+
 #include "eval.hh"
 
 #include <tuple>
@@ -7,12 +9,29 @@ namespace nix {
 
 struct RegisterPrimOp
 {
-    typedef std::vector<std::tuple<std::string, size_t, PrimOpFun>> PrimOps;
+    struct Info
+    {
+        std::string name;
+        std::vector<std::string> args;
+        size_t arity = 0;
+        const char * doc;
+        std::optional<std::string> requiredFeature;
+        PrimOpFun fun;
+    };
+
+    typedef std::vector<Info> PrimOps;
     static PrimOps * primOps;
+
     /* You can register a constant by passing an arity of 0. fun
        will get called during EvalState initialization, so there
        may be primops not yet added and builtins is not yet sorted. */
-    RegisterPrimOp(std::string name, size_t arity, PrimOpFun fun);
+    RegisterPrimOp(
+        std::string name,
+        size_t arity,
+        PrimOpFun fun,
+        std::optional<std::string> requiredFeature = {});
+
+    RegisterPrimOp(Info && info);
 };
 
 /* These primops are disabled without enableNativeCode, but plugins

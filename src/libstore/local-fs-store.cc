@@ -1,6 +1,7 @@
 #include "archive.hh"
 #include "fs-accessor.hh"
 #include "store-api.hh"
+#include "local-fs-store.hh"
 #include "globals.hh"
 #include "compression.hh"
 #include "derivations.hh"
@@ -20,9 +21,9 @@ struct LocalStoreAccessor : public FSAccessor
 
     Path toRealPath(const Path & path)
     {
-        Path storePath = store->toStorePath(path);
-        if (!store->isValidPath(store->parseStorePath(storePath)))
-            throw InvalidPath("path '%1%' is not a valid store path", storePath);
+        auto storePath = store->toStorePath(path).first;
+        if (!store->isValidPath(storePath))
+            throw InvalidPath("path '%1%' is not a valid store path", store->printStorePath(storePath));
         return store->getRealStoreDir() + std::string(path, store->storeDir.size());
     }
 

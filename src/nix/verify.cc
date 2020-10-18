@@ -77,17 +77,20 @@ struct CmdVerify : StorePathsCommand
             try {
                 checkInterrupt();
 
-                Activity act2(*logger, lvlInfo, actUnknown, fmt("checking '%s'", storePath));
-
                 MaintainCount<std::atomic<size_t>> mcActive(active);
                 update();
 
                 auto info = store->queryPathInfo(store->parseStorePath(storePath));
 
+                // Note: info->path can be different from storePath
+                // for binary cache stores when using --all (since we
+                // can't enumerate names efficiently).
+                Activity act2(*logger, lvlInfo, actUnknown, fmt("checking '%s'", store->printStorePath(info->path)));
+
                 if (!noContents) {
 
                     std::unique_ptr<AbstractHashSink> hashSink;
-                    if (info->ca == "")
+                    if (!info->ca)
                         hashSink = std::make_unique<HashSink>(info->narHash.type);
                     else
                         hashSink = std::make_unique<HashModuloSink>(info->narHash.type, std::string(info->path.hashPart()));
@@ -186,4 +189,4 @@ struct CmdVerify : StorePathsCommand
     }
 };
 
-static auto r1 = registerCommand<CmdVerify>("verify");
+static auto rCmdVerify = registerCommand<CmdVerify>("verify");

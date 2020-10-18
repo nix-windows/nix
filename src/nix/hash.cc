@@ -1,5 +1,6 @@
 #include "command.hh"
 #include "hash.hh"
+#include "content-address.hh"
 #include "legacy.hh"
 #include "shared.hh"
 #include "references.hh"
@@ -30,7 +31,11 @@ struct CmdHash : Command
             .labels({"modulus"})
             .dest(&modulus);
         #endif
-        expectArgs("paths", &paths);
+        expectArgs({
+            .label = "paths",
+            .handler = {&paths},
+            .completer = completePath
+        });
     }
 
     std::string description() override
@@ -39,6 +44,7 @@ struct CmdHash : Command
         switch (mode) {
         case FileIngestionMethod::Flat:
             d = "print cryptographic hash of a regular file";
+            break;
         case FileIngestionMethod::Recursive:
             d = "print cryptographic hash of the NAR serialisation of a path";
         };
@@ -68,23 +74,23 @@ struct CmdHash : Command
 
             Hash h = hashSink->finish().first;
             if (truncate && h.hashSize > 20) h = compressHash(h, 20);
-            logger->stdout(h.to_string(base, base == SRI));
+            logger->cout(h.to_string(base, base == SRI));
         }
     }
 };
 
-static RegisterCommand r1("hash-file", [](){ return make_ref<CmdHash>(FileIngestionMethod::Flat); });
-static RegisterCommand r2("hash-path", [](){ return make_ref<CmdHash>(FileIngestionMethod::Recursive); });
+static RegisterCommand rCmdHashFile("hash-file", [](){ return make_ref<CmdHash>(FileIngestionMethod::Flat); });
+static RegisterCommand rCmdHashPath("hash-path", [](){ return make_ref<CmdHash>(FileIngestionMethod::Recursive); });
 
 struct CmdToBase : Command
 {
     Base base;
-    HashType ht = htUnknown;
+    std::optional<HashType> ht;
     std::vector<std::string> args;
 
     CmdToBase(Base base) : base(base)
     {
-        addFlag(Flag::mkHashTypeFlag("type", &ht));
+        addFlag(Flag::mkHashTypeOptFlag("type", &ht));
         expectArgs("strings", &args);
     }
 
@@ -102,14 +108,14 @@ struct CmdToBase : Command
     void run() override
     {
         for (auto s : args)
-            logger->stdout(Hash(s, ht).to_string(base, base == SRI));
+            logger->cout(Hash::parseAny(s, ht).to_string(base, base == SRI));
     }
 };
 
-static RegisterCommand r3("to-base16", [](){ return make_ref<CmdToBase>(Base16); });
-static RegisterCommand r4("to-base32", [](){ return make_ref<CmdToBase>(Base32); });
-static RegisterCommand r5("to-base64", [](){ return make_ref<CmdToBase>(Base64); });
-static RegisterCommand r6("to-sri", [](){ return make_ref<CmdToBase>(SRI); });
+static RegisterCommand rCmdToBase16("to-base16", [](){ return make_ref<CmdToBase>(Base16); });
+static RegisterCommand rCmdToBase32("to-base32", [](){ return make_ref<CmdToBase>(Base32); });
+static RegisterCommand rCmdToBase64("to-base64", [](){ return make_ref<CmdToBase>(Base64); });
+static RegisterCommand rCmdToSRI("to-sri", [](){ return make_ref<CmdToBase>(SRI); });
 
 /* Legacy nix-hash command. */
 static int compatNixHash(int argc, char * * argv)
@@ -132,8 +138,6 @@ static int compatNixHash(int argc, char * * argv)
         else if (*arg == "--type") {
             string s = getArg(*arg, arg, end);
             ht = parseHashType(s);
-            if (ht == htUnknown)
-                throw UsageError("unknown hash type '%1%'", s);
         }
         else if (*arg == "--to-base16") op = opTo16;
         else if (*arg == "--to-base32") op = opTo32;
@@ -163,4 +167,4 @@ static int compatNixHash(int argc, char * * argv)
     return 0;
 }
 
-static RegisterLegacyCommand s1("nix-hash", compatNixHash);
+static RegisterLegacyCommand r_nix_hash("nix-hash", compatNixHash);

@@ -4,6 +4,7 @@
 
 #include <list>
 #include <set>
+#include <string>
 #include <map>
 #include <vector>
 
@@ -23,6 +24,8 @@ typedef std::map<string, string> StringMap;
 typedef string Path;
 typedef list<Path> Paths;
 typedef set<Path> PathSet;
+
+typedef vector<std::pair<string, string>> Headers;
 
 /* Helper class to run code at startup. */
 template<typename T>

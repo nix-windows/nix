@@ -27,12 +27,12 @@ output=$(nix-shell --pure --keep SELECTED_IMPURE_VAR shell.nix -A shellDrv --run
 # Test nix-shell on a .drv symlink
 
 # Legacy: absolute path and .drv extension required
-nix-instantiate shell.nix -A shellDrv --indirect --add-root $TEST_ROOT/shell.drv
+nix-instantiate shell.nix -A shellDrv --add-root $TEST_ROOT/shell.drv
 [[ $(nix-shell --pure $TEST_ROOT/shell.drv --run \
     'echo "$IMPURE_VAR - $VAR_FROM_STDENV_SETUP - $VAR_FROM_NIX"') = " - foo - bar" ]]
 
 # New behaviour: just needs to resolve to a derivation in the store
-nix-instantiate shell.nix -A shellDrv --indirect --add-root $TEST_ROOT/shell
+nix-instantiate shell.nix -A shellDrv --add-root $TEST_ROOT/shell
 [[ $(nix-shell --pure $TEST_ROOT/shell --run \
     'echo "$IMPURE_VAR - $VAR_FROM_STDENV_SETUP - $VAR_FROM_NIX"') = " - foo - bar" ]]
 
@@ -55,3 +55,10 @@ chmod a+rx $TEST_ROOT/shell.shebang.rb
 
 output=$($TEST_ROOT/shell.shebang.rb abc ruby)
 [ "$output" = '-e load("'"$TEST_ROOT"'/shell.shebang.rb") -- abc ruby' ]
+
+# Test 'nix develop'.
+nix develop -f shell.nix shellDrv -c bash -c '[[ -n $stdenv ]]'
+
+# Test 'nix print-dev-env'.
+source <(nix print-dev-env -f shell.nix shellDrv)
+[[ -n $stdenv ]]

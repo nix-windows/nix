@@ -83,11 +83,11 @@ static void prim_fromTOML(EvalState & state, const Pos & pos, Value * * args, Va
     } catch (std::runtime_error & e) {
         throw EvalError({
             .hint = hintfmt("while parsing a TOML string: %s", e.what()),
-            .nixCode = NixCode { .errPos = pos }
+            .errPos = pos
         });
     }
 }
 
-static RegisterPrimOp r("fromTOML", 1, prim_fromTOML);
+static RegisterPrimOp primop_fromTOML("fromTOML", 1, prim_fromTOML);
 
 }

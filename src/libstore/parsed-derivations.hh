@@ -1,4 +1,6 @@
-#include "derivations.hh"
+#pragma once
+
+#include "store-api.hh"
 
 #include <nlohmann/json_fwd.hpp>
 
@@ -29,9 +31,9 @@ public:
 
     StringSet getRequiredSystemFeatures() const;
 
-    bool canBuildLocally() const;
+    bool canBuildLocally(Store & localStore) const;
 
-    bool willBuildLocally() const;
+    bool willBuildLocally(Store & localStore) const;
 
     bool substitutesAllowed() const;
 };
