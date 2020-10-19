@@ -36,6 +36,7 @@ rec {
   });
 
   mesonFlags = [
+    "-Ddefault_library=static"
     (mesonFeature "with_gc" true)
     (mesonFeature "with_libsodium" stdenv.hostPlatform.isLinux)
     (mesonFeature "with_editline" (!stdenv.hostPlatform.isWindows))
