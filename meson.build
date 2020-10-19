@@ -16,9 +16,6 @@ project(
     
     default_options : [
         'cpp_std=c++17',
-        'warning_level=3',
-        'optimization=3',
-        'debug=true',
     ],
     version : run_command('cat', './.version').stdout().strip(),
     license : 'MIT'
