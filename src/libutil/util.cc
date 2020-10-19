@@ -16,31 +16,9 @@
 #include <future>
 
 #include <fcntl.h>
-<<<<<<< HEAD
-#include <limits.h>
-||||||| merged common ancestors
-#include <grp.h>
-#include <limits.h>
-#include <pwd.h>
-#include <sys/ioctl.h>
-=======
-#include <grp.h>
-#include <pwd.h>
-#include <sys/ioctl.h>
->>>>>>> meson
 #include <sys/types.h>
-<<<<<<< HEAD
-#ifndef _MSC_VER
-||||||| merged common ancestors
-#include <sys/socket.h>
-#include <sys/wait.h>
-#include <sys/un.h>
-=======
-#include <sys/socket.h>
-#include <sys/wait.h>
 #include <sys/time.h>
-#include <sys/un.h>
->>>>>>> meson
+#ifndef _MSC_VER
 #include <unistd.h>
 #endif
 
@@ -79,7 +57,6 @@ extern char * * environ __attribute__((weak));
 
 namespace nix {
 
-<<<<<<< HEAD
 #ifdef _WIN32
 std::string to_bytes(const std::wstring & path) {
     std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
@@ -153,19 +130,6 @@ static inline Path::size_type rfindSlash(const Path & path, Path::size_type from
 
 const std::string nativeSystem = SYSTEM;
 
-
-BaseError & BaseError::addPrefix(const FormatOrString & fs)
-{
-    prefix_ = fs.s + prefix_;
-    return *this;
-}
-
-
-std::string PosixError::addErrno(const std::string & s)
-{
-    errNo = errno;
-    return s + ": " + strerror(errNo);
-}
 
 #ifdef _WIN32
 hintfmt WinError::addLastError(hintfmt && hf)
@@ -245,30 +209,7 @@ std::wstring getEnvW(const std::wstring & key, const std::wstring & def)
     return std::wstring(buf.data(), dw);
 }
 
-string getEnv(const string & key, const string & def)
-||||||| merged common ancestors
-
-const std::string nativeSystem = SYSTEM;
-
-
-BaseError & BaseError::addPrefix(const FormatOrString & fs)
-{
-    prefix_ = fs.s + prefix_;
-    return *this;
-}
-
-
-std::string SysError::addErrno(const std::string & s)
-{
-    errNo = errno;
-    return s + ": " + strerror(errNo);
-}
-
-
-string getEnv(const string & key, const string & def)
-=======
 std::optional<std::string> getEnv(const std::string & key)
->>>>>>> meson
 {
     return to_bytes(getEnvW(from_bytes(key), from_bytes(def)));
 }
@@ -303,7 +244,7 @@ std::map<std::string, std::string> getEnv()
 }
 
 #else
-string getEnv(const string & key, const string & def)
+std::optional<std::string> getEnv(const string & key, const string & def)
 {
     char * value = getenv(key.c_str());
     if (!value) return {};
@@ -341,15 +282,8 @@ void replaceEnv(std::map<std::string, std::string> newEnv)
 #endif
 
 
-<<<<<<< HEAD
-
 #ifndef _WIN32
-Path absPath(Path path, Path dir)
-||||||| merged common ancestors
-Path absPath(Path path, Path dir)
-=======
 Path absPath(Path path, std::optional<Path> dir, bool resolveSymlinks)
->>>>>>> meson
 {
 //  std::cerr << "absPath("<<path<<", "<<dir<<")"<<std::endl;
     if (path[0] != '/') {
@@ -374,7 +308,7 @@ Path absPath(Path path, std::optional<Path> dir, bool resolveSymlinks)
     return canonPath(path, resolveSymlinks);
 }
 #else
-Path absPath(Path path, Path dir)
+Path absPath(Path path, std::optional<Path> dir, bool resolveSymlinks)
 {
 //  std::cerr << "absPath("<<path<<", "<<dir<<")"<<std::endl;
 
@@ -418,14 +352,8 @@ std::optional<Path> maybeCanonPath(const Path & path, bool resolveSymlinks)
         return std::optional<Path>();
 #else
     if (path[0] != '/')
-<<<<<<< HEAD
         return std::optional<Path>();
 #endif
-||||||| merged common ancestors
-        throw Error(format("not an absolute path: '%1%'") % path);
-=======
-        throw Error("not an absolute path: '%1%'", path);
->>>>>>> meson
 
     string temp;
 
@@ -566,39 +494,19 @@ std::string_view baseNameOf(std::string_view path)
     if (path.empty())
         return "";
 
-<<<<<<< HEAD
-    Path::size_type last = path.length() - 1;
-    if (isslash(path[last]) && last > 0)
-||||||| merged common ancestors
-    Path::size_type last = path.length() - 1;
-    if (path[last] == '/' && last > 0)
-=======
     auto last = path.size() - 1;
-    if (path[last] == '/' && last > 0)
->>>>>>> meson
+    if (isslash(path[last]) && last > 0)
         last -= 1;
 
-<<<<<<< HEAD
-    Path::size_type pos = rfindSlash(path, last);
-||||||| merged common ancestors
-    Path::size_type pos = path.rfind('/', last);
-=======
-    auto pos = path.rfind('/', last);
->>>>>>> meson
+    auto pos = rfindSlash(path, last);
     if (pos == string::npos)
         pos = 0;
     else
         pos += 1;
 
-<<<<<<< HEAD
-    Path rc = string(path, pos, last - pos + 1);
+    auto rc = path.substr(pos, last - pos + 1);
 // fprintf(stderr, "baseNameOf(%s) -> [%s]\n", path.c_str(), rc.c_str());
     return rc;
-||||||| merged common ancestors
-    return string(path, pos, last - pos + 1);
-=======
-    return path.substr(pos, last - pos + 1);
->>>>>>> meson
 }
 
 
@@ -635,16 +543,10 @@ struct stat lstatPath(const Path & path)
     struct stat st;
 #ifndef _WIN32
     if (lstat(path.c_str(), &st))
-<<<<<<< HEAD
 #else
     if (stat(path.c_str(), &st))
 #endif
-        throw PosixError(format("getting status-1 of '%1%'") % path);
-||||||| merged common ancestors
-        throw SysError(format("getting status of '%1%'") % path);
-=======
-        throw SysError("getting status of '%1%'", path);
->>>>>>> meson
+        throw PosixError("getting status-1 of '%1%'", path);
     return st;
 }
 
@@ -655,22 +557,12 @@ bool pathExists(const Path & path)
     int res;
     struct stat st;
     res = lstat(path.c_str(), &st);
-<<<<<<< HEAD
     if (!res) {
         return true;
     }
     if (errno != ENOENT && errno != ENOTDIR) {
-        throw PosixError(format("getting status-2 of %1%") % path);
+        throw PosixError("getting status-2 of %1%", path);
     }
-||||||| merged common ancestors
-    if (!res) return true;
-    if (errno != ENOENT && errno != ENOTDIR)
-        throw SysError(format("getting status of %1%") % path);
-=======
-    if (!res) return true;
-    if (errno != ENOENT && errno != ENOTDIR)
-        throw SysError("getting status of %1%", path);
->>>>>>> meson
     return false;
 }
 #else
@@ -793,28 +685,12 @@ bool isDirectory(const Path & path)
     return getFileType(path) == DT_DIR;
 }
 
-<<<<<<< HEAD
 #ifndef _WIN32
-DirEntries readDirectory(const Path & path)
-||||||| merged common ancestors
-DirEntries readDirectory(const Path & path)
-=======
 DirEntries readDirectory(DIR *dir, const Path & path)
->>>>>>> meson
 {
     DirEntries entries;
     entries.reserve(64);
 
-<<<<<<< HEAD
-    AutoCloseDir dir(opendir(path.c_str()));
-    if (!dir) throw PosixError(format("opening directory '%1%'") % path);
-
-||||||| merged common ancestors
-    AutoCloseDir dir(opendir(path.c_str()));
-    if (!dir) throw SysError(format("opening directory '%1%'") % path);
-
-=======
->>>>>>> meson
     struct dirent * dirent;
     while (errno = 0, dirent = readdir(dir)) { /* sic */
         checkInterrupt();
@@ -828,13 +704,7 @@ DirEntries readDirectory(DIR *dir, const Path & path)
 #endif
         );
     }
-<<<<<<< HEAD
-    if (errno) throw PosixError(format("reading directory '%1%'") % path);
-||||||| merged common ancestors
-    if (errno) throw SysError(format("reading directory '%1%'") % path);
-=======
-    if (errno) throw SysError("reading directory '%1%'", path);
->>>>>>> meson
+    if (errno) throw PosixError("reading directory '%1%'", path);
 
     return entries;
 }

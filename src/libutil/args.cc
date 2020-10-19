@@ -332,16 +332,8 @@ std::string renderLabels(const Strings & labels)
 {
     std::string res;
     for (auto label : labels) {
-<<<<<<< HEAD
         for (auto & c : label) c = std::toupper(c, std::locale());
-        res += " <" + label + ">";
-||||||| merged common ancestors
-        for (auto & c : label) c = std::toupper(c);
-        res += " <" + label + ">";
-=======
-        for (auto & c : label) c = std::toupper(c);
         res += " " ANSI_ITALIC + label + ANSI_NORMAL;
->>>>>>> meson
     }
     return res;
 }

@@ -281,13 +281,9 @@ ref<CompressionSink> makeDecompressionSink(const std::string & method, Sink & ne
         return make_ref<XzDecompressionSink>(nextSink);
     else if (method == "bzip2")
         return make_ref<BzipDecompressionSink>(nextSink);
-<<<<<<< HEAD
-#ifndef _MSC_VER
-||||||| merged common ancestors
-=======
     else if (method == "gzip")
         return make_ref<GzipDecompressionSink>(nextSink);
->>>>>>> meson
+#ifndef _MSC_VER
     else if (method == "br")
         return make_ref<BrotliDecompressionSink>(nextSink);
 #endif

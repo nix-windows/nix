@@ -78,14 +78,12 @@ public:
     {
         if (lvl > verbosity) return;
 
-<<<<<<< HEAD
         std::string prefix;
 
         writeToStderr(prefix + fs.s + "\n");
     }
 #endif
-||||||| merged common ancestors
-=======
+
     void logEI(const ErrorInfo & ei) override
     {
         std::stringstream oss;
@@ -94,7 +92,6 @@ public:
         log(ei.level, oss.str());
     }
 
->>>>>>> meson
     void startActivity(ActivityId act, Verbosity lvl, ActivityType type,
         const std::string & s, const Fields & fields, ActivityId parent)
     override
