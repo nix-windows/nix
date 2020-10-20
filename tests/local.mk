@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-check:
-    @echo "Warning: Nix has no 'make check'. Please install Nix and run 'make installcheck' instead."
-
 ifeq (MINGW,$(findstring MINGW,$(OS)))
 
 # these do not pass (yet) on MINGW:
@@ -23,12 +19,6 @@ ifeq (MINGW,$(findstring MINGW,$(OS)))
 #  nar-access.sh            <-- not possible to have args '/foo/data' (paths inside nar) without magic msys path translation (maybe `bash -c '...'` will work?)
 endif
 
-||||||| merged common ancestors
-check:
-	@echo "Warning: Nix has no 'make check'. Please install Nix and run 'make installcheck' instead."
-
-=======
->>>>>>> meson
 nix_tests = \
   hash.sh lang.sh add.sh simple.sh dependencies.sh \
   config.sh \
@@ -76,14 +66,7 @@ tests-environment = NIX_REMOTE= $(bash) -e
 
 clean-files += $(d)/common.sh $(d)/config.nix
 
-<<<<<<< HEAD
-ifeq (MINGW,$(findstring MINGW,$(OS)))
-installcheck: $(d)/common.sh
-else
-installcheck: $(d)/common.sh $(d)/plugins/libplugintest.$(SO_EXT)
+test-deps += tests/common.sh tests/config.nix
+ifneq (MINGW,$(findstring MINGW,$(OS)))
+test-deps += tests/plugins/libplugintest.$(SO_EXT)
 endif
-||||||| merged common ancestors
-installcheck: $(d)/common.sh $(d)/plugins/libplugintest.$(SO_EXT)
-=======
-test-deps += tests/common.sh tests/config.nix tests/plugins/libplugintest.$(SO_EXT)
->>>>>>> meson

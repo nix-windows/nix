@@ -1,18 +1,12 @@
 if ! canUseSandbox; then exit; fi
 if ! [[ $busybox =~ busybox ]]; then exit; fi
 
-<<<<<<< HEAD
 if [[ "$(uname)" =~ ^MINGW|^MSYS ]]; then
     exit 99
 fi
 
-clearStore
-||||||| merged common ancestors
-clearStore
-=======
 unset NIX_STORE_DIR
 unset NIX_STATE_DIR
->>>>>>> meson
 
 function join_by { local d=$1; shift; echo -n "$1"; shift; printf "%s" "${@/#/$d}"; }
 

@@ -16,19 +16,12 @@ nix-instantiate --restrict-eval --eval -E 'builtins.readDir ../src/nix-channel' 
 
 (! nix-instantiate --restrict-eval --eval -E 'let __nixPath = [ { prefix = "foo"; path = ./.; } ]; in <foo>')
 nix-instantiate --restrict-eval --eval -E 'let __nixPath = [ { prefix = "foo"; path = ./.; } ]; in <foo>' -I src=.
-<<<<<<< HEAD
+
 if [[ "$(uname)" =~ ^MINGW|^MSYS ]]; then
-    p=$(nix eval --raw "(builtins.fetchurl file://$(cygpath -m $(pwd))/restricted.sh)" --restrict-eval --allowed-uris "file://$(cygpath -m $(pwd))")
+    p=$(nix eval --raw --expr "builtins.fetchurl file://$(cygpath -m $(pwd))/restricted.sh" --impure --restrict-eval --allowed-uris "file://$(cygpath -m $(pwd))")
 else
-    p=$(nix eval --raw "(builtins.fetchurl file://$(pwd)/restricted.sh)" --restrict-eval --allowed-uris "file://$(pwd)")
+    p=$(nix eval --raw --expr "builtins.fetchurl file://$(pwd)/restricted.sh" --impure --restrict-eval --allowed-uris "file://$(pwd)")
 fi
-||||||| merged common ancestors
-
-p=$(nix eval --raw "(builtins.fetchurl file://$(pwd)/restricted.sh)" --restrict-eval --allowed-uris "file://$(pwd)")
-=======
-
-p=$(nix eval --raw --expr "builtins.fetchurl file://$(pwd)/restricted.sh" --impure --restrict-eval --allowed-uris "file://$(pwd)")
->>>>>>> meson
 cmp $p restricted.sh
 
 <<<<<<< HEAD
