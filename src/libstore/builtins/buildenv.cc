@@ -14,14 +14,8 @@ struct State
 };
 
 /* For each activated package, create symlinks */
-<<<<<<< HEAD
 // TODO: make Windows native version
-static void createLinks(const Path & srcDir, const Path & dstDir, int priority)
-||||||| merged common ancestors
-static void createLinks(const Path & srcDir, const Path & dstDir, int priority)
-=======
 static void createLinks(State & state, const Path & srcDir, const Path & dstDir, int priority)
->>>>>>> meson
 {
     DirEntries srcFiles;
 
@@ -91,7 +85,6 @@ static void createLinks(State & state, const Path & srcDir, const Path & dstDir,
 
 #ifndef _WIN32
         else if (S_ISDIR(srcSt.st_mode)) {
-<<<<<<< HEAD
 #else
         else if ((wfad.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0) {
 #endif
@@ -99,20 +92,7 @@ static void createLinks(State & state, const Path & srcDir, const Path & dstDir,
 
             if (dt != DT_UNKNOWN) {
                 if (dt == DT_DIR) {
-                    createLinks(srcFile, dstFile, priority);
-||||||| merged common ancestors
-            struct stat dstSt;
-            auto res = lstat(dstFile.c_str(), &dstSt);
-            if (res == 0) {
-                if (S_ISDIR(dstSt.st_mode)) {
-                    createLinks(srcFile, dstFile, priority);
-=======
-            struct stat dstSt;
-            auto res = lstat(dstFile.c_str(), &dstSt);
-            if (res == 0) {
-                if (S_ISDIR(dstSt.st_mode)) {
                     createLinks(state, srcFile, dstFile, priority);
->>>>>>> meson
                     continue;
                 } else if (dt == DT_LNK) {
                     auto target = canonPath(dstFile, true);
@@ -120,66 +100,28 @@ static void createLinks(State & state, const Path & srcDir, const Path & dstDir,
                         throw Error("collision between '%1%' and non-directory '%2%'", srcFile, target);
 #ifndef _WIN32
                     if (unlink(dstFile.c_str()) == -1)
-<<<<<<< HEAD
-                        throw PosixError(format("unlinking '%1%'") % dstFile);
-||||||| merged common ancestors
-                        throw SysError(format("unlinking '%1%'") % dstFile);
-=======
-                        throw SysError("unlinking '%1%'", dstFile);
->>>>>>> meson
+                        throw PosixError("unlinking '%1%'", dstFile);
                     if (mkdir(dstFile.c_str(), 0755) == -1)
-<<<<<<< HEAD
-                        throw PosixError(format("creating directory '%1%'"));
+                        throw PosixError("creating directory '%1%'", dstFile);
 #else
                     if (!DeleteFileW(pathW(dstFile).c_str()))
                         throw WinError("DeleteFileW when createLinks '%1%'", dstFile);
                     if (!CreateDirectoryW(pathW(dstFile).c_str(), NULL))
                         throw WinError("CreateDirectoryW when createLinks '%1%'", dstFile);
 #endif
-                    createLinks(target, dstFile, priorities[dstFile]);
-                    createLinks(srcFile, dstFile, priority);
-||||||| merged common ancestors
-                        throw SysError(format("creating directory '%1%'"));
-                    createLinks(target, dstFile, priorities[dstFile]);
-                    createLinks(srcFile, dstFile, priority);
-=======
-                        throw SysError("creating directory '%1%'", dstFile);
                     createLinks(state, target, dstFile, state.priorities[dstFile]);
                     createLinks(state, srcFile, dstFile, priority);
->>>>>>> meson
                     continue;
                 }
-<<<<<<< HEAD
             } //else if (errno != ENOENT)
-                //throw PosixError(format("getting status-5 of '%1%'") % dstFile);
-||||||| merged common ancestors
-            } else if (errno != ENOENT)
-                throw SysError(format("getting status of '%1%'") % dstFile);
-=======
-            } else if (errno != ENOENT)
-                throw SysError("getting status of '%1%'", dstFile);
->>>>>>> meson
+                //throw PosixError("getting status-5 of '%1%'", dstFile);
         }
 
         else {
-<<<<<<< HEAD
             unsigned char dt = getFileType(dstFile);
             if (dt != DT_UNKNOWN) {
                 if (dt == DT_LNK) {
-                    auto prevPriority = priorities[dstFile];
-||||||| merged common ancestors
-            struct stat dstSt;
-            auto res = lstat(dstFile.c_str(), &dstSt);
-            if (res == 0) {
-                if (S_ISLNK(dstSt.st_mode)) {
-                    auto prevPriority = priorities[dstFile];
-=======
-            struct stat dstSt;
-            auto res = lstat(dstFile.c_str(), &dstSt);
-            if (res == 0) {
-                if (S_ISLNK(dstSt.st_mode)) {
                     auto prevPriority = state.priorities[dstFile];
->>>>>>> meson
                     if (prevPriority == priority)
                         throw Error(
                                 "packages '%1%' and '%2%' have the same priority %3%; "
@@ -191,32 +133,16 @@ static void createLinks(State & state, const Path & srcDir, const Path & dstDir,
                         continue;
 #ifndef _WIN32
                     if (unlink(dstFile.c_str()) == -1)
-<<<<<<< HEAD
-                        throw PosixError(format("unlinking '%1%'") % dstFile);
+                        throw PosixError("unlinking '%1%'", dstFile);
 #else
                     if (!DeleteFileW(pathW(dstFile).c_str()))
                         throw WinError("DeleteFileW when createLinks '%1%'", dstFile);
 #endif
                 } else
                 if (dt == DT_DIR)
-||||||| merged common ancestors
-                        throw SysError(format("unlinking '%1%'") % dstFile);
-                } else if (S_ISDIR(dstSt.st_mode))
-=======
-                        throw SysError("unlinking '%1%'", dstFile);
-                } else if (S_ISDIR(dstSt.st_mode))
->>>>>>> meson
                     throw Error("collision between non-directory '%1%' and directory '%2%'", srcFile, dstFile);
-<<<<<<< HEAD
             } //else if (errno != ENOENT)
-                //throw PosixError(format("getting status-6 of '%1%'") % dstFile);
-||||||| merged common ancestors
-            } else if (errno != ENOENT)
-                throw SysError(format("getting status of '%1%'") % dstFile);
-=======
-            } else if (errno != ENOENT)
-                throw SysError("getting status of '%1%'", dstFile);
->>>>>>> meson
+                //throw PosixError("getting status-6 of '%1%'", dstFile);
         }
 
         createSymlink(srcFile, dstFile);
@@ -240,36 +166,15 @@ void buildProfile(const Path & out, Packages && pkgs)
                     readFile(pkgDir + "/nix-support/propagated-user-env-packages"), " \n"))
                 if (!done.count(p))
                     postponed.insert(p);
-        } catch (SysError & e) {
+        } catch (PosixError & e) {
             if (e.errNo != ENOENT && e.errNo != ENOTDIR) throw;
+#ifdef _WIN32
+        } catch (WinError & e) {
+            throw e; // TODO
+#endif
         }
     };
 
-<<<<<<< HEAD
-    try {
-        for (const auto & p : tokenizeString<std::vector<string>>(
-                readFile(pkgDir + "/nix-support/propagated-user-env-packages"), " \n"))
-            if (!done.count(p))
-                postponed.insert(p);
-    } catch (PosixError & e) {
-        if (e.errNo != ENOENT && e.errNo != ENOTDIR) throw;
-#ifdef _WIN32
-    } catch (WinError & e) {
-        throw e; // TODO
-#endif
-    }
-}
-||||||| merged common ancestors
-    try {
-        for (const auto & p : tokenizeString<std::vector<string>>(
-                readFile(pkgDir + "/nix-support/propagated-user-env-packages"), " \n"))
-            if (!done.count(p))
-                postponed.insert(p);
-    } catch (SysError & e) {
-        if (e.errNo != ENOENT && e.errNo != ENOTDIR) throw;
-    }
-}
-=======
     /* Symlink to the packages that have been installed explicitly by the
      * user. Process in priority order to reduce unnecessary
      * symlink/unlink steps.
@@ -280,7 +185,6 @@ void buildProfile(const Path & out, Packages && pkgs)
     for (const auto & pkg : pkgs)
         if (pkg.active)
             addPkg(pkg.path, pkg.priority);
->>>>>>> meson
 
     /* Symlink to the packages that have been "propagated" by packages
      * installed by the user (i.e., package X declares that it wants Y

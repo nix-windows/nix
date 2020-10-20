@@ -47,12 +47,21 @@ protected:
         const std::string & mimeType) override
     {
         auto path2 = binaryCacheDir + "/" + path;
+#ifndef _WIN32
         Path tmp = path2 + ".tmp." + std::to_string(getpid());
         AutoDelete del(tmp, false);
         StreamToSourceAdapter source(istream);
         writeFile(tmp, source);
         if (rename(tmp.c_str(), path2.c_str()))
-            throw SysError("renaming '%1%' to '%2%'", tmp, path2);
+            throw PosixError("renaming '%1%' to '%2%'", tmp, path2);
+#else
+        Path tmp = path2 + ".tmp." + std::to_string(GetCurrentProcessId());
+        AutoDelete del(tmp, false);
+        StreamToSourceAdapter source(istream);
+        writeFile(tmp, source);
+        if (!MoveFileExW(pathW(tmp).c_str(), pathW(path2).c_str(), MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH))
+            throw WinError("MoveFileExW in atomicWrite '%1%' to '%2%'", tmp, path2);
+#endif
         del.cancel();
     }
 
@@ -80,15 +89,9 @@ protected:
             if (name.size() != 40 ||
                 !hasSuffix(name, ".narinfo"))
                 continue;
-<<<<<<< HEAD
-            paths.insert(storeDir + "/" + name.substr(0, name.size() - 8));
-||||||| merged common ancestors
-            paths.insert(storeDir + "/" + entry.name.substr(0, entry.name.size() - 8));
-=======
             paths.insert(parseStorePath(
-                    storeDir + "/" + entry.name.substr(0, entry.name.size() - 8)
+                    storeDir + "/" + name.substr(0, name.size() - 8)
                     + "-" + MissingName));
->>>>>>> meson
         }
 
         return paths;
@@ -104,38 +107,6 @@ void LocalBinaryCacheStore::init()
     BinaryCacheStore::init();
 }
 
-<<<<<<< HEAD
-static void atomicWrite(const Path & path, const std::string & s)
-{
-#ifndef _WIN32
-    Path tmp = path + ".tmp." + std::to_string(getpid());
-    AutoDelete del(tmp, false);
-    writeFile(tmp, s);
-    if (rename(tmp.c_str(), path.c_str()))
-        throw PosixError(format("renaming '%1%' to '%2%'") % tmp % path);
-#else
-    Path tmp = path + ".tmp." + std::to_string(GetCurrentProcessId());
-    AutoDelete del(tmp, false);
-    writeFile(tmp, s);
-    if (!MoveFileExW(pathW(tmp).c_str(), pathW(path).c_str(), MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH))
-        throw WinError("MoveFileExW in atomicWrite '%1%' to '%2%'", tmp, path);
-#endif
-    del.cancel();
-}
-
-||||||| merged common ancestors
-static void atomicWrite(const Path & path, const std::string & s)
-{
-    Path tmp = path + ".tmp." + std::to_string(getpid());
-    AutoDelete del(tmp, false);
-    writeFile(tmp, s);
-    if (rename(tmp.c_str(), path.c_str()))
-        throw SysError(format("renaming '%1%' to '%2%'") % tmp % path);
-    del.cancel();
-}
-
-=======
->>>>>>> meson
 bool LocalBinaryCacheStore::fileExists(const std::string & path)
 {
     return pathExists(binaryCacheDir + "/" + path);

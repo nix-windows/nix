@@ -64,17 +64,9 @@ std::unique_ptr<SSHMaster::Connection> SSHMaster::startCommand(const std::string
         args.push_back(command);
         execvp(args.begin()->c_str(), stringsToCharPtrs(args).data());
 
-<<<<<<< HEAD
-        throw PosixError("executing '%s' on '%s'", command, host);
-    });
-||||||| merged common ancestors
-        throw SysError("executing '%s' on '%s'", command, host);
-    });
-=======
         // could not exec ssh/bash
-        throw SysError("unable to execute '%s'", args.front());
+        throw PosixError("unable to execute '%s'", args.front());
     }, options);
->>>>>>> meson
 
     in.readSide = -1;
     out.writeSide = -1;
@@ -130,16 +122,8 @@ Path SSHMaster::startMaster()
         addCommonSSHOpts(args);
         execvp(args.begin()->c_str(), stringsToCharPtrs(args).data());
 
-<<<<<<< HEAD
-        throw PosixError("starting SSH master");
-    });
-||||||| merged common ancestors
-        throw SysError("starting SSH master");
-    });
-=======
-        throw SysError("unable to execute '%s'", args.front());
+        throw PosixError("unable to execute '%s'", args.front());
     }, options);
->>>>>>> meson
 
     out.writeSide = -1;
 

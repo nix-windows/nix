@@ -118,28 +118,18 @@ static string parseString(std::istream & str)
 }
 
 static void validatePath(std::string_view s) {
-    if (s.size() == 0 || s[0] != '/')
-        throw FormatError("bad path '%1%' in derivation", s);
-}
-
-static Path parsePath(std::istream & str)
-{
-<<<<<<< HEAD
-    string s = parseString(str);
 #ifndef _WIN32
     if (s.size() == 0 || s[0] != '/')
 #else
     if (s.size() < 3 || !('A' <= s[0] && s[0] <= 'Z') || s[1] != ':' || s[2] != '/') // expect result of canonPath
 #endif
-        throw FormatError(format("bad path '%1%' in derivation") % s);
-||||||| merged common ancestors
-    string s = parseString(str);
-    if (s.size() == 0 || s[0] != '/')
-        throw FormatError(format("bad path '%1%' in derivation") % s);
-=======
+        throw FormatError("bad path '%1%' in derivation", s);
+}
+
+static Path parsePath(std::istream & str)
+{
     auto s = parseString(str);
     validatePath(s);
->>>>>>> meson
     return s;
 }
 

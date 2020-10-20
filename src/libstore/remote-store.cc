@@ -12,31 +12,7 @@
 #include "logging.hh"
 #include "callback.hh"
 
-<<<<<<< HEAD
-#include <sys/types.h>
-#include <sys/stat.h>
-#ifndef _WIN32
-#include <sys/socket.h>
-#include <sys/un.h>
-#else
-#include <iostream>
-#endif
-#include <errno.h>
-#include <fcntl.h>
-#ifndef _MSC_VER
-#include <unistd.h>
-#endif
-||||||| merged common ancestors
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <unistd.h>
-=======
 namespace nix {
->>>>>>> meson
 
 namespace worker_proto {
 
@@ -139,139 +115,6 @@ ref<RemoteStore::Connection> RemoteStore::openConnectionWrapper()
 }
 
 
-<<<<<<< HEAD
-UDSRemoteStore::UDSRemoteStore(const Params & params)
-    : Store(params)
-    , LocalFSStore(params)
-    , RemoteStore(params)
-{
-}
-
-
-UDSRemoteStore::UDSRemoteStore(std::string socket_path, const Params & params)
-    : Store(params)
-    , LocalFSStore(params)
-    , RemoteStore(params)
-    , path(socket_path)
-{
-}
-
-
-std::string UDSRemoteStore::getUri()
-{
-    if (path) {
-        return std::string("unix://") + *path;
-    } else {
-        return "daemon";
-    }
-}
-
-
-ref<RemoteStore::Connection> UDSRemoteStore::openConnection()
-{
-    auto conn = make_ref<Connection>();
-#ifndef _WIN32
-    /* Connect to a daemon that does the privileged work for us. */
-    conn->fd = socket(PF_UNIX, SOCK_STREAM
-        #ifdef SOCK_CLOEXEC
-        | SOCK_CLOEXEC
-        #endif
-        , 0);
-    if (!conn->fd)
-        throw PosixError("cannot create Unix domain socket");
-    closeOnExec(conn->fd.get());
-
-    string socketPath = path ? *path : settings.nixDaemonSocketFile;
-
-    struct sockaddr_un addr;
-    addr.sun_family = AF_UNIX;
-    if (socketPath.size() + 1 >= sizeof(addr.sun_path))
-        throw Error(format("socket path '%1%' is too long") % socketPath);
-    strcpy(addr.sun_path, socketPath.c_str());
-
-    if (::connect(conn->fd.get(), (struct sockaddr *) &addr, sizeof(addr)) == -1)
-        throw PosixError(format("cannot connect to daemon at '%1%'") % socketPath);
-
-    conn->from.fd = conn->fd.get();
-    conn->to.fd = conn->fd.get();
-
-    conn->startTime = std::chrono::steady_clock::now();
-
-    initConnection(*conn);
-#else
-    std::cerr << "TODO: UDSRemoteStore::openConnection()" << std::endl;
-    _exit(110);
-#endif
-    return conn;
-}
-
-
-||||||| merged common ancestors
-UDSRemoteStore::UDSRemoteStore(const Params & params)
-    : Store(params)
-    , LocalFSStore(params)
-    , RemoteStore(params)
-{
-}
-
-
-UDSRemoteStore::UDSRemoteStore(std::string socket_path, const Params & params)
-    : Store(params)
-    , LocalFSStore(params)
-    , RemoteStore(params)
-    , path(socket_path)
-{
-}
-
-
-std::string UDSRemoteStore::getUri()
-{
-    if (path) {
-        return std::string("unix://") + *path;
-    } else {
-        return "daemon";
-    }
-}
-
-
-ref<RemoteStore::Connection> UDSRemoteStore::openConnection()
-{
-    auto conn = make_ref<Connection>();
-
-    /* Connect to a daemon that does the privileged work for us. */
-    conn->fd = socket(PF_UNIX, SOCK_STREAM
-        #ifdef SOCK_CLOEXEC
-        | SOCK_CLOEXEC
-        #endif
-        , 0);
-    if (!conn->fd)
-        throw SysError("cannot create Unix domain socket");
-    closeOnExec(conn->fd.get());
-
-    string socketPath = path ? *path : settings.nixDaemonSocketFile;
-
-    struct sockaddr_un addr;
-    addr.sun_family = AF_UNIX;
-    if (socketPath.size() + 1 >= sizeof(addr.sun_path))
-        throw Error(format("socket path '%1%' is too long") % socketPath);
-    strcpy(addr.sun_path, socketPath.c_str());
-
-    if (::connect(conn->fd.get(), (struct sockaddr *) &addr, sizeof(addr)) == -1)
-        throw SysError(format("cannot connect to daemon at '%1%'") % socketPath);
-
-    conn->from.fd = conn->fd.get();
-    conn->to.fd = conn->fd.get();
-
-    conn->startTime = std::chrono::steady_clock::now();
-
-    initConnection(*conn);
-
-    return conn;
-}
-
-
-=======
->>>>>>> meson
 void RemoteStore::initConnection(Connection & conn)
 {
     /* Send the magic greeting, check for the reply. */
@@ -668,7 +511,7 @@ ref<const ValidPathInfo> RemoteStore::addCAToStore(
                     }
                     conn->to.warn = false;
                     conn.processStderr();
-                } catch (SysError & e) {
+                } catch (PosixError & e) {
                     /* Daemon closed while we were sending the path. Probably OOM
                       or I/O error. */
                     if (e.errNo == EPIPE)
@@ -745,30 +588,6 @@ void RemoteStore::addToStore(const ValidPathInfo & info, Source & source,
             copyNAR(source, conn->to);
             conn.processStderr(0, nullptr);
         }
-<<<<<<< HEAD
-        conn->to.warn = false;
-        conn.processStderr();
-    } catch (PosixError & e) {
-        /* Daemon closed while we were sending the path. Probably OOM
-           or I/O error. */
-        if (e.errNo == EPIPE)
-            try {
-                conn.processStderr();
-            } catch (EndOfFile & e) { }
-        throw;
-||||||| merged common ancestors
-        conn->to.warn = false;
-        conn.processStderr();
-    } catch (SysError & e) {
-        /* Daemon closed while we were sending the path. Probably OOM
-           or I/O error. */
-        if (e.errNo == EPIPE)
-            try {
-                conn.processStderr();
-            } catch (EndOfFile & e) { }
-        throw;
-=======
->>>>>>> meson
     }
 }
 

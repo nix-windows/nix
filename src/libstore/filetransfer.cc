@@ -544,16 +544,9 @@ struct curlFileTransfer : public FileTransfer
         auto callback = createInterruptCallback([&]() {
             stopWorkerThread();
         });
-<<<<<<< HEAD:src/libstore/download.cc
 #endif
-        std::map<CURL *, std::shared_ptr<DownloadItem>> items;
-||||||| merged common ancestors:src/libstore/download.cc
-
-        std::map<CURL *, std::shared_ptr<DownloadItem>> items;
-=======
 
         std::map<CURL *, std::shared_ptr<TransferItem>> items;
->>>>>>> meson:src/libstore/filetransfer.cc
 
         bool quit = false;
 

@@ -64,15 +64,11 @@ LocalStore::LocalStore(const Params & params)
     , tempRootsDir(stateDir + "/temproots")
 #ifndef _WIN32
     , fnTempRoots(fmt("%s/%d", tempRootsDir, getpid()))
-<<<<<<< HEAD
 #else
     , fnTempRoots(fmt("%s/%d", tempRootsDir, GetCurrentProcessId()))
 //  , fnTempRoots((format("%1%/%2%") % tempRootsDir % GetCurrentProcessId()).str())
 #endif
-||||||| merged common ancestors
-=======
     , locksHeld(tokenizeString<PathSet>(getEnv("NIX_HELD_LOCKS").value_or("")))
->>>>>>> meson
 {
     auto state(_state.lock());
 
@@ -123,31 +119,13 @@ LocalStore::LocalStore(const Params & params)
         else {
             struct stat st;
             if (stat(realStoreDir.c_str(), &st))
-<<<<<<< HEAD
-                throw PosixError(format("getting attributes of path '%1%'") % realStoreDir);
-||||||| merged common ancestors
-                throw SysError(format("getting attributes of path '%1%'") % realStoreDir);
-=======
-                throw SysError("getting attributes of path '%1%'", realStoreDir);
->>>>>>> meson
+                throw PosixError("getting attributes of path '%1%'", realStoreDir);
 
             if (st.st_uid != 0 || st.st_gid != gr->gr_gid || (st.st_mode & ~S_IFMT) != perm) {
                 if (chown(realStoreDir.c_str(), 0, gr->gr_gid) == -1)
-<<<<<<< HEAD
-                    throw PosixError(format("changing ownership of path '%1%'") % realStoreDir);
-||||||| merged common ancestors
-                    throw SysError(format("changing ownership of path '%1%'") % realStoreDir);
-=======
-                    throw SysError("changing ownership of path '%1%'", realStoreDir);
->>>>>>> meson
+                    throw PosixError("changing ownership of path '%1%'", realStoreDir);
                 if (chmod(realStoreDir.c_str(), perm) == -1)
-<<<<<<< HEAD
-                    throw PosixError(format("changing permissions on path '%1%'") % realStoreDir);
-||||||| merged common ancestors
-                    throw SysError(format("changing permissions on path '%1%'") % realStoreDir);
-=======
-                    throw SysError("changing permissions on path '%1%'", realStoreDir);
->>>>>>> meson
+                    throw PosixError("changing permissions on path '%1%'", realStoreDir);
             }
         }
     }
@@ -155,40 +133,15 @@ LocalStore::LocalStore(const Params & params)
     /* Ensure that the store and its parents are not symlinks. */
     if (!settings.allowSymlinkedStore) {
         Path path = realStoreDir;
-<<<<<<< HEAD
         while (true) {
             if (isLink(path))
-                throw Error(format(
-||||||| merged common ancestors
-        struct stat st;
-        while (path != "/") {
-            if (lstat(path.c_str(), &st))
-                throw SysError(format("getting status of '%1%'") % path);
-            if (S_ISLNK(st.st_mode))
-                throw Error(format(
-=======
-        struct stat st;
-        while (path != "/") {
-            st = lstat(path);
-            if (S_ISLNK(st.st_mode))
                 throw Error(
->>>>>>> meson
                         "the path '%1%' is a symlink; "
-<<<<<<< HEAD
-                        "this is not allowed for the Nix store and its parent directories")
-                    % path);
+                        "this is not allowed for the Nix store and its parent directories",
+                        path);
             Path path2 = dirOf(path);
             if (path2 == path) break;
             path = path2;
-||||||| merged common ancestors
-                        "this is not allowed for the Nix store and its parent directories")
-                    % path);
-            path = dirOf(path);
-=======
-                        "this is not allowed for the Nix store and its parent directories",
-                        path);
-            path = dirOf(path);
->>>>>>> meson
         }
     }
 
@@ -380,14 +333,8 @@ void LocalStore::openDB(State & state, bool create)
 {
 #ifndef _WIN32
     if (access(dbDir.c_str(), R_OK | W_OK))
-<<<<<<< HEAD
-        throw PosixError(format("Nix database directory '%1%' is not writable") % dbDir);
+        throw PosixError("Nix database directory '%1%' is not writable", dbDir);
 #endif
-||||||| merged common ancestors
-        throw SysError(format("Nix database directory '%1%' is not writable") % dbDir);
-=======
-        throw SysError("Nix database directory '%1%' is not writable", dbDir);
->>>>>>> meson
 
     /* Open the Nix database. */
     string dbPath = dbDir + "/db.sqlite";
@@ -461,13 +408,7 @@ void LocalStore::makeStoreWritable()
             throw PosixError("setting up a private mount namespace");
 
         if (mount(0, realStoreDir.c_str(), "none", MS_REMOUNT | MS_BIND, 0) == -1)
-<<<<<<< HEAD
-            throw PosixError(format("remounting %1% writable") % realStoreDir);
-||||||| merged common ancestors
-            throw SysError(format("remounting %1% writable") % realStoreDir);
-=======
-            throw SysError("remounting %1% writable", realStoreDir);
->>>>>>> meson
+            throw PosixError("remounting %1% writable", realStoreDir);
     }
 #endif
 }
@@ -489,13 +430,7 @@ static void canonicaliseTimestampAndPermissions(const Path & path, const struct 
                  | 0444
                  | (st.st_mode & S_IXUSR ? 0111 : 0);
             if (chmod(path.c_str(), mode) == -1)
-<<<<<<< HEAD
-                throw PosixError(format("changing mode of '%1%' to %2$o") % path % mode);
-||||||| merged common ancestors
-                throw SysError(format("changing mode of '%1%' to %2$o") % path % mode);
-=======
-                throw SysError("changing mode of '%1%' to %2$o", path, mode);
->>>>>>> meson
+                throw PosixError("changing mode of '%1%' to %2$o", path, mode);
         }
 
     }
@@ -513,32 +448,14 @@ static void canonicaliseTimestampAndPermissions(const Path & path, const struct 
 #else
         if (!S_ISLNK(st.st_mode) && utimes(path.c_str(), times) == -1)
 #endif
-<<<<<<< HEAD
-            throw PosixError(format("changing modification time of '%1%'") % path);
-||||||| merged common ancestors
-            throw SysError(format("changing modification time of '%1%'") % path);
-=======
-            throw SysError("changing modification time of '%1%'", path);
->>>>>>> meson
+            throw PosixError("changing modification time of '%1%'", path);
     }
 }
 
 
 void canonicaliseTimestampAndPermissions(const Path & path)
 {
-<<<<<<< HEAD
-    struct stat st;
-    if (lstat(path.c_str(), &st))
-        throw PosixError(format("getting attributes of path '%1%'") % path);
-    canonicaliseTimestampAndPermissions(path, st);
-||||||| merged common ancestors
-    struct stat st;
-    if (lstat(path.c_str(), &st))
-        throw SysError(format("getting attributes of path '%1%'") % path);
-    canonicaliseTimestampAndPermissions(path, st);
-=======
     canonicaliseTimestampAndPermissions(path, lstat(path));
->>>>>>> meson
 }
 
 
@@ -557,39 +474,15 @@ static void canonicalisePathMetaData_(
        setattrlist() to remove other attributes as well. */
     if (lchflags(path.c_str(), 0)) {
         if (errno != ENOTSUP)
-<<<<<<< HEAD
-            throw PosixError(format("clearing flags of path '%1%'") % path);
-||||||| merged common ancestors
-            throw SysError(format("clearing flags of path '%1%'") % path);
-=======
-            throw SysError("clearing flags of path '%1%'", path);
->>>>>>> meson
+            throw PosixError("clearing flags of path '%1%'", path);
     }
 #endif
 
-<<<<<<< HEAD
-    struct stat st;
-    if (lstat(path.c_str(), &st))
-        throw PosixError(format("getting attributes of path '%1%'") % path);
-||||||| merged common ancestors
-    struct stat st;
-    if (lstat(path.c_str(), &st))
-        throw SysError(format("getting attributes of path '%1%'") % path);
-=======
     auto st = lstat(path);
->>>>>>> meson
 
     /* Really make sure that the path is of a supported type. */
-<<<<<<< HEAD
     if (getFileType(path) == DT_UNKNOWN)
-        throw Error(format("file '%1%' has an unsupported type") % path);
-||||||| merged common ancestors
-    if (!(S_ISREG(st.st_mode) || S_ISDIR(st.st_mode) || S_ISLNK(st.st_mode)))
-        throw Error(format("file '%1%' has an unsupported type") % path);
-=======
-    if (!(S_ISREG(st.st_mode) || S_ISDIR(st.st_mode) || S_ISLNK(st.st_mode)))
         throw Error("file '%1%' has an unsupported type", path);
->>>>>>> meson
 
 #if __linux__
     /* Remove extended attributes / ACLs. */
@@ -646,16 +539,8 @@ static void canonicalisePathMetaData_(
         if (!S_ISLNK(st.st_mode) &&
             chown(path.c_str(), geteuid(), getegid()) == -1)
 #endif
-<<<<<<< HEAD
-            throw PosixError(format("changing owner of '%1%' to %2%")
-                % path % geteuid());
-||||||| merged common ancestors
-            throw SysError(format("changing owner of '%1%' to %2%")
-                % path % geteuid());
-=======
-            throw SysError("changing owner of '%1%' to %2%",
+            throw PosixError("changing owner of '%1%' to %2%",
                 path, geteuid());
->>>>>>> meson
     }
 
     if (S_ISDIR(st.st_mode)) {
@@ -672,30 +557,12 @@ void canonicalisePathMetaData(const Path & path, uid_t fromUid, InodesSeen & ino
 
     /* On platforms that don't have lchown(), the top-level path can't
        be a symlink, since we can't change its ownership. */
-<<<<<<< HEAD
-    struct stat st;
-    if (lstat(path.c_str(), &st))
-        throw PosixError(format("getting attributes of path '%1%'") % path);
-||||||| merged common ancestors
-    struct stat st;
-    if (lstat(path.c_str(), &st))
-        throw SysError(format("getting attributes of path '%1%'") % path);
-=======
     auto st = lstat(path);
->>>>>>> meson
 
     if (st.st_uid != geteuid()) {
         assert(S_ISLNK(st.st_mode));
-<<<<<<< HEAD
-        throw Error(format("wrong ownership of top-level store path '%1%'") % path);
-   }
-||||||| merged common ancestors
-        throw Error(format("wrong ownership of top-level store path '%1%'") % path);
-    }
-=======
         throw Error("wrong ownership of top-level store path '%1%'", path);
     }
->>>>>>> meson
 }
 
 
@@ -1510,15 +1377,6 @@ StorePath LocalStore::addToStoreFromDump(Source & source0, const string & name,
                     throw Error("renaming '%s' to '%s'", tempPath, realPath);
             }
 
-<<<<<<< HEAD
-#ifndef _WIN32
-            canonicalisePathMetaData(realPath, -1);
-#else
-            canonicalisePathMetaData(realPath);
-#endif
-||||||| merged common ancestors
-            canonicalisePathMetaData(realPath, -1);
-=======
             /* For computing the nar hash. In recursive SHA-256 mode, this
                is the same as the store hash, so no need to do it again. */
             auto narHash = std::pair { hash, size };
@@ -1527,9 +1385,13 @@ StorePath LocalStore::addToStoreFromDump(Source & source0, const string & name,
                 dumpPath(realPath, narSink);
                 narHash = narSink.finish();
             }
->>>>>>> meson
 
-            canonicalisePathMetaData(realPath, -1); // FIXME: merge into restorePath
+             // FIXME: merge into restorePath
+#ifndef _WIN32
+            canonicalisePathMetaData(realPath, -1);
+#else
+            canonicalisePathMetaData(realPath);
+#endif
 
             optimisePath(realPath);
 
@@ -1645,16 +1507,8 @@ bool LocalStore::verifyStore(bool checkContents, RepairFlag repair)
     AutoCloseWindowsHandle fdGCLock = openGCLock(ltWrite);
 #endif
 
-<<<<<<< HEAD
-    PathSet store;
-    for (auto & i : readDirectory(realStoreDir)) store.insert(i.name());
-||||||| merged common ancestors
-    PathSet store;
-    for (auto & i : readDirectory(realStoreDir)) store.insert(i.name);
-=======
     StringSet store;
-    for (auto & i : readDirectory(realStoreDir)) store.insert(i.name);
->>>>>>> meson
+    for (auto & i : readDirectory(realStoreDir)) store.insert(i.name());
 
     /* Check whether all valid paths actually exist. */
     printInfo("checking path existence...");
@@ -1834,13 +1688,7 @@ static void makeMutable(const Path & path)
 {
     checkInterrupt();
 
-<<<<<<< HEAD
-    struct stat st = lstatPath(path);
-||||||| merged common ancestors
-    struct stat st = lstat(path);
-=======
-    auto st = lstat(path);
->>>>>>> meson
+    auto st = lstatPath(path);
 
     if (!S_ISDIR(st.st_mode) && !S_ISREG(st.st_mode)) return;
 
@@ -1855,13 +1703,7 @@ static void makeMutable(const Path & path)
     AutoCloseFD fd = open(path.c_str(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
     if (fd == -1) {
         if (errno == ELOOP) return; // it's a symlink
-<<<<<<< HEAD
-        throw PosixError(format("opening file '%1%'") % path);
-||||||| merged common ancestors
-        throw SysError(format("opening file '%1%'") % path);
-=======
-        throw SysError("opening file '%1%'", path);
->>>>>>> meson
+        throw PosixError("opening file '%1%'", path);
     }
 
     unsigned int flags = 0, old;

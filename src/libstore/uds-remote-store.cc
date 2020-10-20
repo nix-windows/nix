@@ -2,11 +2,17 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/socket.h>
-#include <sys/un.h>
+#ifndef _WIN32
+#  include <sys/socket.h>
+#  include <sys/un.h>
+#else
+#  include <iostream>
+#endif
 #include <errno.h>
 #include <fcntl.h>
-#include <unistd.h>
+#ifndef _MSC_VER
+#  include <unistd.h>
+#endif
 
 #include <cstring>
 
@@ -46,6 +52,7 @@ ref<RemoteStore::Connection> UDSRemoteStore::openConnection()
 {
     auto conn = make_ref<Connection>();
 
+#ifndef _WIN32
     /* Connect to a daemon that does the privileged work for us. */
     conn->fd = socket(PF_UNIX, SOCK_STREAM
         #ifdef SOCK_CLOEXEC
@@ -71,6 +78,10 @@ ref<RemoteStore::Connection> UDSRemoteStore::openConnection()
     conn->to.fd = conn->fd.get();
 
     conn->startTime = std::chrono::steady_clock::now();
+#else
+    std::cerr << "TODO: UDSRemoteStore::openConnection()" << std::endl;
+    _exit(110);
+#endif
 
     return conn;
 }

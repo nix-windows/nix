@@ -74,21 +74,15 @@ struct NarAccessor : public FSAccessor
         {
             createMember(path, {FSAccessor::Type::tRegular, false, 0, 0});
         }
+
 #ifndef _WIN32
         void isExecutable() override
         {
             parents.top()->isExecutable = true;
         }
-<<<<<<< HEAD
 #endif
-        void preallocateContents(unsigned long long size) override
-||||||| merged common ancestors
-
-        void preallocateContents(unsigned long long size) override
-=======
 
         void preallocateContents(uint64_t size) override
->>>>>>> meson
         {
             assert(size <= std::numeric_limits<uint64_t>::max());
             parents.top()->size = (uint64_t) size;

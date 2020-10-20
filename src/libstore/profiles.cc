@@ -31,16 +31,9 @@ static std::optional<GenerationNumber> parseName(const string & profileName, con
 }
 
 
-<<<<<<< HEAD
+
 // TODO: make a Windows native
-Generations findGenerations(Path profile, int & curGen)
-||||||| merged common ancestors
-
-Generations findGenerations(Path profile, int & curGen)
-=======
-
 std::pair<Generations, std::optional<GenerationNumber>> findGenerations(Path profile)
->>>>>>> meson
 {
     Generations gens;
 
@@ -151,13 +144,7 @@ Path createGeneration(ref<LocalFSStore> store, Path profile, StorePath outPath)
 static void removeFile(const Path & path)
 {
     if (remove(path.c_str()) == -1)
-<<<<<<< HEAD
-        throw PosixError(format("cannot unlink '%1%'") % path);
-||||||| merged common ancestors
-        throw SysError(format("cannot unlink '%1%'") % path);
-=======
-        throw SysError("cannot unlink '%1%'", path);
->>>>>>> meson
+        throw PosixError("cannot unlink '%1%'", path);
 }
 
 

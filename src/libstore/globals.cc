@@ -9,14 +9,10 @@
 #include <thread>
 #ifndef _WIN32
 #include <dlfcn.h>
-<<<<<<< HEAD
 #endif
-||||||| merged common ancestors
-=======
 #include <sys/utsname.h>
 
 #include <nlohmann/json.hpp>
->>>>>>> meson
 
 
 namespace nix {
@@ -35,26 +31,6 @@ Settings settings;
 static GlobalConfig::Register rSettings(&settings);
 
 Settings::Settings()
-<<<<<<< HEAD
-    : nixStore(canonPath(getEnv("NIX_STORE_DIR", getEnv("NIX_STORE", NIX_STORE_DIR))))
-    , nixDataDir(canonPath(getEnv("NIX_DATA_DIR", NIX_DATA_DIR)))
-    , nixLogDir(canonPath(getEnv("NIX_LOG_DIR", NIX_LOG_DIR)))
-    , nixStateDir(canonPath(getEnv("NIX_STATE_DIR", NIX_STATE_DIR)))
-    , nixConfDir(canonPath(getEnv("NIX_CONF_DIR", NIX_CONF_DIR)))
-    , nixBinDir(canonPath(getEnv("NIX_BIN_DIR", NIX_BIN_DIR)))
-#ifndef _WIN32
-    , nixPrefix(NIX_PREFIX)
-    , nixLibexecDir(canonPath(getEnv("NIX_LIBEXEC_DIR", NIX_LIBEXEC_DIR)))
-||||||| merged common ancestors
-    : nixPrefix(NIX_PREFIX)
-    , nixStore(canonPath(getEnv("NIX_STORE_DIR", getEnv("NIX_STORE", NIX_STORE_DIR))))
-    , nixDataDir(canonPath(getEnv("NIX_DATA_DIR", NIX_DATA_DIR)))
-    , nixLogDir(canonPath(getEnv("NIX_LOG_DIR", NIX_LOG_DIR)))
-    , nixStateDir(canonPath(getEnv("NIX_STATE_DIR", NIX_STATE_DIR)))
-    , nixConfDir(canonPath(getEnv("NIX_CONF_DIR", NIX_CONF_DIR)))
-    , nixLibexecDir(canonPath(getEnv("NIX_LIBEXEC_DIR", NIX_LIBEXEC_DIR)))
-    , nixBinDir(canonPath(getEnv("NIX_BIN_DIR", NIX_BIN_DIR)))
-=======
     : nixPrefix(NIX_PREFIX)
     , nixStore(canonPath(getEnv("NIX_STORE_DIR").value_or(getEnv("NIX_STORE").value_or(NIX_STORE_DIR))))
     , nixDataDir(canonPath(getEnv("NIX_DATA_DIR").value_or(NIX_DATA_DIR)))
@@ -62,18 +38,13 @@ Settings::Settings()
     , nixStateDir(canonPath(getEnv("NIX_STATE_DIR").value_or(NIX_STATE_DIR)))
     , nixConfDir(canonPath(getEnv("NIX_CONF_DIR").value_or(NIX_CONF_DIR)))
     , nixUserConfFiles(getUserConfigFiles())
-    , nixLibexecDir(canonPath(getEnv("NIX_LIBEXEC_DIR").value_or(NIX_LIBEXEC_DIR)))
     , nixBinDir(canonPath(getEnv("NIX_BIN_DIR").value_or(NIX_BIN_DIR)))
->>>>>>> meson
+#ifndef _WIN32
+    , nixPrefix(NIX_PREFIX)
+    , nixLibexecDir(canonPath(getEnv("NIX_LIBEXEC_DIR").value_or(NIX_LIBEXEC_DIR)))
     , nixManDir(canonPath(NIX_MAN_DIR))
-<<<<<<< HEAD
-    , nixDaemonSocketFile(canonPath(nixStateDir + DEFAULT_SOCKET_PATH))
-#endif
-||||||| merged common ancestors
-    , nixDaemonSocketFile(canonPath(nixStateDir + DEFAULT_SOCKET_PATH))
-=======
     , nixDaemonSocketFile(canonPath(getEnv("NIX_DAEMON_SOCKET_PATH").value_or(nixStateDir + DEFAULT_SOCKET_PATH)))
->>>>>>> meson
+#endif
 {
     fprintf(stderr, "NixStore=%s\n",        nixStore.c_str());
     fprintf(stderr, "NixDataDir=%s\n",      nixDataDir.c_str());
@@ -90,15 +61,10 @@ Settings::Settings()
 
 #ifndef _WIN32
     buildUsersGroup = getuid() == 0 ? "nixbld" : "";
-<<<<<<< HEAD
 #endif
-    lockCPU = getEnv("NIX_AFFINITY_HACK", "1") == "1";
-||||||| merged common ancestors
-    lockCPU = getEnv("NIX_AFFINITY_HACK", "1") == "1";
-=======
+
     lockCPU = getEnv("NIX_AFFINITY_HACK") == "1";
     allowSymlinkedStore = getEnv("NIX_IGNORE_SYMLINK_STORE") == "1";
->>>>>>> meson
 
     caFile = getEnv("NIX_SSL_CERT_FILE").value_or(getEnv("SSL_CERT_FILE").value_or(""));
     if (caFile == "") {

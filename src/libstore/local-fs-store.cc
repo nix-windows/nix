@@ -34,13 +34,7 @@ struct LocalStoreAccessor : public FSAccessor
         struct stat st;
         if (lstat(realPath.c_str(), &st)) {
             if (errno == ENOENT || errno == ENOTDIR) return {Type::tMissing, 0, false};
-<<<<<<< HEAD
-            throw PosixError(format("getting status-7 of '%1%'") % path);
-||||||| merged common ancestors
-            throw SysError(format("getting status of '%1%'") % path);
-=======
-            throw SysError("getting status of '%1%'", path);
->>>>>>> meson
+            throw PosixError("getting status of '%1%'", path);
         }
 
         if (!S_ISREG(st.st_mode) && !S_ISDIR(st.st_mode) && !S_ISLNK(st.st_mode))

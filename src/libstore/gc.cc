@@ -53,18 +53,12 @@ LocalStore::openGCLock(LockType lockType)
 #ifndef _WIN32
     AutoCloseFD fdGCLock = open(fnGCLock.c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0600);
     if (!fdGCLock)
-<<<<<<< HEAD
         throw PosixError("opening global GC lock '%1%'", fnGCLock);
 #else
     AutoCloseWindowsHandle fdGCLock = CreateFileW(pathW(fnGCLock).c_str(), GENERIC_READ|GENERIC_WRITE, FILE_SHARE_READ|FILE_SHARE_WRITE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_POSIX_SEMANTICS, NULL);
     if (!fdGCLock)
         throw WinError("opening global GC lock '%1%'", fnGCLock);
 #endif
-||||||| merged common ancestors
-        throw SysError(format("opening global GC lock '%1%'") % fnGCLock);
-=======
-        throw SysError("opening global GC lock '%1%'", fnGCLock);
->>>>>>> meson
 
     if (!lockFile(fdGCLock.get(), lockType, false)) {
         printInfo("waiting for the big garbage collector lock...");
@@ -92,9 +86,8 @@ static void makeSymlink(const Path & link, const Path & target)
 
     /* Atomically replace the old one. */
     if (rename(tempLink.c_str(), link.c_str()) == -1)
-<<<<<<< HEAD
-        throw PosixError(format("cannot rename '%1%' to '%2%'")
-            % tempLink % link);
+        throw PosixError("cannot rename '%1%' to '%2%'",
+            tempLink , link);
 #else
 //std::cerr << "MoveFileExW '"<<tempLink<<"' -> '"<<link<<"'"<<std::endl;
     Path tempLink = (format("%1%.tmp~%2%~%3%")
@@ -125,13 +118,6 @@ static void makeSymlink(const Path & link, const Path & target)
         }
     }
 #endif
-||||||| merged common ancestors
-        throw SysError(format("cannot rename '%1%' to '%2%'")
-            % tempLink % link);
-=======
-        throw SysError("cannot rename '%1%' to '%2%'",
-            tempLink , link);
->>>>>>> meson
 }
 
 
@@ -207,13 +193,7 @@ void LocalStore::addTempRoot(const StorePath & path)
                way. */
             struct stat st;
             if (fstat(state->fdTempRoots.get(), &st) == -1)
-<<<<<<< HEAD
-                throw PosixError(format("statting '%1%'") % fnTempRoots);
-||||||| merged common ancestors
-                throw SysError(format("statting '%1%'") % fnTempRoots);
-=======
-                throw SysError("statting '%1%'", fnTempRoots);
->>>>>>> meson
+                throw PosixError("statting '%1%'", fnTempRoots);
             if (st.st_size == 0) break;
 
             /* The garbage collector deleted this file before we could
@@ -254,18 +234,12 @@ void LocalStore::findTempRoots(FDs & fds, Roots & tempRoots, bool censor)
     /* Read the `temproots' directory for per-process temporary root
        files. */
     for (auto & i : readDirectory(tempRootsDir)) {
-<<<<<<< HEAD
-        Path path = tempRootsDir + "/" + i.name();
-||||||| merged common ancestors
-        Path path = tempRootsDir + "/" + i.name;
-=======
         if (i.name[0] == '.') {
             // Ignore hidden files. Some package managers (notably portage) create
             // those to keep the directory alive.
             continue;
         }
-        Path path = tempRootsDir + "/" + i.name;
->>>>>>> meson
+        Path path = tempRootsDir + "/" + i.name();
 
         pid_t pid = std::stoi(i.name());
 
@@ -274,13 +248,7 @@ void LocalStore::findTempRoots(FDs & fds, Roots & tempRoots, bool censor)
         if (!*fd) {
             /* It's okay if the file has disappeared. */
             if (errno == ENOENT) continue;
-<<<<<<< HEAD
-            throw PosixError(format("opening temporary roots file '%1%'") % path);
-||||||| merged common ancestors
-            throw SysError(format("opening temporary roots file '%1%'") % path);
-=======
-            throw SysError("opening temporary roots file '%1%'", path);
->>>>>>> meson
+            throw PosixError("opening temporary roots file '%1%'", path);
         }
 
         /* This should work, but doesn't, for some reason. */
@@ -426,16 +394,10 @@ Roots LocalStore::findRoots(bool censor)
     return roots;
 }
 
-<<<<<<< HEAD
-#ifndef _WIN32
-static void readProcLink(const string & file, Roots & roots)
-||||||| merged common ancestors
-static void readProcLink(const string & file, Roots & roots)
-=======
 typedef std::unordered_map<Path, std::unordered_set<std::string>> UncheckedRoots;
 
+#ifndef _WIN32
 static void readProcLink(const string & file, UncheckedRoots & roots)
->>>>>>> meson
 {
     /* 64 is the starting buffer size gnu readlink uses... */
     auto bufsiz = ssize_t{64};
@@ -465,14 +427,8 @@ static string quoteRegexChars(const string & raw)
     return std::regex_replace(raw, specialRegex, R"(\$&)");
 }
 
-<<<<<<< HEAD
 #ifndef _WIN32
-static void readFileRoots(const char * path, Roots & roots)
-||||||| merged common ancestors
-static void readFileRoots(const char * path, Roots & roots)
-=======
 static void readFileRoots(const char * path, UncheckedRoots & roots)
->>>>>>> meson
 {
     try {
         roots[readFile(path)].emplace(path);
@@ -485,14 +441,8 @@ static void readFileRoots(const char * path, UncheckedRoots & roots)
 
 void LocalStore::findRuntimeRoots(Roots & roots, bool censor)
 {
-<<<<<<< HEAD
-#ifndef _WIN32
-    Roots unchecked;
-||||||| merged common ancestors
-    Roots unchecked;
-=======
     UncheckedRoots unchecked;
->>>>>>> meson
+#ifndef _WIN32
 
     auto procDir = AutoCloseDir{opendir("/proc")};
     if (procDir) {
@@ -511,13 +461,7 @@ void LocalStore::findRuntimeRoots(Roots & roots, bool censor)
                 if (!fdDir) {
                     if (errno == ENOENT || errno == EACCES)
                         continue;
-<<<<<<< HEAD
-                    throw PosixError(format("opening %1%") % fdStr);
-||||||| merged common ancestors
-                    throw SysError(format("opening %1%") % fdStr);
-=======
-                    throw SysError("opening %1%", fdStr);
->>>>>>> meson
+                    throw PosixError("opening %1%", fdStr);
                 }
                 struct dirent * fd_ent;
                 while (errno = 0, fd_ent = readdir(fdDir.get())) {
@@ -527,13 +471,7 @@ void LocalStore::findRuntimeRoots(Roots & roots, bool censor)
                 if (errno) {
                     if (errno == ESRCH)
                         continue;
-<<<<<<< HEAD
-                    throw PosixError(format("iterating /proc/%1%/fd") % ent->d_name);
-||||||| merged common ancestors
-                    throw SysError(format("iterating /proc/%1%/fd") % ent->d_name);
-=======
-                    throw SysError("iterating /proc/%1%/fd", ent->d_name);
->>>>>>> meson
+                    throw PosixError("iterating /proc/%1%/fd", ent->d_name);
                 }
                 fdDir.reset();
 
@@ -656,21 +594,13 @@ void LocalStore::deletePathRecursive(GCState & state, const Path & path)
         invalidatePathChecked(*storePath);
     }
 
-<<<<<<< HEAD
-    Path realPath = realStoreDir + "/" + baseNameOf(path);
-#ifndef _WIN32
-||||||| merged common ancestors
-    Path realPath = realStoreDir + "/" + baseNameOf(path);
-
-=======
     Path realPath = realStoreDir + "/" + std::string(baseNameOf(path));
 
->>>>>>> meson
+#ifndef _WIN32
     struct stat st;
     if (lstat(realPath.c_str(), &st)) {
         if (errno == ENOENT) return;
-<<<<<<< HEAD
-        throw PosixError(format("getting status-9 of %1%") % realPath);
+        throw PosixError("getting status of %1%", realPath);
     }
 #else
     WIN32_FILE_ATTRIBUTE_DATA wfad;
@@ -679,11 +609,6 @@ void LocalStore::deletePathRecursive(GCState & state, const Path & path)
         if (winError.lastError == ERROR_FILE_NOT_FOUND)
             return;
         throw winError;
-||||||| merged common ancestors
-        throw SysError(format("getting status of %1%") % realPath);
-=======
-        throw SysError("getting status of %1%", realPath);
->>>>>>> meson
     }
 #endif
 
@@ -703,24 +628,10 @@ void LocalStore::deletePathRecursive(GCState & state, const Path & path)
         // size.
         try {
             if (chmod(realPath.c_str(), st.st_mode | S_IWUSR) == -1)
-<<<<<<< HEAD
-                throw PosixError(format("making '%1%' writable") % realPath);
-            Path tmp = trashDir + "/" + baseNameOf(path);
-||||||| merged common ancestors
-                throw SysError(format("making '%1%' writable") % realPath);
-            Path tmp = trashDir + "/" + baseNameOf(path);
-=======
-                throw SysError("making '%1%' writable", realPath);
+                throw PosixError("making '%1%' writable", realPath);
             Path tmp = trashDir + "/" + std::string(baseNameOf(path));
->>>>>>> meson
             if (rename(realPath.c_str(), tmp.c_str()))
-<<<<<<< HEAD
-                throw PosixError(format("unable to rename '%1%' to '%2%'") % realPath % tmp);
-||||||| merged common ancestors
-                throw SysError(format("unable to rename '%1%' to '%2%'") % realPath % tmp);
-=======
-                throw SysError("unable to rename '%1%' to '%2%'", realPath, tmp);
->>>>>>> meson
+                throw PosixError("unable to rename '%1%' to '%2%'", realPath, tmp);
             state.bytesInvalidated += size;
         } catch (PosixError & e) {
             if (e.errNo == ENOSPC) {
@@ -858,13 +769,7 @@ void LocalStore::removeUnusedLinks(const GCState & state)
 {
 #ifndef _WIN32
     AutoCloseDir dir(opendir(linksDir.c_str()));
-<<<<<<< HEAD
-    if (!dir) throw PosixError(format("opening directory '%1%'") % linksDir);
-||||||| merged common ancestors
-    if (!dir) throw SysError(format("opening directory '%1%'") % linksDir);
-=======
-    if (!dir) throw SysError("opening directory '%1%'", linksDir);
->>>>>>> meson
+    if (!dir) throw PosixError("opening directory '%1%'", linksDir);
 
     int64_t actualSize = 0, unsharedSize = 0;
 
@@ -875,17 +780,7 @@ void LocalStore::removeUnusedLinks(const GCState & state)
         if (name == "." || name == "..") continue;
         Path path = linksDir + "/" + name;
 
-<<<<<<< HEAD
-        struct stat st;
-        if (lstat(path.c_str(), &st) == -1)
-            throw PosixError(format("statting '%1%'") % path);
-||||||| merged common ancestors
-        struct stat st;
-        if (lstat(path.c_str(), &st) == -1)
-            throw SysError(format("statting '%1%'") % path);
-=======
         auto st = lstat(path);
->>>>>>> meson
 
         if (st.st_nlink != 1) {
             actualSize += st.st_size;
@@ -896,33 +791,18 @@ void LocalStore::removeUnusedLinks(const GCState & state)
         printMsg(lvlTalkative, format("deleting unused link '%1%'") % path);
 
         if (unlink(path.c_str()) == -1)
-<<<<<<< HEAD
-            throw PosixError(format("deleting '%1%'") % path);
-||||||| merged common ancestors
-            throw SysError(format("deleting '%1%'") % path);
-=======
-            throw SysError("deleting '%1%'", path);
->>>>>>> meson
+            throw PosixError("deleting '%1%'", path);
 
         state.results.bytesFreed += st.st_size;
     }
 
     struct stat st;
     if (stat(linksDir.c_str(), &st) == -1)
-<<<<<<< HEAD
-        throw PosixError(format("statting '%1%'") % linksDir);
-    long long overhead = st.st_blocks * 512ULL;
-||||||| merged common ancestors
-        throw SysError(format("statting '%1%'") % linksDir);
-    long long overhead = st.st_blocks * 512ULL;
-=======
-        throw SysError("statting '%1%'", linksDir);
+        throw PosixError("statting '%1%'", linksDir);
     int64_t overhead = st.st_blocks * 512ULL;
->>>>>>> meson
 
-<<<<<<< HEAD
-    printInfo(format("note: currently hard linking saves %.2f MiB")
-        % ((unsharedSize - actualSize - overhead) / (1024.0 * 1024.0)));
+    printInfo("note: currently hard linking saves %.2f MiB",
+        ((unsharedSize - actualSize - overhead) / (1024.0 * 1024.0)));
 #else
     long long actualSize = 0, unsharedSize = 0;
 
@@ -973,33 +853,18 @@ void LocalStore::removeUnusedLinks(const GCState & state)
         FindClose(hFind);
     }
 
-    printInfo(format("note: currently hard linking saves %.2f MiB")
-        % ((unsharedSize - actualSize) / (1024.0 * 1024.0)));
-#endif
-||||||| merged common ancestors
-    printInfo(format("note: currently hard linking saves %.2f MiB")
-        % ((unsharedSize - actualSize - overhead) / (1024.0 * 1024.0)));
-=======
     printInfo("note: currently hard linking saves %.2f MiB",
-        ((unsharedSize - actualSize - overhead) / (1024.0 * 1024.0)));
->>>>>>> meson
+        ((unsharedSize - actualSize) / (1024.0 * 1024.0)));
+#endif
 }
 
 
 void LocalStore::collectGarbage(const GCOptions & options, GCResults & results)
 {
-<<<<<<< HEAD
 #ifdef _WIN32
     std::cerr << "LocalStore::collectGarbage" <<std::endl;
 #endif
-    GCState state(results);
-    state.options = options;
-||||||| merged common ancestors
-    GCState state(results);
-    state.options = options;
-=======
     GCState state(options, results);
->>>>>>> meson
     state.gcKeepOutputs = settings.gcKeepOutputs;
     state.gcKeepDerivations = settings.gcKeepDerivations;
 
@@ -1044,15 +909,9 @@ void LocalStore::collectGarbage(const GCOptions & options, GCResults & results)
     findTempRoots(fds, tempRoots, true);
     for (auto & root : tempRoots) {
         state.tempRoots.insert(root.first);
-<<<<<<< HEAD
-    state.roots.insert(state.tempRoots.begin(), state.tempRoots.end());
-#endif
-||||||| merged common ancestors
-    state.roots.insert(state.tempRoots.begin(), state.tempRoots.end());
-=======
         state.roots.insert(root.first);
     }
->>>>>>> meson
+#endif
 
     /* After this point the set of roots or temporary roots cannot
        increase, since we hold locks on everything.  So everything
@@ -1100,13 +959,7 @@ void LocalStore::collectGarbage(const GCOptions & options, GCResults & results)
             Paths entries;
 #ifndef _WIN32
             AutoCloseDir dir(opendir(realStoreDir.c_str()));
-<<<<<<< HEAD
-            if (!dir) throw PosixError(format("opening directory '%1%'") % realStoreDir);
-||||||| merged common ancestors
-            if (!dir) throw SysError(format("opening directory '%1%'") % realStoreDir);
-=======
-            if (!dir) throw SysError("opening directory '%1%'", realStoreDir);
->>>>>>> meson
+            if (!dir) throw PosixError("opening directory '%1%'", realStoreDir);
 
             /* Read the store and immediately delete all paths that
                aren't valid.  When using --max-freed etc., deleting
@@ -1215,14 +1068,8 @@ void LocalStore::collectGarbage(const GCOptions & options, GCResults & results)
 
 void LocalStore::autoGC(bool sync)
 {
-<<<<<<< HEAD
 #ifdef HAVE_STATVFS
-    static auto fakeFreeSpaceFile = getEnv("_NIX_TEST_FREE_SPACE_FILE", "");
-||||||| merged common ancestors
-    static auto fakeFreeSpaceFile = getEnv("_NIX_TEST_FREE_SPACE_FILE", "");
-=======
     static auto fakeFreeSpaceFile = getEnv("_NIX_TEST_FREE_SPACE_FILE");
->>>>>>> meson
 
     auto getAvail = [this]() -> uint64_t {
         if (fakeFreeSpaceFile)
