@@ -1035,45 +1035,20 @@ static bool isNonUriPath(const std::string & spec) {
         spec.find("://") == std::string::npos
         // Has at least one path separator, and so isn't a single word that
         // might be special like "auto"
-        && spec.find("/") != std::string::npos;
+        && rfindSlash(spec) != std::string::npos;
 }
 
 std::shared_ptr<Store> openFromNonUri(const std::string & uri, const Store::Params & params)
 {
-<<<<<<< HEAD
-    if (uri == "daemon") {
-        return tDaemon;
-    } else if (uri == "local" || 
-#ifndef _WIN32
-        hasPrefix(uri, "/")
-#else
-        (uri.size() > 3 && (('A' <= uri[0] && uri[0] <= 'Z') || ('a' <= uri[0] && uri[0] <= 'z')) && uri[1] == ':' && isslash(uri[2]))
-#endif
-        ) {
-        return tLocal;
-    } else if (uri == "" || uri == "auto") {
-#ifndef _WIN32
-||||||| merged common ancestors
-    if (uri == "daemon") {
-        return tDaemon;
-    } else if (uri == "local" || hasPrefix(uri, "/")) {
-        return tLocal;
-    } else if (uri == "" || uri == "auto") {
-=======
     if (uri == "" || uri == "auto") {
         auto stateDir = get(params, "state").value_or(settings.nixStateDir);
->>>>>>> meson
+#ifndef _WIN32
         if (access(stateDir.c_str(), R_OK | W_OK) == 0)
             return std::make_shared<LocalStore>(params);
         else if (pathExists(settings.nixDaemonSocketFile))
             return std::make_shared<UDSRemoteStore>(params);
         else
-<<<<<<< HEAD
 #endif
-            return tLocal;
-||||||| merged common ancestors
-            return tLocal;
-=======
             return std::make_shared<LocalStore>(params);
     } else if (uri == "daemon") {
         return std::make_shared<UDSRemoteStore>(params);
@@ -1083,7 +1058,6 @@ std::shared_ptr<Store> openFromNonUri(const std::string & uri, const Store::Para
         Store::Params params2 = params;
         params2["root"] = absPath(uri);
         return std::make_shared<LocalStore>(params2);
->>>>>>> meson
     } else {
         return nullptr;
     }
@@ -1092,29 +1066,6 @@ std::shared_ptr<Store> openFromNonUri(const std::string & uri, const Store::Para
 ref<Store> openStore(const std::string & uri_,
     const Store::Params & extraParams)
 {
-<<<<<<< HEAD
-    switch (getStoreType(uri, get(params, "state", settings.nixStateDir))) {
-        case tDaemon:
-            return std::shared_ptr<Store>(std::make_shared<UDSRemoteStore>(params));
-        case tLocal: {
-            Store::Params params2 = params;
-#ifndef _WIN32
-            if (hasPrefix(uri, "/"))
-#else
-            if (uri.size() > 3 && (('A' <= uri[0] && uri[0] <= 'Z') || ('a' <= uri[0] && uri[0] <= 'z')) && uri[1] == ':' && isslash(uri[2]))
-#endif
-                params2["root"] = uri;
-            return std::shared_ptr<Store>(std::make_shared<LocalStore>(params2));
-||||||| merged common ancestors
-    switch (getStoreType(uri, get(params, "state", settings.nixStateDir))) {
-        case tDaemon:
-            return std::shared_ptr<Store>(std::make_shared<UDSRemoteStore>(params));
-        case tLocal: {
-            Store::Params params2 = params;
-            if (hasPrefix(uri, "/"))
-                params2["root"] = uri;
-            return std::shared_ptr<Store>(std::make_shared<LocalStore>(params2));
-=======
     auto params = extraParams;
     try {
         auto parsedUri = parseURL(uri_);
@@ -1140,7 +1091,6 @@ ref<Store> openStore(const std::string & uri_,
         if (auto store = openFromNonUri(uri, params)) {
             store->warnUnknownSettings();
             return ref<Store>(store);
->>>>>>> meson
         }
     }
 

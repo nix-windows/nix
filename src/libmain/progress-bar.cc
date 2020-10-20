@@ -111,19 +111,7 @@ public:
         auto state(state_.lock());
         if (!state->active) return;
         state->active = false;
-<<<<<<< HEAD:src/nix/progress-bar.cc
-        std::string status = getStatus(*state);
         writeToStderr("\r\x1B[K");
-        if (status != "")
-            writeToStderr("[" + status + "]\n");
-||||||| merged common ancestors:src/nix/progress-bar.cc
-        std::string status = getStatus(*state);
-        writeToStderr("\r\e[K");
-        if (status != "")
-            writeToStderr("[" + status + "]\n");
-=======
-        writeToStderr("\r\e[K");
->>>>>>> meson:src/libmain/progress-bar.cc
         updateCV.notify_one();
         quitCV.notify_one();
     }
@@ -372,24 +360,12 @@ public:
         }
 #ifndef _WIN32
         auto width = getWindowSize().second;
-<<<<<<< HEAD:src/nix/progress-bar.cc
 #else
         auto width = 80;
 #endif
-        if (width <= 0) std::numeric_limits<decltype(width)>::max();
-||||||| merged common ancestors:src/nix/progress-bar.cc
-        if (width <= 0) std::numeric_limits<decltype(width)>::max();
-=======
         if (width <= 0) width = std::numeric_limits<decltype(width)>::max();
->>>>>>> meson:src/libmain/progress-bar.cc
 
-<<<<<<< HEAD:src/nix/progress-bar.cc
-        writeToStderr("\r" + filterANSIEscapes(line, false, width) + "\x1B[K");
-||||||| merged common ancestors:src/nix/progress-bar.cc
-        writeToStderr("\r" + filterANSIEscapes(line, false, width) + "\e[K");
-=======
-        writeToStderr("\r" + filterANSIEscapes(line, false, width) + ANSI_NORMAL + "\e[K");
->>>>>>> meson:src/libmain/progress-bar.cc
+        writeToStderr("\r" + filterANSIEscapes(line, false, width) + ANSI_NORMAL + "\x1B[K");
     }
 
     std::string getStatus(State & state)

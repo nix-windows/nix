@@ -1,32 +1,9 @@
 #include "primops.hh"
 #include "eval-inline.hh"
 #include "store-api.hh"
-<<<<<<< HEAD
-#include "pathlocks.hh"
-#ifndef _MSC_VER
-#include <sys/time.h>
-#endif
-#include <regex>
-#include <iostream>
-
-#include <nlohmann/json.hpp>
-
-using namespace std::string_literals;
-||||||| merged common ancestors
-#include "pathlocks.hh"
-
-#include <sys/time.h>
-
-#include <regex>
-
-#include <nlohmann/json.hpp>
-
-using namespace std::string_literals;
-=======
 #include "fetchers.hh"
 #include "url.hh"
 #include "url-parts.hh"
->>>>>>> meson
 
 namespace nix {
 

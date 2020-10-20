@@ -111,23 +111,16 @@ static void main_nix_build(int argc, char * * argv)
     std::string outLink = "./result";
 
     // List of environment variables kept for --pure
-<<<<<<< HEAD
     std::set<string> keepVars{
 #ifndef _WIN32
-                              "HOME",
+        "HOME",
 #else
-                              "USERPROFILE",
+        "USERPROFILE",
 #endif
-                              "USER", "LOGNAME", "DISPLAY", "PATH", "TERM", "IN_NIX_SHELL", "TZ", "PAGER", "NIX_BUILD_SHELL", "SHLVL"};
-||||||| merged common ancestors
-    std::set<string> keepVars{"HOME", "USER", "LOGNAME", "DISPLAY", "PATH", "TERM", "IN_NIX_SHELL", "TZ", "PAGER", "NIX_BUILD_SHELL", "SHLVL"};
-=======
-    std::set<string> keepVars{
-        "HOME", "USER", "LOGNAME", "DISPLAY", "PATH", "TERM", "IN_NIX_SHELL",
+        "USER", "LOGNAME", "DISPLAY", "PATH", "TERM", "IN_NIX_SHELL",
         "NIX_SHELL_PRESERVE_PROMPT", "TZ", "PAGER", "NIX_BUILD_SHELL", "SHLVL",
         "http_proxy", "https_proxy", "ftp_proxy", "all_proxy", "no_proxy"
     };
->>>>>>> meson
 
     Strings args;
     for (int i = 1; i < argc; ++i)
@@ -508,17 +501,11 @@ static void main_nix_build(int argc, char * * argv)
 
         execvp(shell->c_str(), argPtrs.data());
 
-<<<<<<< HEAD
-        throw PosixError("executing shell '%s'", shell);
+        throw PosixError("executing shell '%s'", *shell);
 #else
         std::cerr << "TODO: nix-shell" << std::endl;
         _exit(1);
 #endif
-||||||| merged common ancestors
-        throw SysError("executing shell '%s'", shell);
-=======
-        throw SysError("executing shell '%s'", *shell);
->>>>>>> meson
     }
 
     else {
@@ -574,13 +561,7 @@ static void main_nix_build(int argc, char * * argv)
         logger->stop();
 
         for (auto & path : outPaths)
-<<<<<<< HEAD
-            std::cout << path << std::endl;
-||||||| merged common ancestors
-            std::cout << path << '\n';
-=======
-            std::cout << store->printStorePath(path) << '\n';
->>>>>>> meson
+            std::cout << store->printStorePath(path) << std::endl;
     }
 }
 

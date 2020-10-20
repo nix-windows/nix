@@ -81,19 +81,9 @@ struct CmdUpgradeNix : MixDryRun, StoreCommand
         }
 
         {
-<<<<<<< HEAD
-            Activity act(*logger, lvlInfo, actUnknown, fmt("verifying that '%s' works...", storePath));
-            auto program = storePath + "/bin/nix-env";
-            auto s = runProgramGetStdout(program, false, {"--version"});
-||||||| merged common ancestors
-            Activity act(*logger, lvlInfo, actUnknown, fmt("verifying that '%s' works...", storePath));
-            auto program = storePath + "/bin/nix-env";
-            auto s = runProgram(program, false, {"--version"});
-=======
             Activity act(*logger, lvlInfo, actUnknown, fmt("verifying that '%s' works...", store->printStorePath(storePath)));
             auto program = store->printStorePath(storePath) + "/bin/nix-env";
-            auto s = runProgram(program, false, {"--version"});
->>>>>>> meson
+            auto s = runProgramGetStdout(program, false, {"--version"});
             if (s.find("Nix") == std::string::npos)
                 throw Error("could not verify that '%s' works", program);
         }
@@ -101,20 +91,10 @@ struct CmdUpgradeNix : MixDryRun, StoreCommand
         stopProgressBar();
 
         {
-<<<<<<< HEAD
-            Activity act(*logger, lvlInfo, actUnknown, fmt("installing '%s' into profile '%s'...", storePath, profileDir));
-            runProgramGetStdout(settings.nixBinDir + "/nix-env", false,
-                {"--profile", profileDir, "-i", storePath, "--no-sandbox"});
-||||||| merged common ancestors
-            Activity act(*logger, lvlInfo, actUnknown, fmt("installing '%s' into profile '%s'...", storePath, profileDir));
-            runProgram(settings.nixBinDir + "/nix-env", false,
-                {"--profile", profileDir, "-i", storePath, "--no-sandbox"});
-=======
             Activity act(*logger, lvlInfo, actUnknown,
                 fmt("installing '%s' into profile '%s'...", store->printStorePath(storePath), profileDir));
-            runProgram(settings.nixBinDir + "/nix-env", false,
+            runProgramGetStdout(settings.nixBinDir + "/nix-env", false,
                 {"--profile", profileDir, "-i", store->printStorePath(storePath), "--no-sandbox"});
->>>>>>> meson
         }
 
         printInfo(ANSI_GREEN "upgrade to version %s done" ANSI_NORMAL, version);

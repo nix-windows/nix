@@ -3,16 +3,10 @@
 #include "globals.hh"
 #include "filetransfer.hh"
 #include "store-api.hh"
-<<<<<<< HEAD
 #endif
 
-#include "legacy.hh"
-||||||| merged common ancestors
-#include "legacy.hh"
-=======
 #include "../nix/legacy.hh"
 #include "fetchers.hh"
->>>>>>> meson
 
 #ifndef _WIN32
 #include <fcntl.h>
@@ -52,13 +46,7 @@ static void writeChannels()
 {
     auto channelsFD = AutoCloseFD{open(channelsList.c_str(), O_WRONLY | O_CLOEXEC | O_CREAT | O_TRUNC, 0644)};
     if (!channelsFD)
-<<<<<<< HEAD
-        throw PosixError(format("opening '%1%' for writing") % channelsList);
-||||||| merged common ancestors
-        throw SysError(format("opening '%1%' for writing") % channelsList);
-=======
-        throw SysError("opening '%1%' for writing", channelsList);
->>>>>>> meson
+        throw PosixError("opening '%1%' for writing", channelsList);
     for (const auto & channel : channels)
         writeFull(channelsFD.get(), channel.second + " " + channel.first + "\n");
 }
@@ -164,21 +152,9 @@ static void update(const StringSet & channelNames)
         if (S_ISLNK(st.st_mode))
             // old-skool ~/.nix-defexpr
             if (unlink(nixDefExpr.c_str()) == -1)
-<<<<<<< HEAD
-                throw PosixError(format("unlinking %1%") % nixDefExpr);
-||||||| merged common ancestors
-                throw SysError(format("unlinking %1%") % nixDefExpr);
-=======
-                throw SysError("unlinking %1%", nixDefExpr);
->>>>>>> meson
+                throw PosixError("unlinking %1%", nixDefExpr);
     } else if (errno != ENOENT) {
-<<<<<<< HEAD
-        throw PosixError(format("getting status of %1%") % nixDefExpr);
-||||||| merged common ancestors
-        throw SysError(format("getting status of %1%") % nixDefExpr);
-=======
-        throw SysError("getting status of %1%", nixDefExpr);
->>>>>>> meson
+        throw PosixError("getting status of %1%", nixDefExpr);
     }
     createDirs(nixDefExpr);
     auto channelLink = nixDefExpr + "/channels";

@@ -316,16 +316,10 @@ void showManPage(const string & name)
     restoreSignals();
     setenv("MANPATH", settings.nixManDir.c_str(), 1);
     execlp("man", "man", name.c_str(), nullptr);
-<<<<<<< HEAD
-    throw PosixError(format("command 'man %1%' failed") % name.c_str());
+    throw PosixError("command 'man %1%' failed", name.c_str());
 #else
     std::cerr << "TODO: man " << name << std::endl;
 #endif
-||||||| merged common ancestors
-    throw SysError(format("command 'man %1%' failed") % name.c_str());
-=======
-    throw SysError("command 'man %1%' failed", name.c_str());
->>>>>>> meson
 }
 
 
@@ -333,15 +327,10 @@ int handleExceptions(const string & programName, std::function<void()> fun)
 {
 #ifndef _WIN32
     ReceiveInterrupts receiveInterrupts; // FIXME: need better place for this
-<<<<<<< HEAD
 #endif
-||||||| merged common ancestors
-
-=======
 
     ErrorInfo::programName = baseNameOf(programName);
 
->>>>>>> meson
     string error = ANSI_RED "error:" ANSI_NORMAL " ";
     try {
         try {
@@ -399,13 +388,7 @@ RunPager::RunPager()
         execlp("pager", "pager", nullptr);
         execlp("less", "less", nullptr);
         execlp("more", "more", nullptr);
-<<<<<<< HEAD
-        throw PosixError(format("executing '%1%'") % pager);
-||||||| merged common ancestors
-        throw SysError(format("executing '%1%'") % pager);
-=======
-        throw SysError("executing '%1%'", pager);
->>>>>>> meson
+        throw PosixError("executing '%1%'", pager);
     });
 
     pid.setKillSignal(SIGINT);

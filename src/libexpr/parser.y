@@ -622,35 +622,17 @@ Path resolveExprPath(Path path)
           );
 #else
     assert(path[0] == '/');
-<<<<<<< HEAD
 #endif
-||||||| merged common ancestors
-
-=======
 
     unsigned int followCount = 0, maxFollow = 1024;
 
->>>>>>> meson
     /* If `path' is a symlink, follow it.  This is so that relative
        path references work. */
-<<<<<<< HEAD
-
-    while (isLink(path)) {
-||||||| merged common ancestors
-    struct stat st;
-    while (true) {
-        if (lstat(path.c_str(), &st))
-            throw SysError(format("getting status of '%1%'") % path);
-        if (!S_ISLNK(st.st_mode)) break;
-=======
-    struct stat st;
     while (true) {
         // Basic cycle/depth limit to avoid infinite loops.
         if (++followCount >= maxFollow)
             throw Error("too many symbolic links encountered while traversing the path '%s'", path);
-        st = lstat(path);
-        if (!S_ISLNK(st.st_mode)) break;
->>>>>>> meson
+        if (isLink(path)) break;
         path = absPath(readLink(path), dirOf(path));
     }
 
@@ -688,18 +670,13 @@ Expr * EvalState::parseExprFromString(std::string_view s, const Path & basePath)
 
 Expr * EvalState::parseStdin()
 {
-#ifndef _WIN32
     //Activity act(*logger, lvlTalkative, format("parsing standard input"));
-<<<<<<< HEAD
-    return parseExprFromString(drainFD(STDIN_FILENO), absPath("."));
+#ifndef _WIN32
+    int fd = STDIN_FILENO:
 #else
-    return parseExprFromString(drainFD(GetStdHandle(STD_INPUT_HANDLE)), absPath("."));
+    HANDLE fd = GetStdHandle(STD_INPUT_HANDLE);
 #endif
-||||||| merged common ancestors
-    return parseExprFromString(drainFD(0), absPath("."));
-=======
-    return parse(drainFD(0).data(), foStdin, "", absPath("."), staticBaseEnv);
->>>>>>> meson
+    return parse(drainFD(fd).data(), foStdin, "", absPath("."), staticBaseEnv);
 }
 
 

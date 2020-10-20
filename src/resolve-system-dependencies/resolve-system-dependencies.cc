@@ -111,17 +111,7 @@ std::set<std::string> runResolver(const Path & filename)
 
 bool isSymlink(const Path & path)
 {
-<<<<<<< HEAD
     return isLink(path);
-||||||| merged common ancestors
-    struct stat st;
-    if (lstat(path.c_str(), &st) == -1)
-        throw SysError("getting attributes of path '%1%'", path);
-
-    return S_ISLNK(st.st_mode);
-=======
-    return S_ISLNK(lstat(path).st_mode);
->>>>>>> meson
 }
 
 Path resolveSymlink(const Path & path)

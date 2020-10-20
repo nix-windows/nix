@@ -161,19 +161,9 @@ struct CmdWhyDepends : SourceExprCommand
             assert(node.dist != inf);
             logger->cout("%s%s%s%s" ANSI_NORMAL,
                 firstPad,
-<<<<<<< HEAD
                 node.visited ? "\x1B[38;5;244m" : "",
-                firstPad != "" ? "=> " : "",
-                node.path);
-||||||| merged common ancestors
-                node.visited ? "\e[38;5;244m" : "",
-                firstPad != "" ? "=> " : "",
-                node.path);
-=======
-                node.visited ? "\e[38;5;244m" : "",
                 firstPad != "" ? "→ " : "",
                 pathS);
->>>>>>> meson
 
             if (node.path == dependencyPath && !all
                 && packagePath != dependencyPath)
