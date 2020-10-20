@@ -84,7 +84,7 @@ static void dump(const Path & path, Sink & sink, PathFilter & filter)
 {
     checkInterrupt();
 
-    auto st = lstat(path);
+    auto st = lstatPath(path);
 
     sink << "(";
 

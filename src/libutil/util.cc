@@ -116,7 +116,7 @@ Path handleToPath(HANDLE handle) {
 
 #endif
 
-static inline Path::size_type rfindSlash(const Path & path, Path::size_type from = Path::npos) {
+static inline std::string_view::size_type rfindSlash(std::string_view path, std::string_view::size_type from = std::string_view::npos) {
 #ifdef _WIN32
     Path::size_type p1 = path.rfind('/', from);
     Path::size_type p2 = path.rfind('\\', from);
@@ -127,8 +127,6 @@ static inline Path::size_type rfindSlash(const Path & path, Path::size_type from
     return path.rfind('/', from);
 #endif
 }
-
-const std::string nativeSystem = SYSTEM;
 
 
 #ifdef _WIN32
@@ -190,7 +188,7 @@ std::wstring getArgv0W()
     return std::wstring(buf.data(), dw);
 }
 
-std::wstring getEnvW(const std::wstring & key, const std::wstring & def)
+std::optional<std::wstring> getEnvW(const std::wstring & key)
 {
     std::vector<wchar_t> buf(0x100);
     DWORD dw = GetEnvironmentVariableW(key.c_str(), buf.data(), buf.size());
@@ -198,7 +196,7 @@ std::wstring getEnvW(const std::wstring & key, const std::wstring & def)
         WinError winError("GetEnvironmentVariableW '%1%'", to_bytes(key));
         if (winError.lastError != ERROR_ENVVAR_NOT_FOUND)
             throw winError;
-        return def;
+        return {};
     }
     if (dw > buf.size()) {
         buf.resize(dw);
@@ -211,7 +209,7 @@ std::wstring getEnvW(const std::wstring & key, const std::wstring & def)
 
 std::optional<std::string> getEnv(const std::string & key)
 {
-    return to_bytes(getEnvW(from_bytes(key), from_bytes(def)));
+    return to_bytes(getEnvW(from_bytes(key)));
 }
 
 std::map<std::wstring, std::wstring, no_case_compare> getEntireEnvW()
@@ -244,7 +242,7 @@ std::map<std::string, std::string> getEnv()
 }
 
 #else
-std::optional<std::string> getEnv(const string & key, const string & def)
+std::optional<std::string> getEnv(const string & key)
 {
     char * value = getenv(key.c_str());
     if (!value) return {};
@@ -413,7 +411,7 @@ std::optional<Path> maybeCanonPath(const Path & path, bool resolveSymlinks)
 Path canonPath(const Path & path, bool resolveSymlinks) {
     std::optional<Path> mb = maybeCanonPath(path, resolveSymlinks);
     if (!mb)
-        throw Error(format("not an absolute path: '%1%'") % path);
+        throw Error("not an absolute path: '%1%'", path);
     return *mb;
 }
 
