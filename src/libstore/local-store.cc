@@ -157,7 +157,7 @@ LocalStore::LocalStore(const Params & params)
 #ifndef _WIN32
             AutoCloseFD fd = open(reservedPath.c_str(), O_WRONLY | O_CREAT | O_CLOEXEC, 0600);
             if (!fd)
-                throw PosixError(format("opening file '%1%'") % reservedPath);
+                throw PosixError("opening file '%1%'", reservedPath);
             int res = -1;
 #if HAVE_POSIX_FALLOCATE
             res = posix_fallocate(fd.get(), 0, settings.reservedSize);
@@ -455,7 +455,7 @@ static void canonicaliseTimestampAndPermissions(const Path & path, const struct 
 
 void canonicaliseTimestampAndPermissions(const Path & path)
 {
-    canonicaliseTimestampAndPermissions(path, lstat(path));
+    canonicaliseTimestampAndPermissions(path, lstatPath(path));
 }
 
 
@@ -478,7 +478,7 @@ static void canonicalisePathMetaData_(
     }
 #endif
 
-    auto st = lstat(path);
+    auto st = lstatPath(path);
 
     /* Really make sure that the path is of a supported type. */
     if (getFileType(path) == DT_UNKNOWN)
@@ -557,7 +557,7 @@ void canonicalisePathMetaData(const Path & path, uid_t fromUid, InodesSeen & ino
 
     /* On platforms that don't have lchown(), the top-level path can't
        be a symlink, since we can't change its ownership. */
-    auto st = lstat(path);
+    auto st = lstatPath(path);
 
     if (st.st_uid != geteuid()) {
         assert(S_ISLNK(st.st_mode));
@@ -1532,15 +1532,15 @@ bool LocalStore::verifyStore(bool checkContents, RepairFlag repair)
         printInfo("checking link hashes...");
 
         for (auto & link : readDirectory(linksDir)) {
-            printMsg(lvlTalkative, "checking contents of '%s'", link.name);
-            Path linkPath = linksDir + "/" + link.name;
+            printMsg(lvlTalkative, "checking contents of '%s'", link.name());
+            Path linkPath = linksDir + "/" + link.name();
             string hash = hashPath(htSHA256, linkPath).first.to_string(Base32, false);
-            if (hash != link.name) {
+            if (hash != link.name()) {
                 logError({
                     .name = "Invalid hash",
                     .hint = hintfmt(
                         "link '%s' was modified! expected hash '%s', got '%s'",
-                        linkPath, link.name, hash)
+                        linkPath, link.name(), hash)
                 });
                 if (repair) {
                     if (unlink(linkPath.c_str()) == 0)

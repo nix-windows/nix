@@ -234,7 +234,7 @@ void LocalStore::findTempRoots(FDs & fds, Roots & tempRoots, bool censor)
     /* Read the `temproots' directory for per-process temporary root
        files. */
     for (auto & i : readDirectory(tempRootsDir)) {
-        if (i.name[0] == '.') {
+        if (i.name()[0] == '.') {
             // Ignore hidden files. Some package managers (notably portage) create
             // those to keep the directory alive.
             continue;
@@ -780,7 +780,7 @@ void LocalStore::removeUnusedLinks(const GCState & state)
         if (name == "." || name == "..") continue;
         Path path = linksDir + "/" + name;
 
-        auto st = lstat(path);
+        auto st = lstatPath(path);
 
         if (st.st_nlink != 1) {
             actualSize += st.st_size;
@@ -1024,7 +1024,7 @@ void LocalStore::collectGarbage(const GCOptions & options, GCResults & results)
 
 #ifndef _NDEBUG
     /* paths shouldn't be  dead and alive at the same time */
-    PathSet deadAndAlive;
+    StorePathSet deadAndAlive;
     std::set_intersection(state.dead.begin(), state.dead.end(),
                           state.alive.begin(), state.alive.end(),
                           std::inserter(deadAndAlive, deadAndAlive.begin()));

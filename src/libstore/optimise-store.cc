@@ -23,7 +23,7 @@ namespace nix {
 #ifndef _WIN32
 static void makeWritable(const Path & path)
 {
-    auto st = lstat(path);
+    auto st = lstatPath(path);
     if (chmod(path.c_str(), st.st_mode | S_IWUSR) == -1)
         throw PosixError("changing writability of '%1%'", path);
 }
@@ -182,7 +182,7 @@ void LocalStore::optimisePath_(Activity * act, OptimiseStats & stats,
     checkInterrupt();
 
 #ifndef _WIN32
-    auto st = lstat(path);
+    auto st = lstatPath(path);
 
 #if __APPLE__
     /* HFS/macOS has some undocumented security feature disabling hardlinking for
@@ -327,7 +327,7 @@ void LocalStore::optimisePath_(Activity * act, OptimiseStats & stats,
 #ifndef _WIN32
     /* Yes!  We've seen a file with the same contents.  Replace the
        current file with a hard link to that file. */
-    auto stLink = lstat(linkPath);
+    auto stLink = lstatPath(linkPath);
 #else
     BY_HANDLE_FILE_INFORMATION bhfi2;
     HANDLE hFile2 = CreateFileW(pathW(linkPath).c_str(), 0, FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_FLAG_POSIX_SEMANTICS, 0);
