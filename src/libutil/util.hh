@@ -710,6 +710,7 @@ void commonChildInit(Pipe & logPipe);
 AutoCloseFD createUnixDomainSocket(const Path & path, mode_t mode);
 #endif
 
+std::string_view::size_type rfindSlash(std::string_view path, std::string_view::size_type from = std::string_view::npos);
 
 // A Rust/Python-like enumerate() iterator adapter.
 // Borrowed from http://reedbeta.com/blog/python-like-enumerate-in-cpp17.
