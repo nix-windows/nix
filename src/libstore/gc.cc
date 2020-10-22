@@ -678,7 +678,7 @@ void LocalStore::deletePathRecursive(GCState & state, const Path & path)
         try {
             Path tmp = trashDir + "/" + baseNameOf(path);
             if (!MoveFileExW(pathW(realPath).c_str(), pathW(tmp).c_str(), MOVEFILE_WRITE_THROUGH))
-                throw WinError(format("unable to rename '%1%' to '%2%'") % realPath % tmp);
+                throw WinError(format("MoveFileExW('%1%', '%2%')") % realPath % tmp);
             state.bytesInvalidated += size;
         } catch (WinError & e) {
             throw e; // TODO
