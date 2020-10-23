@@ -1700,9 +1700,12 @@ std::pair<string, string> decodeContext(std::string_view s)
         size_t index = s.find("!", 1);
         return {std::string(s.substr(index + 1)), std::string(s.substr(1, index - 1))};
     } else
+#ifndef _WIN32
         return {s.at(0) == '/' ? std::string(s) : std::string(s.substr(1)), ""};
+#else
+        rc = {s, ""};
+#endif
 }
-
 
 void copyContext(const Value & v, PathSet & context)
 {

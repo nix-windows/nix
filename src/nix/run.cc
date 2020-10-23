@@ -48,7 +48,7 @@ struct RunCommon : virtual Command
 
             execv(readLink("/proc/self/exe").c_str(), stringsToCharPtrs(helperArgs).data());
 
-            throw SysError("could not execute chroot helper");
+            throw PosixError("could not execute chroot helper");
         }
 
         execvp(program.c_str(), stringsToCharPtrs(args).data());
