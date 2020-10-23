@@ -62,17 +62,7 @@ path2=$(nix eval --refresh --raw --expr "(builtins.fetchMercurial { url = file:/
 mv ${repo}-tmp $repo
 
 # Using a clean working tree should produce the same result.
-<<<<<<< HEAD
-if [[ "$(uname)" =~ ^MINGW|^MSYS ]]; then
-    path2=$(nix eval --raw "(builtins.fetchMercurial \"$(cygpath -m $repo)\").outPath")
-else
-    path2=$(nix eval --raw "(builtins.fetchMercurial $repo).outPath")
-fi
-||||||| merged common ancestors
-path2=$(nix eval --raw "(builtins.fetchMercurial $repo).outPath")
-=======
 path2=$(nix eval --impure --raw --expr "(builtins.fetchMercurial $repo).outPath")
->>>>>>> meson
 [[ $path = $path2 ]]
 
 # Using an unclean tree should yield the tracked but uncommitted changes.
@@ -83,50 +73,17 @@ echo bar > $repo/dir2/bar
 hg add --cwd $repo dir1/foo
 hg rm --cwd $repo hello
 
-<<<<<<< HEAD
-if [[ "$(uname)" =~ ^MINGW|^MSYS ]]; then
-    path2=$(nix eval --raw "(builtins.fetchMercurial \"$(cygpath -m $repo)\").outPath")
-else
-    path2=$(nix eval --raw "(builtins.fetchMercurial $repo).outPath")
-fi
-
-||||||| merged common ancestors
-path2=$(nix eval --raw "(builtins.fetchMercurial $repo).outPath")
-=======
 path2=$(nix eval --impure --raw --expr "(builtins.fetchMercurial $repo).outPath")
->>>>>>> meson
 [ ! -e $path2/hello ]
 [ ! -e $path2/bar ]
 [ ! -e $path2/dir2/bar ]
 [ ! -e $path2/.hg ]
 [[ $(cat $path2/dir1/foo) = foo ]]
 
-<<<<<<< HEAD
-if [[ "$(uname)" =~ ^MINGW|^MSYS ]]; then
-    [[ $(nix eval --raw "(builtins.fetchMercurial \"$(cygpath -m $repo)\").rev") = 0000000000000000000000000000000000000000 ]]
-else
-    [[ $(nix eval --raw "(builtins.fetchMercurial $repo).rev") = 0000000000000000000000000000000000000000 ]]
-fi
-||||||| merged common ancestors
-[[ $(nix eval --raw "(builtins.fetchMercurial $repo).rev") = 0000000000000000000000000000000000000000 ]]
-=======
 [[ $(nix eval --impure --raw --expr "(builtins.fetchMercurial $repo).rev") = 0000000000000000000000000000000000000000 ]]
->>>>>>> meson
 
-<<<<<<< HEAD
-# ... unless we're using an explicit rev.
-if [[ "$(uname)" =~ ^MINGW|^MSYS ]]; then
-    path3=$(nix eval --raw "(builtins.fetchMercurial { url = \"$(cygpath -m $repo)\"; rev = \"default\"; }).outPath")
-else
-    path3=$(nix eval --raw "(builtins.fetchMercurial { url = $repo; rev = \"default\"; }).outPath")
-fi
-||||||| merged common ancestors
-# ... unless we're using an explicit rev.
-path3=$(nix eval --raw "(builtins.fetchMercurial { url = $repo; rev = \"default\"; }).outPath")
-=======
 # ... unless we're using an explicit ref.
 path3=$(nix eval --impure --raw --expr "(builtins.fetchMercurial { url = $repo; rev = \"default\"; }).outPath")
->>>>>>> meson
 [[ $path = $path3 ]]
 
 # Committing should not affect the store path.

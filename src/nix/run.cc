@@ -108,67 +108,8 @@ struct CmdShell : InstallablesCommand, RunCommon, MixEnvironment
 
         auto accessor = store->getFSAccessor();
 
-<<<<<<< HEAD
-#ifndef _WIN32
-        if (ignoreEnvironment) {
-
-            if (!unset.empty())
-                throw UsageError("--unset does not make sense with --ignore-environment");
-
-            std::map<std::string, std::string> kept;
-            for (auto & var : keep) {
-                auto s = getenv(var.c_str());
-                if (s) kept[var] = s;
-            }
-
-            clearEnv();
-
-            for (auto & var : kept)
-                setenv(var.first.c_str(), var.second.c_str(), 1);
-
-        } else {
-
-            if (!keep.empty())
-                throw UsageError("--keep does not make sense without --ignore-environment");
-
-            for (auto & var : unset)
-                unsetenv(var.c_str());
-        }
-
-        std::unordered_set<Path> done;
-        std::queue<Path> todo;
-||||||| merged common ancestors
-        if (ignoreEnvironment) {
-
-            if (!unset.empty())
-                throw UsageError("--unset does not make sense with --ignore-environment");
-
-            std::map<std::string, std::string> kept;
-            for (auto & var : keep) {
-                auto s = getenv(var.c_str());
-                if (s) kept[var] = s;
-            }
-
-            clearEnv();
-
-            for (auto & var : kept)
-                setenv(var.first.c_str(), var.second.c_str(), 1);
-
-        } else {
-
-            if (!keep.empty())
-                throw UsageError("--keep does not make sense without --ignore-environment");
-
-            for (auto & var : unset)
-                unsetenv(var.c_str());
-        }
-
-        std::unordered_set<Path> done;
-        std::queue<Path> todo;
-=======
         std::unordered_set<StorePath> done;
         std::queue<StorePath> todo;
->>>>>>> meson
         for (auto & path : outPaths) todo.push(path);
 
         setEnviron();
@@ -237,13 +178,6 @@ struct CmdRun : InstallableCommand, RunCommon
         };
     }
 
-<<<<<<< HEAD
-            throw PosixError("could not execute chroot helper");
-        }
-||||||| merged common ancestors
-            throw SysError("could not execute chroot helper");
-        }
-=======
     Strings getDefaultFlakeAttrPaths() override
     {
         Strings res{"defaultApp." + settings.thisSystem.get()};
@@ -267,182 +201,11 @@ struct CmdRun : InstallableCommand, RunCommon
         auto app = installable->toApp(*state);
 
         state->store->buildPaths(app.context);
->>>>>>> meson
 
         Strings allArgs{app.program};
         for (auto & i : args) allArgs.push_back(i);
 
-<<<<<<< HEAD
-        throw PosixError("unable to exec '%s'", cmd);
-#else
-        std::map<std::wstring, std::wstring> uenv;
-
-        if (ignoreEnvironment) {
-
-            if (!unset.empty())
-                throw UsageError("--unset does not make sense with --ignore-environment");
-
-            std::map<std::wstring, std::wstring> kept;
-            for (auto & var : keep) {
-                std::wstring s = getEnvW(from_bytes(var), L"<not-found>");
-                if (s != L"<not-found>")
-                    uenv[from_bytes(var)] = s;
-            }
-        } else {
-
-            if (!keep.empty())
-                throw UsageError("--keep does not make sense without --ignore-environment");
-
-            for (auto & e : getEntireEnvW()) {
-                if (unset.find(to_bytes(e.first)) == unset.end())
-                    uenv[e.first] = e.second;
-            }
-        }
-
-        std::unordered_set<Path> done;
-        std::queue<Path> todo;
-        for (auto & path : outPaths) {
-            std::cerr << "path=[" << path << "]" << std::endl;
-            todo.push(path);
-        }
-        auto windowsPath = tokenizeString<Strings>(getEnv("PATH"), ";");
-
-        while (!todo.empty()) {
-            Path path = todo.front();
-            todo.pop();
-            if (!done.insert(path).second) continue;
-
-            windowsPath.push_front(path + "/bin");
-
-            auto propPath = path + "/nix-support/propagated-user-env-packages";
-            if (accessor->stat1(propPath).type == FSAccessor::tRegular) {
-                for (auto & p : tokenizeString<Paths>(readFile(propPath)))
-                    todo.push(p);
-            }
-        }
-        for (auto & path : windowsPath) {
-            std::cerr << "win=[" << path << "]" << std::endl;
-        }
-
-        for (auto & arg : command) {
-            std::cerr << "arg=[" << arg << "]" << std::endl;
-            //args.push_back(arg);
-        }
-
-        stopProgressBar();
-
-        restoreAffinity();
-
-
-        const std::string program = *command.begin();
-        assert(program.find('/') == string::npos);
-        assert(program.find('\\') == string::npos);
-
-        Path executable;
-        bool found = false;
-        bool checkShebangs = false;
-        for (const std::string & outpath : /*windowsPath*/outPaths) {
-//          std::cerr << "_________________outpath='" << outpath << "'" << std::endl;
-            assert(outpath == canonPath(outpath));
-            Path candidate = outpath + "/bin/" + program;
-            if (pathExists(candidate       )) { executable = candidate       ; found = true; checkShebangs = true;  break; }
-            if (pathExists(candidate+".exe")) { executable = candidate+".exe"; found = true; checkShebangs = false; break; }
-            if (pathExists(candidate+".cmd")) { executable = candidate+".cmd"; found = true; checkShebangs = false; break; }
-            if (pathExists(candidate+".bat")) { executable = candidate+".bat"; found = true; checkShebangs = false; break; }
-        }
-        if (!found)
-            throw Error("executable '%1%' not found in outpaths", executable);
-//      std::cerr << "_________________executable='" << executable << "'" << std::endl;
-
-        string shebang;
-        if (checkShebangs) {
-          std::vector<char> buf(512);
-          {
-              AutoCloseWindowsHandle fd = CreateFileW(pathW(executable).c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-              if (fd.get() == INVALID_HANDLE_VALUE)
-                  throw WinError("CreateFileW '%1%'", executable);
-
-              DWORD filled = 0;
-              while (filled < buf.size()) {
-                  DWORD n;
-                  if (!ReadFile(fd.get(), buf.data() + filled, buf.size() - filled, &n, NULL))
-                      throw WinError("ReadFile '%1%'", executable);
-                  if (n == 0)
-                      break;
-                  filled += n;
-              }
-              buf.resize(filled);
-          }
-          if (buf.size() < 3)
-              throw Error("executable '%1%' is too small", executable);
-          if (buf[0] == '#' && buf[1] == '!') {
-              std::vector<char>::const_iterator lf = std::find(buf.begin(), buf.end(), '\n');
-              if (lf == buf.end())
-                  throw Error("executable '%1%' shebang is too long", executable);
-
-              shebang = trim(std::string(buf.data()+2, lf-buf.begin()-2));
-//            std::cerr << "_________________shebang1='" << shebang << "'" << std::endl;
-
-              if (shebang.empty())
-                  throw Error("executable '%1%' shebang is empty", executable);
-
-              // BUGBUG: msys hack, remove later
-              if (shebang[0] == '/') {
-                  shebang = trim(runProgramGetStdout("cygpath", true, {"-m", shebang}));
-//                std::cerr << "_________________shebang2='" << shebang << "'" << std::endl;
-              }
-              assert(!shebang.empty() && shebang[0] != '/');
-
-              if (!pathExists(shebang))
-                  throw Error("executable '%1%' shebang '%2%' does not exist", executable, shebang);
-          }
-        }
-
-        std::wstring ucmdline;
-        if (!shebang.empty())
-            ucmdline = windowsEscapeW(from_bytes(shebang)) + L' ';
-        ucmdline += windowsEscapeW(from_bytes(executable));
-        for (auto v = command.begin()+1; v != command.end(); ++v) {
-            ucmdline += L' ';
-            ucmdline += windowsEscapeW(from_bytes(*v));
-        }
-
-        std::wstring uenvline;
-        for (auto & i : uenv)
-            uenvline += i.first + L'=' + i.second + L'\0';
-        uenvline += L'\0';
-
-//      std::cerr << "_________________executable='" << to_bytes(pathW(executable)) << "'" << std::endl;
-//      std::cerr << "_________________shebang='"    <<         (shebang)           << "'" << std::endl;
-//      std::cerr << "_________________ucmdline='"   << to_bytes(ucmdline)          << "'" << std::endl;
-
-        STARTUPINFOW si = {0};
-        si.cb = sizeof(STARTUPINFOW);
-        PROCESS_INFORMATION pi = {0};
-        if (!CreateProcessW(
-            pathW(shebang.empty() ? executable : shebang).c_str(),         // LPCWSTR               lpApplicationName,
-            const_cast<wchar_t*>((ucmdline).c_str()),                      // LPWSTR                lpCommandLine,
-            NULL,                                                          // LPSECURITY_ATTRIBUTES lpProcessAttributes,
-            NULL,                                                          // LPSECURITY_ATTRIBUTES lpThreadAttributes,
-            TRUE,                                                          // BOOL                  bInheritHandles,
-            CREATE_UNICODE_ENVIRONMENT,                                    // DWORD                 dwCreationFlags,
-            const_cast<wchar_t*>(uenvline.c_str()),
-            NULL,                                                          // LPCWSTR               lpCurrentDirectory,
-            &si,                                                           // LPSTARTUPINFOW        lpStartupInfo,
-            &pi                                                            // LPPROCESS_INFORMATION lpProcessInformation
-        )) {
-            throw WinError("CreateProcessW(%1%)", to_bytes(ucmdline));
-        }
-        CloseHandle(pi.hThread);
-
-        WaitForSingleObject(pi.hProcess, INFINITE);
-        CloseHandle(pi.hProcess);
-#endif
-||||||| merged common ancestors
-        throw SysError("unable to exec '%s'", cmd);
-=======
         runProgram(store, app.program, allArgs);
->>>>>>> meson
     }
 };
 
@@ -502,22 +265,10 @@ void chrootHelper(int argc, char * * argv)
         Finally freeCwd([&]() { free(cwd); });
 
         if (chroot(tmpDir.c_str()) == -1)
-<<<<<<< HEAD
-            throw PosixError(format("chrooting into '%s'") % tmpDir);
-||||||| merged common ancestors
-            throw SysError(format("chrooting into '%s'") % tmpDir);
-=======
             throw SysError("chrooting into '%s'", tmpDir);
->>>>>>> meson
 
         if (chdir(cwd) == -1)
-<<<<<<< HEAD
-            throw PosixError(format("chdir to '%s' in chroot") % cwd);
-||||||| merged common ancestors
-            throw SysError(format("chdir to '%s' in chroot") % cwd);
-=======
             throw SysError("chdir to '%s' in chroot", cwd);
->>>>>>> meson
     } else
         if (mount(realStoreDir.c_str(), storeDir.c_str(), "", MS_BIND, 0) == -1)
             throw PosixError("mounting '%s' on '%s'", realStoreDir, storeDir);

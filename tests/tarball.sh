@@ -10,19 +10,7 @@ mkdir -p $tarroot
 cp dependencies.nix $tarroot/default.nix
 cp config.nix dependencies.builder*.sh $tarroot/
 
-<<<<<<< HEAD
-tarball=$TEST_ROOT/tarball.tar.xz
-if [[ "$(uname)" =~ ^MINGW|^MSYS ]]; then
-    tarball=$(cygpath -m $tarball)
-fi
-
-(cd $TEST_ROOT && tar c tarball) | xz > $tarball
-||||||| merged common ancestors
-tarball=$TEST_ROOT/tarball.tar.xz
-(cd $TEST_ROOT && tar c tarball) | xz > $tarball
-=======
 hash=$(nix hash-path $tarroot)
->>>>>>> meson
 
 test_tarball() {
     local ext="$1"

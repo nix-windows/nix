@@ -24,41 +24,11 @@ else
 fi
 cmp $p restricted.sh
 
-<<<<<<< HEAD
-if [[ "$(uname)" =~ ^MINGW|^MSYS ]]; then
-    (! nix eval --raw "(builtins.fetchurl file://$(cygpath -m $(pwd))/restricted.sh)" --restrict-eval)
-else
-    (! nix eval --raw "(builtins.fetchurl file://$(pwd)/restricted.sh)" --restrict-eval)
-fi
-||||||| merged common ancestors
-(! nix eval --raw "(builtins.fetchurl file://$(pwd)/restricted.sh)" --restrict-eval)
-=======
 (! nix eval --raw --expr "builtins.fetchurl file://$(pwd)/restricted.sh" --impure --restrict-eval)
->>>>>>> meson
 
-<<<<<<< HEAD
-if [[ "$(uname)" =~ ^MINGW|^MSYS ]]; then
-    (! nix eval --raw "(builtins.fetchurl file://$(cygpath -m $(pwd))/restricted.sh)" --restrict-eval --allowed-uris "file://$(cygpath -m $(pwd))/restricted.sh/")
-else
-    (! nix eval --raw "(builtins.fetchurl file://$(pwd)/restricted.sh)" --restrict-eval --allowed-uris "file://$(pwd)/restricted.sh/")
-fi
-||||||| merged common ancestors
-(! nix eval --raw "(builtins.fetchurl file://$(pwd)/restricted.sh)" --restrict-eval --allowed-uris "file://$(pwd)/restricted.sh/")
-=======
 (! nix eval --raw --expr "builtins.fetchurl file://$(pwd)/restricted.sh" --impure --restrict-eval --allowed-uris "file://$(pwd)/restricted.sh/")
->>>>>>> meson
 
-<<<<<<< HEAD
-if [[ "$(uname)" =~ ^MINGW|^MSYS ]]; then
-    nix eval --raw "(builtins.fetchurl file://$(cygpath -m $(pwd))/restricted.sh)" --restrict-eval --allowed-uris "file://$(cygpath -m $(pwd))/restricted.sh"
-else
-    nix eval --raw "(builtins.fetchurl file://$(pwd)/restricted.sh)" --restrict-eval --allowed-uris "file://$(pwd)/restricted.sh"
-fi
-||||||| merged common ancestors
-nix eval --raw "(builtins.fetchurl file://$(pwd)/restricted.sh)" --restrict-eval --allowed-uris "file://$(pwd)/restricted.sh"
-=======
 nix eval --raw --expr "builtins.fetchurl file://$(pwd)/restricted.sh" --impure --restrict-eval --allowed-uris "file://$(pwd)/restricted.sh"
->>>>>>> meson
 
 (! nix eval --raw --expr "builtins.fetchurl https://github.com/NixOS/patchelf/archive/master.tar.gz" --impure --restrict-eval)
 (! nix eval --raw --expr "builtins.fetchTarball https://github.com/NixOS/patchelf/archive/master.tar.gz" --impure --restrict-eval)
@@ -79,31 +49,6 @@ nix-instantiate --eval --restrict-eval $TEST_ROOT/restricted.nix -I $TEST_ROOT -
 [[ $(nix eval --raw --impure --restrict-eval -I . --expr 'builtins.readFile "${import ./simple.nix}/hello"') == 'Hello World!' ]]
 
 # Check whether we can leak symlink information through directory traversal.
-<<<<<<< HEAD
-if [[ "$(uname)" =~ ^MINGW|^MSYS ]]; then
-    echo "this fails on MSYS Windows<->Unix path translation"
-else
-    traverseDir="$(pwd)/restricted-traverse-me"
-    ln -sfn "$(pwd)/restricted-secret" "$(pwd)/restricted-innocent"
-    mkdir -p "$traverseDir"
-    goUp="..$(echo "$traverseDir" | sed -e 's,[^/]\+,..,g')"
-    output="$(nix eval --raw --restrict-eval -I "$traverseDir" \
-        "(builtins.readFile \"$traverseDir/$goUp$(pwd)/restricted-innocent\")" \
-        2>&1 || :)"
-    echo "$output" | grep "is forbidden"
-    ! echo "$output" | grep -F restricted-secret
-fi
-||||||| merged common ancestors
-traverseDir="$(pwd)/restricted-traverse-me"
-ln -sfn "$(pwd)/restricted-secret" "$(pwd)/restricted-innocent"
-mkdir -p "$traverseDir"
-goUp="..$(echo "$traverseDir" | sed -e 's,[^/]\+,..,g')"
-output="$(nix eval --raw --restrict-eval -I "$traverseDir" \
-    "(builtins.readFile \"$traverseDir/$goUp$(pwd)/restricted-innocent\")" \
-    2>&1 || :)"
-echo "$output" | grep "is forbidden"
-! echo "$output" | grep -F restricted-secret
-=======
 traverseDir="$(pwd)/restricted-traverse-me"
 ln -sfn "$(pwd)/restricted-secret" "$(pwd)/restricted-innocent"
 mkdir -p "$traverseDir"
@@ -113,4 +58,3 @@ output="$(nix eval --raw --restrict-eval -I "$traverseDir" \
     2>&1 || :)"
 echo "$output" | grep "is forbidden"
 ! echo "$output" | grep -F restricted-secret
->>>>>>> meson

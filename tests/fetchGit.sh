@@ -119,17 +119,7 @@ echo delft > $repo/hello
 git -C $repo add hello
 git -C $repo commit -m 'Bla4'
 rev3=$(git -C $repo rev-parse HEAD)
-<<<<<<< HEAD
-if [[ "$(uname)" =~ ^MINGW|^MSYS ]]; then
-    nix eval --tarball-ttl 3600 "(builtins.fetchGit { url = \"$(cygpath -m $repo)\"; rev = \"$rev3\"; })" >/dev/null
-else
-    nix eval --tarball-ttl 3600 "(builtins.fetchGit { url = $repo; rev = \"$rev3\"; })" >/dev/null
-fi
-||||||| merged common ancestors
-nix eval --tarball-ttl 3600 "(builtins.fetchGit { url = $repo; rev = \"$rev3\"; })" >/dev/null
-=======
 nix eval --tarball-ttl 3600 --expr "builtins.fetchGit { url = $repo; rev = \"$rev3\"; }" >/dev/null
->>>>>>> meson
 
 # Update 'path' to reflect latest master
 path=$(nix eval --impure --raw --expr "(builtins.fetchGit file://$repo).outPath")
