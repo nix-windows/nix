@@ -10,13 +10,15 @@ class UserLock
 {
 private:
     Path fnUserLock;
-    AutoCloseFD fdUserLock;
+    AutoCloseFile fdUserLock;
 
     bool isEnabled = false;
     string user;
+#ifndef _WIN32
     uid_t uid = 0;
     gid_t gid = 0;
     std::vector<gid_t> supplementaryGIDs;
+#endif
 
 public:
     UserLock();
@@ -24,10 +26,11 @@ public:
     void kill();
 
     string getUser() { return user; }
+#ifndef _WIN32
     uid_t getUID() { assert(uid); return uid; }
     uid_t getGID() { assert(gid); return gid; }
     std::vector<gid_t> getSupplementaryGIDs() { return supplementaryGIDs; }
-
+#endif
     bool findFreeUser();
 
     bool enabled() { return isEnabled; }

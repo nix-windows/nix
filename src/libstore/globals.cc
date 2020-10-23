@@ -9,8 +9,8 @@
 #include <thread>
 #ifndef _WIN32
 #include <dlfcn.h>
-#endif
 #include <sys/utsname.h>
+#endif
 
 #include <nlohmann/json.hpp>
 
@@ -166,11 +166,15 @@ void Settings::requireExperimentalFeature(const std::string & name)
 
 bool Settings::isWSL1()
 {
+#ifdef __linux__
     struct utsname utsbuf;
     uname(&utsbuf);
     // WSL1 uses -Microsoft suffix
     // WSL2 uses -microsoft-standard suffix
     return hasSuffix(utsbuf.release, "-Microsoft");
+#else
+    return false;
+#endif
 }
 
 const string nixVersion = PACKAGE_VERSION;

@@ -53,7 +53,8 @@ static char * dupStringWithLen(const char * s, size_t size)
 #if HAVE_BOEHMGC
     t = GC_STRNDUP(s, size);
 #else
-    t = strndup(s, size);
+    t = malloc(size + 1);
+    *std::copy(s, s + size, t) = 0;
 #endif
     if (!t) throw std::bad_alloc();
     return t;

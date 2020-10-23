@@ -32,7 +32,7 @@ nix_src_files = [
     'ls.cc',
     'main.cc',
     'make-content-addressable.cc',
-    'markdown.cc',
+    #'markdown.cc',
     'optimise-store.cc',
     'path-info.cc',
     'ping-store.cc',
@@ -87,7 +87,7 @@ nix_headers = files (
     'command.hh',
     'installables.hh',
     'legacy.hh',
-    'markdown.hh',
+    #'markdown.hh',
 
     '../nix/command.hh',
     '../nix/legacy.hh',
@@ -104,12 +104,12 @@ nix_dep_list = [
     libdl_dep,
     boost_dep,
     editline_dep,
-    libsodium_dep,
+    #libsodium_dep,
 	# In addition to the one in repl.cc, there is a boemgc use in a
 	# static/inline method in libexpr. Sadly, meson don't have any propogated
 	# public dep mechanism.
-    gc_dep,
-    lowdown_dep,
+    #gc_dep,
+    #lowdown_dep,
 ]
 
 

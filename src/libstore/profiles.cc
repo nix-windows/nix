@@ -41,8 +41,8 @@ std::pair<Generations, std::optional<GenerationNumber>> findGenerations(Path pro
     auto profileName = std::string(baseNameOf(profile));
 
     for (auto & i : readDirectory(profileDir)) {
-        if (auto n = parseName(profileName, i.name)) {
-            auto path = profileDir + "/" + i.name;
+        if (auto n = parseName(profileName, i.name())) {
+            auto path = profileDir + "/" + i.name();
             gens.push_back({
                 .number = *n,
                 .path = path,
@@ -256,7 +256,6 @@ Path getDefaultProfile()
     try {
         if (!pathExists(profileLink)) {
             replaceSymlink(
-                getuid() == 0
 #ifndef _WIN32
                 getuid() == 0
 #else

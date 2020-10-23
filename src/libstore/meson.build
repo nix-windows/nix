@@ -118,7 +118,7 @@ libstore_dep_list = [
     libdl_dep,
     pthread_dep,
     sqlite3_dep,
-    libsodium_dep
+#    libsodium_dep
 ]
 
 if sys_name.contains('linux')

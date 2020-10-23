@@ -1,3 +1,5 @@
+#ifndef _WIN32
+
 #include "globals.hh"
 #include "hook-instance.hh"
 
@@ -70,3 +72,5 @@ HookInstance::~HookInstance()
 }
 
 }
+
+#endif

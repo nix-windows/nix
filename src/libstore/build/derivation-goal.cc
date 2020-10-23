@@ -18,6 +18,7 @@
 #include <queue>
 
 #include <sys/types.h>
+#ifndef _WIN32
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <netdb.h>
@@ -26,6 +27,7 @@
 #include <unistd.h>
 #include <sys/mman.h>
 #include <sys/utsname.h>
+#endif
 #include <sys/resource.h>
 
 #if HAVE_STATVFS

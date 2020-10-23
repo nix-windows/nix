@@ -1,4 +1,5 @@
 #pragma once
+#ifndef _WIN3
 
 #include "logging.hh"
 #include "serialise.hh"
@@ -29,3 +30,4 @@ struct HookInstance
 };
 
 }
+#endif

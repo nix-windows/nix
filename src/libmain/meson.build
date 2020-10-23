@@ -33,7 +33,7 @@ libmain_headers = files(
 libmain_dep_list = [
     pthread_dep,
     openssl_dep,
-    libsodium_dep,
+    #libsodium_dep,
 ]
 
 

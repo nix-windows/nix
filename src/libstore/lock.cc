@@ -2,8 +2,10 @@
 #include "globals.hh"
 #include "pathlocks.hh"
 
+#ifndef _WIN32
 #include <grp.h>
 #include <pwd.h>
+#endif
 
 #include <fcntl.h>
 #include <unistd.h>
@@ -12,13 +14,16 @@ namespace nix {
 
 UserLock::UserLock()
 {
+#ifndef _WIN32
     assert(settings.buildUsersGroup != "");
+#endif
     createDirs(settings.nixStateDir + "/userpool");
 }
 
 bool UserLock::findFreeUser() {
     if (enabled()) return true;
 
+#ifndef _WIN32
     /* Get the members of the build-users-group. */
     struct group * gr = getgrnam(settings.buildUsersGroup.get().c_str());
     if (!gr)
@@ -81,13 +86,18 @@ bool UserLock::findFreeUser() {
             return true;
         }
     }
+#endif
 
     return false;
 }
 
 void UserLock::kill()
 {
+#ifndef _WIN32
     killUser(uid);
+#else
+    //
+#endif
 }
 
 }
