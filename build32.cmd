@@ -33,10 +33,9 @@ echo XZ=%XZ%
 echo BZIP2=%BZIP2%
 echo CURL=%CURL%
 echo SQLITE=%SQLITE%
-exit
+
 rem remove garbage like downloaded .iso files
 %OLDNIX%\bin\nix-store.exe --gc
-%OLDNIX%\bin\nix-store.exe --optimize
-
+rem %OLDNIX%\bin\nix-store.exe --optimize
 
 %STDENV_CC%\bin\nmake -f Makefile.win STDENV_CC=%STDENV_CC% BOOST=%BOOST% OPENSSL=%OPENSSL% XZ=%XZ% BZIP2=%BZIP2% CURL=%CURL% SQLITE=%SQLITE% %*
