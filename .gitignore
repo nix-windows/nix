@@ -38,15 +38,15 @@ perl/Makefile.config
 /scripts/nix-profile-daemon.sh
 
 # /src/libexpr/
-/src/libexpr/lexer-tab.cc
-/src/libexpr/lexer-tab.hh
-/src/libexpr/parser-tab.cc
-/src/libexpr/parser-tab.hh
+#/src/libexpr/lexer-tab.cc
+#/src/libexpr/lexer-tab.hh
+#/src/libexpr/parser-tab.cc
+#/src/libexpr/parser-tab.hh
 /src/libexpr/parser-tab.output
 /src/libexpr/nix.tbl
 
 # /src/libstore/
-/src/libstore/*.gen.hh
+#/src/libstore/*.gen.hh
 
 /src/nix/nix
 

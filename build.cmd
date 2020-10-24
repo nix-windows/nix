@@ -14,7 +14,7 @@ set NIX_STORE_DIR=C:\nix2-data\store
 set NIX_LOG_DIR=C:\nix2-data\var\log\nix
 set NIX_STATE_DIR=C:\nix2-data\var\nix
 
-set NIX_PATH=nixpkgs=C:\msys64\home\User\nixpkgs
+set NIX_PATH=nixpkgs=C:\work\nixpkgs-windows
 
 rem for /f %%i in ('%OLDNIX%\bin\nix-build.exe --no-out-link -E "(import <nixpkgs> { }).msysPackages.coreutils"') do set COREUTILS=%%i
 rem echo COREUTILS=%COREUTILS%
@@ -33,9 +33,8 @@ echo XZ=%XZ%
 echo BZIP2=%BZIP2%
 echo CURL=%CURL%
 echo SQLITE=%SQLITE%
-rem PATH=%STDENV_CC%\bin;%PATH%
 
-rem %STDENV_CC%\bin\nmake /E -f Makefile.win clean
+rem remove garbage like downloaded .iso files
+%OLDNIX%\bin\nix-store.exe --gc
+
 %STDENV_CC%\bin\nmake -f Makefile.win STDENV_CC=%STDENV_CC% BOOST=%BOOST% OPENSSL=%OPENSSL% XZ=%XZ% BZIP2=%BZIP2% CURL=%CURL% SQLITE=%SQLITE% %*
-
-rem %OLDNIX%\bin\nix-store.exe --gc
