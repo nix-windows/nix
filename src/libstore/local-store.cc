@@ -695,7 +695,7 @@ void canonicalisePathMetaData(const Path & path, InodesSeen & inodesSeen)
         assert(rc.first == 0);
       }
     }
-
+#if 0
     if (!boost::algorithm::iends_with(path, ".drv")) { // for a while, do not protect .drv, nix might want to replace it
       // allow only read access (todo: make is the other way around: read-only inherited c:\nix\store and allow access to the building derivation)
       Path path2 = to_bytes(pathW(path)); /* it add \\?\ for paths longer than 255 chars */
@@ -710,6 +710,7 @@ void canonicalisePathMetaData(const Path & path, InodesSeen & inodesSeen)
         assert(rc.first == 0);
       }
     }
+#endif
 }
 
 void canonicalisePathMetaData(const Path & path)
