@@ -684,15 +684,30 @@ void canonicalisePathMetaData(const Path & path, InodesSeen & inodesSeen)
 {
     canonicalisePathMetaData_(pathW(path), NULL, inodesSeen);
 
+    // optional: compress fils
+    {
+      // nix-store path is shorted than 255 chars and has no unicode, so it is safe to skip \\?\ prefixing, anyway compact.exe does undestand it
+      if (isDirectory(path)) {
+        auto rc = runProgramWithOptions(RunOptions("compact", { "/C", "/S:"+path, "/I" }));
+        assert(rc.first == 0);
+      } else {
+        auto rc = runProgramWithOptions(RunOptions("compact", { "/C",       path, "/I" }));
+        assert(rc.first == 0);
+      }
+    }
+
     if (!boost::algorithm::iends_with(path, ".drv")) { // for a while, do not protect .drv, nix might want to replace it
       // allow only read access (todo: make is the other way around: read-only inherited c:\nix\store and allow access to the building derivation)
       Path path2 = to_bytes(pathW(path)); /* it add \\?\ for paths longer than 255 chars */
       if (isDirectory(path)) {
-        runProgramWithOptions(RunOptions("icacls", { path2, "/reset", "/C", "/T", "/L" })); // reset ACL on all children
+        auto rc = runProgramWithOptions(RunOptions("icacls", { path2, "/reset", "/C", "/T", "/L" })); // reset ACL on all children
+        assert(rc.first == 0);
         // WA=Write Attributes is needed for hard link creation in "nix-store --optimise" https://helgeklein.com/blog/2009/05/hard-links-and-permissions-acls/
-        runProgramWithOptions(RunOptions("icacls", { path2, "/inheritance:r", "/grant:r", "Authenticated Users:(OI)(CI)(RX,WA)" /*, "/T", "/L"*/ }));
+        rc      = runProgramWithOptions(RunOptions("icacls", { path2, "/inheritance:r", "/grant:r", "Authenticated Users:(OI)(CI)(RX,WA)" /*, "/T", "/L"*/ }));
+        assert(rc.first == 0);
       } else {
-        runProgramWithOptions(RunOptions("icacls", { path2, "/inheritance:r", "/grant:r", "Authenticated Users:(RX,WA)" /*, "/T", "/L"*/ }));
+        auto rc = runProgramWithOptions(RunOptions("icacls", { path2, "/inheritance:r", "/grant:r", "Authenticated Users:(RX,WA)" /*, "/T", "/L"*/ }));
+        assert(rc.first == 0);
       }
     }
 }
