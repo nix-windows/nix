@@ -684,9 +684,9 @@ void canonicalisePathMetaData(const Path & path, InodesSeen & inodesSeen)
 {
     canonicalisePathMetaData_(pathW(path), NULL, inodesSeen);
 
-    // optional: compress fils
+    // compress files (todo: only when optimize-store)
     {
-      // nix-store path is shorted than 255 chars and has no unicode, so it is safe to skip \\?\ prefixing, anyway compact.exe does undestand it
+      // nix-store path is shorter than 255 chars and has no unicode, so it is safe to skip \\?\ prefixing, anyway compact.exe does undestand it
       if (isDirectory(path)) {
         auto rc = runProgramWithOptions(RunOptions("compact", { "/C", "/S:"+path, "/I" }));
         assert(rc.first == 0);
