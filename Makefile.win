@@ -35,7 +35,7 @@ _SQLITE        = $(SQLITE:/=\)
 
 
 CC=$(_STDENV_CC)\bin\cl.exe
-CC_FLAGS=/nologo /std:c++latest /EHsc /MD /Zi /GL
+CC_FLAGS=/nologo /std:c++latest /EHsc /MT /Zi /GL
 CC_FLAGS=$(CC_FLAGS) -I$(_BOOST)\include \
                      -I$(_OPENSSL)\include \
                      -I$(_XZ)\include \
@@ -70,7 +70,7 @@ LINK_FLAGS=/nologo /LTCG \
            $(_XZ)\lib\liblzma.lib \
            $(_BZIP2)\lib\libbz2.lib \
            $(_CURL)\lib\libcurl.lib \
-           $(_SQLITE)\lib\winsqlite3.lib
+           $(_SQLITE)\lib\sqlite3.lib
 
 
 AR=$(_STDENV_CC)\bin\lib.exe
@@ -226,7 +226,7 @@ install: all
   copy $(_XZ)\bin\liblzma.dll                  $(_NIX_BIN_DIR)\liblzma.dll
   copy $(_CURL)\bin\libcurl.dll                $(_NIX_BIN_DIR)\libcurl.dll
   copy $(_CURL)\bin\zlib1.dll                  $(_NIX_BIN_DIR)\zlib1.dll
-  copy $(_SQLITE)\bin\winsqlite3.dll           $(_NIX_BIN_DIR)\winsqlite3.dll
+  copy $(_SQLITE)\bin\sqlite3.dll              $(_NIX_BIN_DIR)\sqlite3.dll
   copy nix.exe                                 $(_NIX_BIN_DIR)\nix.exe
   copy nix.pdb                                 $(_NIX_BIN_DIR)\nix.pdb
   copy nix-instantiate.exe                     $(_NIX_BIN_DIR)\nix-instantiate.exe
