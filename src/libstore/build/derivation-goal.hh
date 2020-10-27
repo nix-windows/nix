@@ -76,20 +76,29 @@ private:
 
     std::map<std::string, InitialOutput> initialOutputs;
 
+#ifndef _WIN32
     /* User selected for running the builder. */
     std::unique_ptr<UserLock> buildUser;
+#endif
 
     /* The process ID of the builder. */
     Pid pid;
 
     /* The temporary directory. */
+#ifdef _WIN32
+    Path tmpDirOrig;
+#endif
     Path tmpDir;
 
     /* The path of the temporary directory in the sandbox. */
     Path tmpDirInSandbox;
 
     /* File descriptor for the log file. */
+#ifndef _WIN32
     AutoCloseFD fdLogFile;
+#else
+    AutoCloseWindowsHandle hLogFile;
+#endif
     std::shared_ptr<BufferedSink> logFileSink, logSink;
 
     /* Number of bytes received from the builder's stdout/stderr. */
@@ -212,10 +221,12 @@ private:
        result. */
     std::map<Path, ValidPathInfo> prevInfos;
 
+#ifndef _WIN3
     uid_t sandboxUid() { return usingUserNamespace ? 1000 : buildUser->getUID(); }
     gid_t sandboxGid() { return usingUserNamespace ?  100 : buildUser->getGID(); }
 
     const static Path homeDir;
+#endif
 
     std::unique_ptr<MaintainCount<uint64_t>> mcExpectedBuilds, mcRunningBuilds;
 
@@ -295,8 +306,10 @@ private:
 
     void resolvedFinished();
 
+#ifndef _WIN32
     /* Is the build hook willing to perform the build? */
     HookReply tryBuildHook();
+#endif
 
     /* Start building a derivation. */
     void startBuilder();

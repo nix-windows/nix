@@ -52,7 +52,7 @@ bool UserLock::findFreeUser() {
 
         AutoCloseFD fd = open(fnUserLock.c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0600);
         if (!fd)
-            throw SysError("opening user lock '%1%'", fnUserLock);
+            throw PosixError("opening user lock '%1%'", fnUserLock);
 
         if (lockFile(fd.get(), ltWrite, false)) {
             fdUserLock = std::move(fd);
