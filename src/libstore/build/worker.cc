@@ -326,6 +326,7 @@ void Worker::waitForInput()
     if (useTimeout)
         vomit("sleeping %d seconds", timeout);
 
+#ifndef _WIN32
     /* Use select() to wait for the input side of any logger pipe to
        become `available'.  Note that `available' (i.e., non-blocking)
        includes EOF. */
@@ -418,6 +419,37 @@ std::cerr << "bytesRead     " << bytesRead                 << std::endl;
                 }
             }
         }
+#else
+        decltype(j->pipes)::iterator p = j->pipes.begin();
+        while (p != j->pipes.end()) {
+            decltype(p) nextp = p+1;
+            for (ULONG i = 0; i<removed; i++) {
+                if (oentries[i].lpCompletionKey == ((ULONG_PTR)((*p)->hRead.get()) ^ 0x5555)) {
+                    if (oentries[i].dwNumberOfBytesTransferred > 0) {
+                        printMsg(lvlVomit, format("%1%: read %2% bytes") % goal->getName() % oentries[i].dwNumberOfBytesTransferred);
+                        string data((char *) (*p)->buffer.data(), oentries[i].dwNumberOfBytesTransferred);
+                        j->lastOutput = after;
+                        goal->handleChildOutput((*p)->hRead.get(), data);
+                    }
+
+                    BOOL rc = ReadFile((*p)->hRead.get(), (*p)->buffer.data(), (*p)->buffer.size(), &(*p)->got, &(*p)->overlapped);
+                    if (rc) {
+                       // here is possible (but not obligatory) to call `goal->handleChildOutput` and repeat ReadFile immediately
+                    } else {
+                        WinError winError("ReadFile(%1%, ..)", (*p)->hRead.get());
+                        if (winError.lastError == ERROR_BROKEN_PIPE) {
+                            debug(format("%1%: got EOF") % goal->getName());
+                            goal->handleEOF((*p)->hRead.get());
+                            nextp = j->pipes.erase(p); // no need to maintain `j->pipes` ?
+                        } else if (winError.lastError != ERROR_IO_PENDING)
+                            throw winError;
+                    }
+                    break;
+                }
+            }
+            p = nextp;
+        }
+#endif
 
         if (goal->exitCode == Goal::ecBusy &&
             0 != settings.maxSilentTime &&

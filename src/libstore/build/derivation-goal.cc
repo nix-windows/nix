@@ -703,6 +703,8 @@ void DerivationGoal::tryLocalBuild() {
         return;
     }
 
+
+#ifndef _WIN32
     /* If `build-users-group' is not empty, then we have to build as
        one of the members of that group. */
     if (settings.buildUsersGroup != "" && getuid() == 0) {
@@ -726,6 +728,7 @@ void DerivationGoal::tryLocalBuild() {
         throw Error("build users are not supported on this platform for security reasons");
 #endif
     }
+#endif // _WIN32
 
     actLock.reset();
 

@@ -203,15 +203,24 @@ void SubstitutionGoal::tryToRun()
     maintainRunningSubstitutions = std::make_unique<MaintainCount<uint64_t>>(worker.runningSubstitutions);
     worker.updateProgress();
 
+#ifndef _WIN32
     outPipe.create();
+#else
+    outPipe.create(worker.ioport.get());
+#endif
 
     promise = std::promise<void>();
 
     thr = std::thread([this]() {
         try {
             /* Wake up the worker loop when we're done. */
-            Finally updateStats([this]() { outPipe.writeSide = -1; });
-
+            Finally updateStats([this]() {
+#ifndef _WIN32
+                outPipe.writeSide = -1;
+#else
+                outPipe.hWrite = INVALID_HANDLE_VALUE;
+#endif
+            });
             Activity act(*logger, actSubstitute, Logger::Fields{worker.store.printStorePath(storePath), sub->getUri()});
             PushActivity pact(act.id);
 
