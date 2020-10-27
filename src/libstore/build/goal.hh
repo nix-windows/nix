@@ -75,15 +75,25 @@ struct Goal : public std::enable_shared_from_this<Goal>
 
     virtual void waiteeDone(GoalPtr waitee, ExitCode result);
 
+#ifndef _WIN32
     virtual void handleChildOutput(int fd, const string & data)
     {
         abort();
     }
-
     virtual void handleEOF(int fd)
     {
         abort();
     }
+#else
+    virtual void handleChildOutput(HANDLE handle, const string & data)
+    {
+        abort();
+    }
+    virtual void handleEOF(HANDLE handle)
+    {
+        abort();
+    }
+#endif
 
     void trace(const FormatOrString & fs);
 

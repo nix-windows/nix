@@ -20,7 +20,11 @@ struct Child
 {
     WeakGoalPtr goal;
     Goal * goal2; // ugly hackery
+#ifndef _WIN32
     set<int> fds;
+#else
+    vector<AsyncPipe*> pipes;
+#endif
     bool respectTimeouts;
     bool inBuildSlot;
     steady_time_point lastOutput; /* time we last got output on stdout/stderr */
@@ -90,10 +94,13 @@ public:
     /* Set if at least one derivation is not deterministic in check mode. */
     bool checkMismatch;
 
+#ifdef _WIN32
+    AutoCloseWindowsHandle ioport;
+#endif
     LocalStore & store;
-
+#ifndef _WIN32
     std::unique_ptr<HookInstance> hook;
-
+#endif
     uint64_t expectedBuilds = 0;
     uint64_t doneBuilds = 0;
     uint64_t failedBuilds = 0;
@@ -107,11 +114,11 @@ public:
     uint64_t doneDownloadSize = 0;
     uint64_t expectedNarSize = 0;
     uint64_t doneNarSize = 0;
-
+#ifndef _WIN32
     /* Whether to ask the build hook if it can build a derivation. If
        it answers with "decline-permanently", we don't try again. */
     bool tryBuildHook = true;
-
+#endif
     Worker(LocalStore & store);
     ~Worker();
 
@@ -146,8 +153,13 @@ public:
 
     /* Registers a running child process.  `inBuildSlot' means that
        the process counts towards the jobs limit. */
+#ifndef _WIN32
     void childStarted(GoalPtr goal, const set<int> & fds,
         bool inBuildSlot, bool respectTimeouts);
+#else
+    void childStarted(GoalPtr goal, const vector<AsyncPipe*> & hpipes,
+        bool inBuildSlot, bool respectTimeouts);
+#endif
 
     /* Unregisters a running child process.  `wakeSleepers' should be
        false if there is no sense in waking up goals that are sleeping

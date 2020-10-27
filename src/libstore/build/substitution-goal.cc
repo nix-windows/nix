@@ -223,9 +223,13 @@ void SubstitutionGoal::tryToRun()
             promise.set_exception(std::current_exception());
         }
     });
-
-    worker.childStarted(shared_from_this(), {outPipe.readSide.get()}, true, false);
-
+    worker.childStarted(shared_from_this(), {
+#ifndef _WIN32
+        outPipe.readSide.get()
+#else
+        &outPipe
+#endif
+        }, true, false);
     state = &SubstitutionGoal::finished;
 }
 
@@ -283,6 +287,7 @@ void SubstitutionGoal::finished()
 }
 
 
+#ifndef _WIN32
 void SubstitutionGoal::handleChildOutput(int fd, const string & data)
 {
 }
@@ -292,5 +297,15 @@ void SubstitutionGoal::handleEOF(int fd)
 {
     if (fd == outPipe.readSide.get()) worker.wakeUp(shared_from_this());
 }
+#else
+void SubstitutionGoal::handleChildOutput(HANDLE handle, const string & data)
+{
+}
+
+void SubstitutionGoal::handleEOF(HANDLE handle)
+{
+    if (handle == outPipe.hRead.get()) worker.wakeUp(shared_from_this());
+}
+#endif
 
 }

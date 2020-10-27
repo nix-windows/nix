@@ -103,6 +103,14 @@ private:
 
     std::string currentHookLine;
 
+    /* Whether we're currently doing a chroot build. */
+    bool useChroot = false;
+
+#ifdef _WIN32
+    /* Pipe for the builder's standard output/error. */
+    AsyncPipe asyncBuilderOut;
+    AutoCloseWindowsHandle nul;
+#else
     /* Pipe for the builder's standard output/error. */
     Pipe builderOut;
 
@@ -120,13 +128,11 @@ private:
     /* The build hook. */
     std::unique_ptr<HookInstance> hook;
 
-    /* Whether we're currently doing a chroot build. */
-    bool useChroot = false;
-
     Path chrootRootDir;
 
     /* RAII object to delete the chroot directory. */
     std::shared_ptr<AutoDelete> autoDelChroot;
+#endif
 
     /* The sort of derivation we are building. */
     DerivationType derivationType;
@@ -312,14 +318,16 @@ private:
        outputs, and make it appear in the sandbox. */
     void addDependency(const StorePath & path);
 
+#ifndef _WIN32
     /* Make a file owned by the builder. */
     void chownToBuilder(const Path & path);
 
     /* Run the builder's process. */
     void runChild();
-
+#endif
+#if __linux__
     friend int childEntry(void *);
-
+#endif
     /* Check that the derivation outputs all exist and register them
        as valid. */
     void registerOutputs();
@@ -339,8 +347,13 @@ private:
     void deleteTmpDir(bool force);
 
     /* Callback used by the worker to write to the log. */
+#ifndef _WIN32
     void handleChildOutput(int fd, const string & data) override;
     void handleEOF(int fd) override;
+#else
+    void handleChildOutput(HANDLE handle, const string & data) override;
+    void handleEOF(HANDLE handle) override;
+#endif
     void flushLine();
 
     /* Wrappers around the corresponding Store methods that first consult the

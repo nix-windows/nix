@@ -71,7 +71,7 @@ void handleDiffHook(
             diffHookOptions.gid = gid;
             diffHookOptions.chdir = "/";
 
-            auto diffRes = runProgram(diffHookOptions);
+            auto diffRes = runProgramWithStatus(diffHookOptions);
             if (!statusOk(diffRes.first))
                 throw ExecError(diffRes.first,
                     "diff-hook program '%1%' %2%",
@@ -89,7 +89,11 @@ void handleDiffHook(
     }
 }
 
+#ifndef _WIN32
 const Path DerivationGoal::homeDir = "/homeless-shelter";
+//#else
+//const Path DerivationGoal::homeDir = "C:/homeless-shelter";
+#endif
 
 DerivationGoal::DerivationGoal(const StorePath & drvPath,
     const StringSet & wantedOutputs, Worker & worker, BuildMode buildMode)
@@ -168,6 +172,7 @@ inline bool DerivationGoal::needsHashRewrite()
 
 void DerivationGoal::killChild()
 {
+#ifndef _WIN32
     if (pid != -1) {
         worker.childTerminated(this);
 
@@ -188,6 +193,14 @@ void DerivationGoal::killChild()
     }
 
     hook.reset();
+#else
+    if (pid.hProcess != INVALID_HANDLE_VALUE) {
+        worker.childTerminated(this);
+
+        pid.kill();
+        assert(pid.hProcess == INVALID_HANDLE_VALUE);
+    }
+#endif
 }
 
 
@@ -716,7 +729,9 @@ void DerivationGoal::tryLocalBuild() {
 
     } catch (BuildError & e) {
         outputLocks.unlock();
+#ifndef _WIN32
         buildUser.reset();
+#endif
         worker.permanentFailure = true;
         done(BuildResult::InputRejected, e);
         return;
@@ -938,7 +953,7 @@ void DerivationGoal::buildDone()
 
             opts.standardOut = &sink;
             opts.mergeStderrToStdout = true;
-            runProgram2(opts);
+            runProgram(opts);
         }
 
         if (buildMode == bmCheck) {
@@ -975,14 +990,17 @@ void DerivationGoal::buildDone()
         outputLocks.unlock();
 
         BuildResult::Status st = BuildResult::MiscFailure;
-
+#ifndef _WIN32
         if (hook && WIFEXITED(status) && WEXITSTATUS(status) == 101)
             st = BuildResult::TimedOut;
 
         else if (hook && (!WIFEXITED(status) || WEXITSTATUS(status) != 100)) {
         }
 
-        else {
+        else
+#endif
+        {
+
             st =
                 dynamic_cast<NotDeterministic*>(&e) ? BuildResult::NotDeterministic :
                 statusOk(status) ? BuildResult::OutputRejected :
@@ -1050,7 +1068,7 @@ HookReply DerivationGoal::tryBuildHook()
         else if (reply != "accept")
             throw Error("bad hook reply '%s'", reply);
 
-    } catch (SysError & e) {
+    } catch (PosixError & e) {
         if (e.errNo == EPIPE) {
             logError({
                 .name = "Build hook died",
@@ -1141,6 +1159,7 @@ StorePathSet DerivationGoal::exportReferences(const StorePathSet & storePaths)
     return paths;
 }
 
+#ifndef _WIN32
 static std::once_flag dns_resolve_flag;
 
 static void preloadNSS() {
@@ -1156,8 +1175,10 @@ static void preloadNSS() {
         }
     });
 }
+#endif
 
 
+#ifndef _WIN32
 void linkOrCopy(const Path & from, const Path & to)
 {
     if (link(from.c_str(), to.c_str()) == -1) {
@@ -1186,13 +1207,15 @@ void DerivationGoal::startBuilder()
             settings.thisSystem,
             concatStringsSep<StringSet>(", ", worker.store.systemFeatures));
 
+#ifndef _WIN32
     if (drv->isBuiltin())
         preloadNSS();
-
+#endif
 #if __APPLE__
     additionalSandboxProfile = parsedDrv->getStringAttr("__sandboxProfile").value_or("");
 #endif
 
+#ifndef _WIN32
     /* Are we doing a chroot build? */
     {
         auto noChroot = parsedDrv->getBoolAttr("__noChroot");
@@ -1212,6 +1235,8 @@ void DerivationGoal::startBuilder()
         else if (settings.sandboxMode == smRelaxed)
             useChroot = !(derivationIsImpure(derivationType)) && !noChroot;
     }
+#endif // _WIN32
+
 
     if (worker.store.storeDir != worker.store.realStoreDir) {
         #if __linux__
@@ -1322,8 +1347,9 @@ void DerivationGoal::startBuilder()
         }
     }
 
-    if (useChroot) {
 
+    if (useChroot) {
+#ifndef _WIN32
         /* Allow a user-configurable set of directories from the
            host file system. */
         PathSet dirs = settings.sandboxPaths;
@@ -1388,6 +1414,7 @@ void DerivationGoal::startBuilder()
 
             dirsInChroot[i] = i;
         }
+#endif // !defined _WIN32
 
 #if __linux__
         /* Create a temporary directory in which we set up the chroot
@@ -1480,6 +1507,7 @@ void DerivationGoal::startBuilder()
     if (needsHashRewrite() && pathExists(homeDir))
         throw Error("home directory '%1%' exists; please remove it to assure purity of builds without sandboxing", homeDir);
 
+#ifndef _WIN32
     if (useChroot && settings.preBuildHook != "" && dynamic_cast<Derivation *>(drv.get())) {
         printMsg(lvlChatty, format("executing pre-build hook '%1%'")
             % settings.preBuildHook);
@@ -1490,7 +1518,7 @@ void DerivationGoal::startBuilder()
             stExtraChrootDirs
         };
         auto state = stBegin;
-        auto lines = runProgram(settings.preBuildHook, false, args);
+        auto lines = runProgramGetStdout(settings.preBuildHook, false, args);
         auto lastPos = std::string::size_type{0};
         for (auto nlPos = lines.find('\n'); nlPos != string::npos;
                 nlPos = lines.find('\n', lastPos)) {
@@ -1558,21 +1586,21 @@ void DerivationGoal::startBuilder()
     #endif
 
     if (unlockpt(builderOut.readSide.get()))
-        throw SysError("unlocking pseudoterminal");
+        throw PosixError("unlocking pseudoterminal");
 
     builderOut.writeSide = open(slaveName.c_str(), O_RDWR | O_NOCTTY);
     if (!builderOut.writeSide)
-        throw SysError("opening pseudoterminal slave");
+        throw PosixError("opening pseudoterminal slave");
 
     // Put the pt into raw mode to prevent \n -> \r\n translation.
     struct termios term;
     if (tcgetattr(builderOut.writeSide.get(), &term))
-        throw SysError("getting pseudoterminal attributes");
+        throw PosixError("getting pseudoterminal attributes");
 
     cfmakeraw(&term);
 
     if (tcsetattr(builderOut.writeSide.get(), TCSANOW, &term))
-        throw SysError("putting pseudoterminal into raw mode");
+        throw PosixError("putting pseudoterminal into raw mode");
 
     result.startTime = time(0);
 
@@ -1640,12 +1668,12 @@ void DerivationGoal::startBuilder()
                from reading user_namespaces(7)?)
                See also https://lwn.net/Articles/621612/. */
             if (getuid() == 0 && setgroups(0, 0) == -1)
-                throw SysError("setgroups failed");
+                throw PosixError("setgroups failed");
 
             size_t stackSize = 1 * 1024 * 1024;
             char * stack = (char *) mmap(0, stackSize,
                 PROT_WRITE | PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK, -1, 0);
-            if (stack == MAP_FAILED) throw SysError("allocating stack");
+            if (stack == MAP_FAILED) throw PosixError("allocating stack");
 
             int flags = CLONE_NEWPID | CLONE_NEWNS | CLONE_NEWIPC | CLONE_NEWUTS | CLONE_PARENT | SIGCHLD;
             if (privateNetwork)
@@ -1674,7 +1702,7 @@ void DerivationGoal::startBuilder()
                to true (the default). */
             if (child == -1 && (errno == EPERM || errno == EINVAL) && settings.sandboxFallback)
                 _exit(1);
-            if (child == -1) throw SysError("cloning builder process");
+            if (child == -1) throw PosixError("cloning builder process");
 
             writeFull(builderOut.writeSide.get(),
                 fmt("%d %d\n", usingUserNamespace, child));
@@ -1742,7 +1770,7 @@ void DerivationGoal::startBuilder()
         writeFull(userNamespaceSync.writeSide.get(), "1");
 
     } else
-#endif
+#endif // __linux__
     {
     fallback:
         options.allowVfork = !buildUser && !drv->isBuiltin();
@@ -1768,6 +1796,207 @@ void DerivationGoal::startBuilder()
         }
         debug("sandbox setup: " + msg);
     }
+#else // _WIN32
+    for (auto v : inputRewrites)
+        std::cerr << "## inputRewrite: '" << v.first << "' -> '" << v.second << "'\n";
+
+
+    // Unicode command line args
+    std::list<std::wstring> uargs;
+
+    // Unicode environment of child process
+    std::map<std::wstring, std::wstring> uenv;
+    for (auto & i : getEntireEnvW()) {
+        if ( boost::iequals(i.first, L"ComSpec")
+          || boost::iequals(i.first, L"windir")       // EWDK build of python2 fails with "The system could not find the environment option that was entered"
+          || boost::iequals(i.first, L"SystemRoot")   // curl unable to resolve domains without it
+          || boost::iequals(i.first, L"SystemDrive")  // msbuild fails without it ("The path is not of a legal form")
+          || boost::iequals(i.first, L"PATHEXT")
+//        || boost::iequals(i.first, L"ProgramData")
+//        || boost::iequals(i.first, L"ProgramFiles")
+//        || boost::iequals(i.first, L"ProgramFiles(x86)")
+//        || boost::iequals(i.first, L"ProgramW6432")
+//        || boost::iequals(i.first, L"CommonProgramFiles")
+//        || boost::iequals(i.first, L"CommonProgramFiles(x86)")
+//        || boost::iequals(i.first, L"CommonProgramW6432")
+          || boost::iequals(i.first, L"NUMBER_OF_PROCESSORS")
+          || boost::iequals(i.first, L"OS")                     // many build scripts checks %OS%
+          || boost::iequals(i.first, L"PROCESSOR_ARCHITECTURE") // nmake needs it
+          || boost::iequals(i.first, L"PROCESSOR_ARCHITEW6432")
+           ) {
+            uenv[i.first] = i.second;
+        }
+    }
+
+
+    if (drv->isBuiltin()) {
+
+        if (drv->builder == "builtin:fetchurl") {
+//          uenv[L"HOME"]        = getEnvW(L"HOME", L"");
+            uenv[L"USERPROFILE"] = getEnvW(L"USERPROFILE", L"");
+            uenv[L"TEMP"]        = getEnvW(L"TEMP", L"");
+            uenv[L"PATH"]        = getEnvW(L"PATH", L"");
+
+            uargs.push_back(from_bytes(dirOf(to_bytes(getArgv0W())) + "\\nix.exe")); // getArgv0W() might return path to nix-build.exe
+            uargs.push_back(L"--hashed-mirrors");
+            uargs.push_back(from_bytes(settings.hashedMirrors.to_string()));
+            uargs.push_back(L"builtin-fetchurl");
+
+            nlohmann::json json;
+            for (auto & e : drv->env) {
+             // std::cerr << "## drv: '" << e.first << "' -> '" << e.second << "'";
+             // if (e.second != rewriteStrings(e.second, inputRewrites))
+             //     std::cerr << " -> '" << rewriteStrings(e.second, inputRewrites) << "'";
+             // std::cerr << std::endl;
+                json[e.first] = rewriteStrings(e.second, inputRewrites);
+            }
+            uargs.push_back(from_bytes(json.dump()));
+        } else if (drv->builder == "builtin:buildenv") {
+            std::cerr << "TODO builtin:buildenv" << std::endl;
+            _exit(2);
+            //builtinBuildenv(drv2);
+        } else
+            throw Error(format("unsupported builtin function '%1%'") % string(drv->builder, 8));
+#ifdef __MINGW32__
+    } else if ( drv->builder == "/usr/bin/bash"                 // BUGBUG
+             || drv->builder == "/bin/bash"                     // BUGBUG
+             || drv->builder == "c:/msys64/usr/bin/bash.exe"    // BUGBUG
+              ) {
+        /* Fill in bash environment. */
+        Path envfile = env["NIX_BUILD_TOP"] + "/msys-bash-env";
+        std::string content = "#!/usr/bin/bash\n\n";
+        for (auto & i : env) {
+            if (i.first.find('-') != std::string::npos) {
+                std::cerr << "skip invalid env variable name '" << i.first << "'" << std::endl;
+                content += "# ";
+            }
+            std::string value = rewriteStrings(i.second, inputRewrites);
+            if (hasPrefix(value, "C:/")) { // BUGBUG: mingw hack
+                std::string newvalue = "";
+                for (const string & path : tokenizeString<Strings>(value)) {
+                    if (!newvalue.empty()) newvalue += " ";
+                    newvalue += "/c" + path.substr(2); // poor man cygpath
+                }
+                std::replace(newvalue.begin(), newvalue.end(), '\\', '/');
+                value = newvalue;
+            }
+            content += "export " + i.first + "=" + shellEscape(value) + "\n";
+        }
+        writeFile(envfile, content);
+
+        /* Fill in Windows environment. */
+        uenv[L"BASH_ENV"] = from_bytes(envfile);
+        uenv[L"PATH"] = L"C:\\msys64\\usr\\bin;C:\\Windows\\System32\\Wbem;C:\\Windows\\System32"; // todo: peek it from the current env? "C:\msys64\mingw64\bin" for nix.exe, "C:\Windows\System32" for cmd.exe
+
+//      uargs.push_back(L"/usr/bin/bash"); // no
+//      uargs.push_back(L"C:/msys64/usr/bin/bash"); // ok
+        uargs.push_back(L"C:\\msys64\\usr\\bin\\bash.exe"); // ok
+        for (auto & i : drv->args)
+            uargs.push_back(from_bytes(rewriteStrings(i, inputRewrites)));
+#endif
+    } else if (boost::algorithm::iends_with(drv->builder, "cmd.exe") // "C:/Windows/System32/cmd.exe"
+            || boost::algorithm::iends_with(drv->builder, "perl.exe")
+            || boost::algorithm::iends_with(drv->builder, "lua53.exe")) {
+        for (auto & i : env) {
+            std::string value = rewriteStrings(i.second, inputRewrites);
+            if (hasPrefix(value, "C:/")) { // BUGBUG: canonPath to 'C:\\'
+                std::replace(value.begin(), value.end(), '/', '\\');
+            }
+            uenv[from_bytes(i.first)] = from_bytes(value);
+        }
+        if (uenv[L"PATH"] == L"/path-not-set")
+            uenv[L"PATH"] = L"C:\\Windows\\System32\\Wbem;C:\\Windows\\System32";
+        else
+            uenv[L"PATH"] = uenv[L"PATH"] + L";C:\\Windows\\System32\\Wbem;C:\\Windows\\System32";
+
+        string arg = drv->builder;
+        std::replace(arg.begin(), arg.end(), '/', '\\');
+        uargs.push_back(from_bytes(arg));
+        for (auto & i : drv->args) {
+            string arg = rewriteStrings(i, inputRewrites);
+            //std::replace(arg.begin(), arg.end(), '/', '\\');
+            uargs.push_back(from_bytes(arg));
+        }
+    } else {
+        uargs.push_back(from_bytes(drv->builder));
+        for (auto & i : drv->args)
+            uargs.push_back(from_bytes(rewriteStrings(i, inputRewrites)));
+        throw Error(format("unsupported builder '%1%'") % drv->builder);
+    }
+
+//  for (auto & i : uenv) {
+//      std::cerr << "uenv " << to_bytes(i.first) << " = '" << to_bytes(i.second) << "'" << std::endl;
+//  }
+
+    assert(!uargs.empty());
+    std::wstring ucmdline;
+    for (const auto & v : uargs) {
+        std::cerr << "## args: " << to_bytes(v) << std::endl;
+        if (!ucmdline.empty())
+            ucmdline += L' ';
+        ucmdline += windowsEscapeW(v);
+    }
+//  std::cerr << "ucmdline='" << to_bytes(ucmdline) << "'" << std::endl;
+    std::wstring uenvline;
+    for (auto & i : uenv)
+        uenvline += i.first + L'=' + i.second + L'\0';
+    uenvline += L'\0';
+
+    STARTUPINFOW si = {0};
+    si.cb = sizeof(STARTUPINFOW);
+    si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdInput = nul.get();
+    si.hStdOutput = asyncBuilderOut.hWrite.get();
+    si.hStdError = asyncBuilderOut.hWrite.get();
+    PROCESS_INFORMATION pi = {0};
+
+    if (!CreateProcessW(
+        NULL,                                                             // LPCWSTR               lpApplicationName
+        const_cast<wchar_t*>(ucmdline.c_str()),                           // LPWSTR                lpCommandLine
+        NULL,                                                             // LPSECURITY_ATTRIBUTES lpProcessAttributes
+        NULL,                                                             // LPSECURITY_ATTRIBUTES lpThreadAttributes
+        TRUE,                                                             // BOOL                  bInheritHandles
+        CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW | CREATE_SUSPENDED, // DWORD                 dwCreationFlags
+        const_cast<wchar_t*>(uenvline.c_str()),                           // LPVOID                lpEnvironment
+        from_bytes(rewriteStrings(env["PWD"], inputRewrites)).c_str(),    // LPCWSTR               lpCurrentDirectory
+        &si,                                                              // LPSTARTUPINFOW        lpStartupInfo
+        &pi                                                               // LPPROCESS_INFORMATION lpProcessInformation
+    )) {
+        throw WinError("CreateProcessW(%1%)", to_bytes(ucmdline));
+    }
+
+    // to kill the child process on parent death (hJob can be reused?)
+    HANDLE hJob = CreateJobObjectA(NULL, NULL);
+    if (hJob == NULL) {
+        TerminateProcess(pi.hProcess, 0);
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+        throw WinError("CreateJobObjectA()");
+    }
+    if (!AssignProcessToJobObject(hJob, pi.hProcess)) {
+        TerminateProcess(pi.hProcess, 0);
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+        throw WinError("AssignProcessToJobObject()");
+    }
+    if (!ResumeThread(pi.hThread)) {
+        TerminateProcess(pi.hProcess, 0);
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+        throw WinError("ResumeThread()");
+    }
+
+//  std::cerr << to_bytes(ucmdline) << " pi.hProcess=" << pi.hProcess << "\n";
+//  std::cerr << "pi.hThread=" << pi.hThread << "\n";
+//  std::cerr << "pi.dwProcessId=" << pi.dwProcessId << "\n";
+//  std::cerr << "pi.dwThreadId=" << pi.dwThreadId << "\n";
+    asyncBuilderOut.hWrite = INVALID_HANDLE_VALUE; // <- CloseHandle(asyncBuilderOut.hWrite.get());
+    CloseHandle(pi.hThread);
+    pid.set(pi.hProcess, pi.dwProcessId);
+//  std::cerr << std::endl;
+
+    worker.childStarted(shared_from_this(), {&asyncBuilderOut}, true, true);
+#endif // _WIN32
 }
 
 
@@ -1835,7 +2064,11 @@ void DerivationGoal::initEnv()
        if HOME is not set, but they will just assume that the settings file
        they are looking for does not exist if HOME is set but points to some
        non-existing path. */
+#ifdef _WIN32
+    env["USERPROFILE"] = tmpDirInSandbox;
+#else
     env["HOME"] = homeDir;
+#endif
 
     /* Tell the builder where the Nix store is.  Usually they
        shouldn't care, but this is useful for purity checking (e.g.,
@@ -2311,7 +2544,7 @@ void setupSeccomp()
     scmp_filter_ctx ctx;
 
     if (!(ctx = seccomp_init(SCMP_ACT_ALLOW)))
-        throw SysError("unable to initialize seccomp mode 2");
+        throw PosixError("unable to initialize seccomp mode 2");
 
     Finally cleanup([&]() {
         seccomp_release(ctx);
@@ -2319,11 +2552,11 @@ void setupSeccomp()
 
     if (nativeSystem == "x86_64-linux" &&
         seccomp_arch_add(ctx, SCMP_ARCH_X86) != 0)
-        throw SysError("unable to add 32-bit seccomp architecture");
+        throw PosixError("unable to add 32-bit seccomp architecture");
 
     if (nativeSystem == "x86_64-linux" &&
         seccomp_arch_add(ctx, SCMP_ARCH_X32) != 0)
-        throw SysError("unable to add X32 seccomp architecture");
+        throw PosixError("unable to add X32 seccomp architecture");
 
     if (nativeSystem == "aarch64-linux" &&
         seccomp_arch_add(ctx, SCMP_ARCH_ARM) != 0)
@@ -2333,15 +2566,15 @@ void setupSeccomp()
     for (int perm : { S_ISUID, S_ISGID }) {
         if (seccomp_rule_add(ctx, SCMP_ACT_ERRNO(EPERM), SCMP_SYS(chmod), 1,
                 SCMP_A1(SCMP_CMP_MASKED_EQ, (scmp_datum_t) perm, (scmp_datum_t) perm)) != 0)
-            throw SysError("unable to add seccomp rule");
+            throw PosixError("unable to add seccomp rule");
 
         if (seccomp_rule_add(ctx, SCMP_ACT_ERRNO(EPERM), SCMP_SYS(fchmod), 1,
                 SCMP_A1(SCMP_CMP_MASKED_EQ, (scmp_datum_t) perm, (scmp_datum_t) perm)) != 0)
-            throw SysError("unable to add seccomp rule");
+            throw PosixError("unable to add seccomp rule");
 
         if (seccomp_rule_add(ctx, SCMP_ACT_ERRNO(EPERM), SCMP_SYS(fchmodat), 1,
                 SCMP_A2(SCMP_CMP_MASKED_EQ, (scmp_datum_t) perm, (scmp_datum_t) perm)) != 0)
-            throw SysError("unable to add seccomp rule");
+            throw PosixError("unable to add seccomp rule");
     }
 
     /* Prevent builders from creating EAs or ACLs. Not all filesystems
@@ -2350,13 +2583,13 @@ void setupSeccomp()
     if (seccomp_rule_add(ctx, SCMP_ACT_ERRNO(ENOTSUP), SCMP_SYS(setxattr), 0) != 0 ||
         seccomp_rule_add(ctx, SCMP_ACT_ERRNO(ENOTSUP), SCMP_SYS(lsetxattr), 0) != 0 ||
         seccomp_rule_add(ctx, SCMP_ACT_ERRNO(ENOTSUP), SCMP_SYS(fsetxattr), 0) != 0)
-        throw SysError("unable to add seccomp rule");
+        throw PosixError("unable to add seccomp rule");
 
     if (seccomp_attr_set(ctx, SCMP_FLTATR_CTL_NNP, settings.allowNewPrivileges ? 0 : 1) != 0)
-        throw SysError("unable to set 'no new privileges' seccomp attribute");
+        throw PosixError("unable to set 'no new privileges' seccomp attribute");
 
     if (seccomp_load(ctx) != 0)
-        throw SysError("unable to load seccomp BPF program");
+        throw PosixError("unable to load seccomp BPF program");
 #else
     throw Error(
         "seccomp is not supported on this platform; "
@@ -2405,22 +2638,22 @@ void DerivationGoal::runChild()
 
                 /* Initialise the loopback interface. */
                 AutoCloseFD fd(socket(PF_INET, SOCK_DGRAM, IPPROTO_IP));
-                if (!fd) throw SysError("cannot open IP socket");
+                if (!fd) throw PosixError("cannot open IP socket");
 
                 struct ifreq ifr;
                 strcpy(ifr.ifr_name, "lo");
                 ifr.ifr_flags = IFF_UP | IFF_LOOPBACK | IFF_RUNNING;
                 if (ioctl(fd.get(), SIOCSIFFLAGS, &ifr) == -1)
-                    throw SysError("cannot set loopback interface flags");
+                    throw PosixError("cannot set loopback interface flags");
             }
 
             /* Set the hostname etc. to fixed values. */
             char hostname[] = "localhost";
             if (sethostname(hostname, sizeof(hostname)) == -1)
-                throw SysError("cannot set host name");
+                throw PosixError("cannot set host name");
             char domainname[] = "(none)"; // kernel default
             if (setdomainname(domainname, sizeof(domainname)) == -1)
-                throw SysError("cannot set domain name");
+                throw PosixError("cannot set domain name");
 
             /* Make all filesystems private.  This is necessary
                because subtrees may have been mounted as "shared"
@@ -2504,7 +2737,7 @@ void DerivationGoal::runChild()
                     if (optional && errno == ENOENT)
                         return;
                     else
-                        throw SysError("getting attributes of path '%1%'", source);
+                        throw PosixError("getting attributes of path '%1%'", source);
                 }
                 if (S_ISDIR(st.st_mode))
                     createDirs(target);
@@ -2513,7 +2746,7 @@ void DerivationGoal::runChild()
                     writeFile(target, "");
                 }
                 if (mount(source.c_str(), target.c_str(), "", MS_BIND | MS_REC, 0) == -1)
-                    throw SysError("bind mount from '%1%' to '%2%' failed", source, target);
+                    throw PosixError("bind mount from '%1%' to '%2%' failed", source, target);
             };
 
             for (auto & i : dirsInChroot) {
@@ -2524,13 +2757,13 @@ void DerivationGoal::runChild()
             /* Bind a new instance of procfs on /proc. */
             createDirs(chrootRootDir + "/proc");
             if (mount("none", (chrootRootDir + "/proc").c_str(), "proc", 0, 0) == -1)
-                throw SysError("mounting /proc");
+                throw PosixError("mounting /proc");
 
             /* Mount a new tmpfs on /dev/shm to ensure that whatever
                the builder puts in /dev/shm is cleaned up automatically. */
             if (pathExists("/dev/shm") && mount("none", (chrootRootDir + "/dev/shm").c_str(), "tmpfs", 0,
                     fmt("size=%s", settings.sandboxShmSize).c_str()) == -1)
-                throw SysError("mounting /dev/shm");
+                throw PosixError("mounting /dev/shm");
 
             /* Mount a new devpts on /dev/pts.  Note that this
                requires the kernel to be compiled with
@@ -2549,7 +2782,7 @@ void DerivationGoal::runChild()
                     chmod_(chrootRootDir + "/dev/pts/ptmx", 0666);
                 } else {
                     if (errno != EINVAL)
-                        throw SysError("mounting /dev/pts");
+                        throw PosixError("mounting /dev/pts");
                     doBind("/dev/pts", chrootRootDir + "/dev/pts");
                     doBind("/dev/ptmx", chrootRootDir + "/dev/ptmx");
                 }
@@ -2614,7 +2847,7 @@ void DerivationGoal::runChild()
             (settings.thisSystem == "x86_64-linux" ||
              (!strcmp(utsbuf.sysname, "Linux") && !strcmp(utsbuf.machine, "x86_64")))) {
             if (personality(PER_LINUX32) == -1)
-                throw SysError("cannot set i686-linux personality");
+                throw PosixError("cannot set i686-linux personality");
         }
 
         /* Impersonate a Linux 2.6 machine to get some determinism in
@@ -2653,17 +2886,17 @@ void DerivationGoal::runChild()
             if (!buildUser->getSupplementaryGIDs().empty() &&
                 setgroups(buildUser->getSupplementaryGIDs().size(),
                           buildUser->getSupplementaryGIDs().data()) == -1)
-                throw SysError("cannot set supplementary groups of build user");
+                throw PosixError("cannot set supplementary groups of build user");
 
             if (setgid(buildUser->getGID()) == -1 ||
                 getgid() != buildUser->getGID() ||
                 getegid() != buildUser->getGID())
-                throw SysError("setgid failed");
+                throw PosixError("setgid failed");
 
             if (setuid(buildUser->getUID()) == -1 ||
                 getuid() != buildUser->getUID() ||
                 geteuid() != buildUser->getUID())
-                throw SysError("setuid failed");
+                throw PosixError("setuid failed");
         }
 
         /* Fill in the arguments. */
@@ -2867,6 +3100,7 @@ void DerivationGoal::registerOutputs()
         }
         if (allValid) return;
     }
+#endif
 
     std::map<std::string, ValidPathInfo> infos;
 
@@ -3071,7 +3305,11 @@ void DerivationGoal::registerOutputs()
             auto & st = outputStats.at(outputName);
             if (outputHash.method == FileIngestionMethod::Flat) {
                 /* The output path should be a regular file without execute permission. */
+#ifndef _WIN32
                 if (!S_ISREG(st.st_mode) || (st.st_mode & S_IXUSR) != 0)
+#else
+                if (getFileType(actualPath) != DT_REG)
+#endif
                     throw BuildError(
                         "output path '%1%' should be a non-executable regular file "
                         "since recursive hashing is not enabled (outputHashMode=flat)",
@@ -3564,13 +3802,35 @@ void DerivationGoal::closeLogFile()
     if (logSink2) logSink2->finish();
     if (logFileSink) logFileSink->flush();
     logSink = logFileSink = 0;
+#ifndef _WIN32
     fdLogFile = -1;
+#else
+    hLogFile = INVALID_HANDLE_VALUE;
+#endif
 }
 
 
 void DerivationGoal::deleteTmpDir(bool force)
 {
     if (tmpDir != "") {
+#ifdef _WIN32
+        if (tmpDir != tmpDirOrig) {
+//          runProgramWithStatus(RunOptions("subst", { tmpDir.substr(0, 2), "/D" }));
+            if (!DefineDosDeviceW(DDD_NO_BROADCAST_SYSTEM|DDD_REMOVE_DEFINITION|DDD_EXACT_MATCH_ON_REMOVE, from_bytes(tmpDir.substr(0, 2)).c_str(), pathW(tmpDirOrig).c_str())) {
+                throw WinError("DefineDosDeviceW(%1%, %2%)", tmpDir.substr(0, 2), tmpDirOrig);
+            }
+        }
+
+        /* Don't keep temporary directories for builtins because they
+           might have privileged stuff (like a copy of netrc). */
+        if (settings.keepFailed && !force && !drv->isBuiltin()) {
+            printError(
+                format("note: keeping build directory '%2%'")
+                % drvPath % tmpDirOrig);
+        }
+        else
+            deletePath(tmpDirOrig);
+#else
         /* Don't keep temporary directories for builtins because they
            might have privileged stuff (like a copy of netrc). */
         if (settings.keepFailed && !force && !drv->isBuiltin()) {
@@ -3579,11 +3839,14 @@ void DerivationGoal::deleteTmpDir(bool force)
         }
         else
             deletePath(tmpDir);
+
+#endif
         tmpDir = "";
     }
 }
 
 
+#ifndef _WIN32
 void DerivationGoal::handleChildOutput(int fd, const string & data)
 {
     if ((hook && fd == hook->builderOut.readSide.get()) ||
@@ -3622,9 +3885,46 @@ void DerivationGoal::handleChildOutput(int fd, const string & data)
                 currentHookLine += c;
     }
 }
+#else
+void DerivationGoal::handleChildOutput(HANDLE handle, const string & data)
+{
+//std::cerr << "--------------DerivationGoal::handleChildOutput() line=" << __LINE__ << std::endl;
+    if (handle == asyncBuilderOut.hRead.get())
+    {
+        logSize += data.size();
+        if (settings.maxLogSize && logSize > settings.maxLogSize) {
+            printError(
+                format("%1% killed after writing more than %2% bytes of log output")
+                % getName() % settings.maxLogSize);
+            killChild();
+            done(BuildResult::LogLimitExceeded);
+            return;
+        }
+
+        for (auto c : data) {
+
+            if (c == '\r') {
+                currentLogLinePos = 0;
+            } else if (c == '\n') {
+                flushLine();
+            } else {
+                if (currentLogLinePos >= currentLogLine.size())
+                    currentLogLine.resize(currentLogLinePos + 1);
+                currentLogLine[currentLogLinePos++] = c;
+            }
+        }
+
+        if (logSink) (*logSink)(data);
+    }
+}
+#endif
 
 
+#ifndef _WIN32
 void DerivationGoal::handleEOF(int fd)
+#else
+void DerivationGoal::handleEOF(HANDLE handle)
+#endif
 {
     if (!currentLogLine.empty()) flushLine();
     worker.wakeUp(shared_from_this());

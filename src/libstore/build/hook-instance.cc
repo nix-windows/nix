@@ -6,6 +6,7 @@ namespace nix {
 #ifndef _WIN32
 HookInstance::HookInstance()
 {
+    fprintf(stderr,"starting build hook '%s'\n", settings.buildHook.get().c_str());
     debug("starting build hook '%s'", settings.buildHook);
 
     /* Create a pipe to get the output of the child. */
@@ -22,20 +23,20 @@ HookInstance::HookInstance()
 
         commonChildInit(fromHook);
 
-        if (chdir("/") == -1) throw SysError("changing into /");
+        if (chdir("/") == -1) throw PosixError("changing into /");
 
         /* Dup the communication pipes. */
         if (dup2(toHook.readSide.get(), STDIN_FILENO) == -1)
-            throw SysError("dupping to-hook read side");
+            throw PosixError("dupping to-hook read side");
 
         /* Use fd 4 for the builder's stdout/stderr. */
         if (dup2(builderOut.writeSide.get(), 4) == -1)
-            throw SysError("dupping builder's stdout/stderr");
+            throw PosixError("dupping builder's stdout/stderr");
 
         /* Hack: pass the read side of that fd to allow build-remote
            to read SSH error messages. */
         if (dup2(builderOut.readSide.get(), 5) == -1)
-            throw SysError("dupping builder's stdout/stderr");
+            throw PosixError("dupping builder's stdout/stderr");
 
         Strings args = {
             std::string(baseNameOf(settings.buildHook.get())),
@@ -44,7 +45,7 @@ HookInstance::HookInstance()
 
         execv(settings.buildHook.get().c_str(), stringsToCharPtrs(args).data());
 
-        throw SysError("executing '%s'", settings.buildHook);
+        throw PosixError("executing '%s'", settings.buildHook);
     });
 
     pid.setSeparatePG(true);

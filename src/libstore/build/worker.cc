@@ -21,6 +21,11 @@ Worker::Worker(LocalStore & store)
     timedOut = false;
     hashMismatch = false;
     checkMismatch = false;
+#ifdef _WIN32
+    ioport = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
+    if (ioport.get() == NULL)
+        throw WinError("CreateIoCompletionPort");
+#endif
 }
 
 
@@ -139,13 +144,22 @@ unsigned Worker::getNrLocalBuilds()
 }
 
 
+#ifndef _WIN32
 void Worker::childStarted(GoalPtr goal, const set<int> & fds,
     bool inBuildSlot, bool respectTimeouts)
+#else
+void Worker::childStarted(GoalPtr goal, const vector<AsyncPipe*> & pipes,
+    bool inBuildSlot, bool respectTimeouts)
+#endif
 {
     Child child;
     child.goal = goal;
     child.goal2 = goal.get();
+#ifndef _WIN32
     child.fds = fds;
+#else
+    child.pipes = pipes;
+#endif
     child.timeStarted = child.lastOutput = steady_time_point::clock::now();
     child.inBuildSlot = inBuildSlot;
     child.respectTimeouts = respectTimeouts;
@@ -206,6 +220,8 @@ void Worker::waitForAWhile(GoalPtr goal)
 
 void Worker::run(const Goals & _topGoals)
 {
+//std::cerr << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-Worker::run" << std::endl;
+
     for (auto & i : _topGoals) topGoals.insert(i);
 
     debug("entered goal loop");
@@ -266,6 +282,8 @@ void Worker::waitForInput()
 {
     printMsg(lvlVomit, "waiting for children");
 
+//std::cerr << "~~~~~~~~~~~~--------------Worker::waitForInput() children.size()=" << children.size() << std::endl;
+
     /* Process output from the file descriptors attached to the
        children, namely log output and output path creation commands.
        We also use this to detect child termination: if we get EOF on
@@ -323,9 +341,46 @@ void Worker::waitForInput()
     if (poll(pollStatus.data(), pollStatus.size(),
             useTimeout ? timeout * 1000 : -1) == -1) {
         if (errno == EINTR) return;
-        throw SysError("waiting for input");
+        throw PosixError("waiting for input");
     }
+#else
 
+
+    OVERLAPPED_ENTRY oentries[0x20] = {0};
+    ULONG removed;
+    if (!GetQueuedCompletionStatusEx(ioport.get(), oentries, sizeof(oentries)/sizeof(*oentries), &removed, useTimeout ? (timeout.tv_sec*1000) : INFINITE, FALSE)) {
+        WinError winError("GetQueuedCompletionStatusEx");
+        if (winError.lastError != WAIT_TIMEOUT)
+            throw winError;
+    }
+/*
+    std::cerr << "XXX removed       " << removed        << std::endl;
+    for (ULONG i = 0; i<removed; i++ ) {
+std::cerr << "lpCompletionKey               " << oentries[i].lpCompletionKey            << std::endl;
+std::cerr << ".hEvent                       " << oentries[i].lpOverlapped->hEvent       << std::endl;
+std::cerr << ".Offset                       " << oentries[i].lpOverlapped->Offset       << std::endl;
+std::cerr << ".OffsetHigh                   " << oentries[i].lpOverlapped->OffsetHigh   << std::endl;
+std::cerr << ".Internal                     " << oentries[i].lpOverlapped->Internal     << std::endl;
+std::cerr << ".InternalHigh                 " << oentries[i].lpOverlapped->InternalHigh << std::endl;
+std::cerr << "Internal                      " << oentries[i].Internal                   << std::endl;
+std::cerr << "dwNumberOfBytesTransferred    " << oentries[i].dwNumberOfBytesTransferred << std::endl;
+    }*/
+/*
+    DWORD bytesRead;
+    ULONG_PTR completionKey;
+    OVERLAPPED *poverlapped;
+    if (!GetQueuedCompletionStatus(ioport.get(), &bytesRead, &completionKey, &poverlapped, useTimeout ? (timeout.tv_sec*1000) : INFINITE))
+        throw WinError("GetQueuedCompletionStatus");
+std::cerr << "completionKey " << completionKey             << std::endl;
+std::cerr << ".hEvent       " << poverlapped->hEvent       << std::endl;
+std::cerr << ".Offset       " << poverlapped->Offset       << std::endl;
+std::cerr << ".OffsetHigh   " << poverlapped->OffsetHigh   << std::endl;
+std::cerr << ".Internal     " << poverlapped->Internal     << std::endl;
+std::cerr << ".InternalHigh " << poverlapped->InternalHigh << std::endl;
+std::cerr << "bytesRead     " << bytesRead                 << std::endl;
+*/
+
+#endif
     auto after = steady_time_point::clock::now();
 
     /* Process all available file descriptors. FIXME: this is
@@ -339,8 +394,9 @@ void Worker::waitForInput()
         GoalPtr goal = j->goal.lock();
         assert(goal);
 
-        set<int> fds2(j->fds);
+#ifndef _WIN32
         std::vector<unsigned char> buffer(4096);
+        set<int> fds2(j->fds);
         for (auto & k : fds2) {
             if (pollStatus.at(fdToPollStatus.at(k)).revents) {
                 ssize_t rd = ::read(k, buffer.data(), buffer.size());
@@ -352,7 +408,7 @@ void Worker::waitForInput()
                     j->fds.erase(k);
                 } else if (rd == -1) {
                     if (errno != EINTR)
-                        throw SysError("%s: read failed", goal->getName());
+                        throw PosixError("%s: read failed", goal->getName());
                 } else {
                     printMsg(lvlVomit, "%1%: read %2% bytes",
                         goal->getName(), rd);
@@ -392,6 +448,7 @@ void Worker::waitForInput()
         }
         waitingForAWhile.clear();
     }
+//std::cerr << "~~~~~~~~~~~~/////---------Worker::waitForInput() children.size()=" << children.size() << std::endl;
 }
 
 
