@@ -582,8 +582,13 @@ void DerivationGoal::started() {
         "building '%s'", worker.store.printStorePath(drvPath), curRound, nrRounds);
     fmt("building '%s'", worker.store.printStorePath(drvPath));
     if (hook) msg += fmt(" on '%s'", machineName);
+#ifndef _WIN32
     act = std::make_unique<Activity>(*logger, lvlInfo, actBuild, msg,
         Logger::Fields{worker.store.printStorePath(drvPath), hook ? machineName : "", curRound, nrRounds});
+#else
+    act = std::make_unique<Activity>(*logger, lvlInfo, actBuild, msg,
+        Logger::Fields{worker.store.printStorePath(drvPath), "", curRound, nrRounds});
+#endif
     mcRunningBuilds = std::make_unique<MaintainCount<uint64_t>>(worker.runningBuilds);
     worker.updateProgress();
 }
@@ -652,6 +657,7 @@ void DerivationGoal::tryToBuild()
        supported for local builds. */
     bool buildLocally = buildMode != bmNormal || parsedDrv->willBuildLocally(worker.store);
 
+#ifndef _WIN32
     if (!buildLocally) {
         switch (tryBuildHook()) {
             case rpAccept:
@@ -676,6 +682,7 @@ void DerivationGoal::tryToBuild()
                 break;
         }
     }
+#endif
 
     actLock.reset();
 
@@ -778,7 +785,11 @@ void replaceValidPath(const Path & storePath, const Path & tmpPath)
        tmpPath (the replacement), so we have to move it out of the
        way first.  We'd better not be interrupted here, because if
        we're repairing (say) Glibc, we end up with a broken system. */
+#ifndef _WIN32
     Path oldPath = (format("%1%.old-%2%-%3%") % storePath % getpid() % random()).str();
+#else
+    Path oldPath = (format("%1%.old-%2%-%3%") % storePath % GetCurrentProcessId() % random()).str();
+#endif
     if (pathExists(storePath))
         movePath(storePath, oldPath);
 
