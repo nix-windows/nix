@@ -5,6 +5,7 @@
 
 namespace nix {
 
+#ifndef _WIN32
 struct HookInstance
 {
     /* Pipes for talking to the build hook. */
@@ -27,5 +28,6 @@ struct HookInstance
 
     ~HookInstance();
 };
+#endif
 
 }

@@ -3,6 +3,7 @@
 
 namespace nix {
 
+#ifndef _WIN32
 HookInstance::HookInstance()
 {
     debug("starting build hook '%s'", settings.buildHook);
@@ -68,5 +69,6 @@ HookInstance::~HookInstance()
         ignoreException();
     }
 }
+#endif
 
 }

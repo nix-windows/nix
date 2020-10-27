@@ -3040,6 +3040,7 @@ string showBytes(uint64_t bytes)
 }
 
 
+#ifndef _WIN32
 void commonChildInit(Pipe & logPipe)
 {
     const static string pathNullDevice = "/dev/null";
@@ -3050,23 +3051,24 @@ void commonChildInit(Pipe & logPipe)
        that e.g. ssh cannot open /dev/tty) and it doesn't receive
        terminal signals. */
     if (setsid() == -1)
-        throw SysError("creating a new session");
+        throw PosixError("creating a new session");
 
     /* Dup the write side of the logger pipe into stderr. */
     if (dup2(logPipe.writeSide.get(), STDERR_FILENO) == -1)
-        throw SysError("cannot pipe standard error into log file");
+        throw PosixError("cannot pipe standard error into log file");
 
     /* Dup stderr to stdout. */
     if (dup2(STDERR_FILENO, STDOUT_FILENO) == -1)
-        throw SysError("cannot dup stderr into stdout");
+        throw PosixError("cannot dup stderr into stdout");
 
     /* Reroute stdin to /dev/null. */
     int fdDevNull = open(pathNullDevice.c_str(), O_RDWR);
     if (fdDevNull == -1)
-        throw SysError("cannot open '%1%'", pathNullDevice);
+        throw PosixError("cannot open '%1%'", pathNullDevice);
     if (dup2(fdDevNull, STDIN_FILENO) == -1)
-        throw SysError("cannot dup null device into stdin");
+        throw PosixError("cannot dup null device into stdin");
     close(fdDevNull);
 }
+#endif
 
 }
