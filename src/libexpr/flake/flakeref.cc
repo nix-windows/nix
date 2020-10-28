@@ -114,7 +114,7 @@ std::pair<FlakeRef, std::string> parseFlakeRefWithFragment(
 
             path = absPath(path, baseDir, true);
 
-            if (!S_ISDIR(lstat(path).st_mode))
+            if (!S_ISDIR(lstatPath(path).st_mode))
                 throw BadURL("path '%s' is not a flake (because it's not a directory)", path);
 
             if (!allowMissing && !pathExists(path + "/flake.nix"))

@@ -13,7 +13,7 @@ namespace nix::fetchers {
 
 static std::string readHead(const Path & path)
 {
-    return chomp(runProgram("git", true, { "-C", path, "rev-parse", "--abbrev-ref", "HEAD" }));
+    return chomp(runProgramGetStdout("git", true, { "-C", path, "rev-parse", "--abbrev-ref", "HEAD" }));
 }
 
 static bool isNotDotGitDirectory(const Path & path)
@@ -213,7 +213,7 @@ struct GitInputScheme : InputScheme
             /* Check whether this repo has any commits. There are
                probably better ways to do this. */
             auto gitDir = actualUrl + "/.git";
-            auto commonGitDir = chomp(runProgram(
+            auto commonGitDir = chomp(runProgramGetStdout(
                 "git",
                 true,
                 { "-C", actualUrl, "rev-parse", "--git-common-dir" }
@@ -247,13 +247,13 @@ struct GitInputScheme : InputScheme
                     gitOpts.emplace_back("--recurse-submodules");
 
                 auto files = tokenizeString<std::set<std::string>>(
-                    runProgram("git", true, gitOpts), "\0"s);
+                    runProgramGetStdout("git", true, gitOpts), "\0"s);
 
                 PathFilter filter = [&](const Path & p) -> bool {
                     assert(hasPrefix(p, actualUrl));
                     std::string file(p, actualUrl.size() + 1);
 
-                    auto st = lstat(p);
+                    auto st = lstatPath(p);
 
                     if (S_ISDIR(st.st_mode)) {
                         auto prefix = file + "/";
@@ -270,7 +270,7 @@ struct GitInputScheme : InputScheme
                 // modified dirty file?
                 input.attrs.insert_or_assign(
                     "lastModified",
-                    haveCommits ? std::stoull(runProgram("git", true, { "-C", actualUrl, "log", "-1", "--format=%ct", "--no-show-signature", "HEAD" })) : 0);
+                    haveCommits ? std::stoull(runProgramGetStdout("git", true, { "-C", actualUrl, "log", "-1", "--format=%ct", "--no-show-signature", "HEAD" })) : 0);
 
                 return {
                     Tree(store->printStorePath(storePath), std::move(storePath)),
@@ -294,7 +294,7 @@ struct GitInputScheme : InputScheme
 
             if (!input.getRev())
                 input.attrs.insert_or_assign("rev",
-                    Hash::parseAny(chomp(runProgram("git", true, { "-C", actualUrl, "rev-parse", *input.getRef() })), htSHA1).gitRev());
+                    Hash::parseAny(chomp(runProgramGetStdout("git", true, { "-C", actualUrl, "rev-parse", *input.getRef() })), htSHA1).gitRev());
 
             repoDir = actualUrl;
 
@@ -374,7 +374,7 @@ struct GitInputScheme : InputScheme
                 input.attrs.insert_or_assign("rev", Hash::parseAny(chomp(readFile(localRefFile)), htSHA1).gitRev());
         }
 
-        bool isShallow = chomp(runProgram("git", true, { "-C", repoDir, "rev-parse", "--is-shallow-repository" })) == "true";
+        bool isShallow = chomp(runProgramGetStdout("git", true, { "-C", repoDir, "rev-parse", "--is-shallow-repository" })) == "true";
 
         if (isShallow && !shallow)
             throw Error("'%s' is a shallow Git repository, but a non-shallow repository is needed", actualUrl);
@@ -414,7 +414,7 @@ struct GitInputScheme : InputScheme
             auto source = sinkToSource([&](Sink & sink) {
                 RunOptions gitOptions("git", { "-C", repoDir, "archive", input.getRev()->gitRev() });
                 gitOptions.standardOut = &sink;
-                runProgram2(gitOptions);
+                runProgramWithStatus(gitOptions);
             });
 
             unpackTarfile(*source, tmpDir);
@@ -422,7 +422,7 @@ struct GitInputScheme : InputScheme
 
         auto storePath = store->addToStore(name, tmpDir, FileIngestionMethod::Recursive, htSHA256, filter);
 
-        auto lastModified = std::stoull(runProgram("git", true, { "-C", repoDir, "log", "-1", "--format=%ct", "--no-show-signature", input.getRev()->gitRev() }));
+        auto lastModified = std::stoull(runProgramGetStdout("git", true, { "-C", repoDir, "log", "-1", "--format=%ct", "--no-show-signature", input.getRev()->gitRev() }));
 
         Attrs infoAttrs({
             {"rev", input.getRev()->gitRev()},
@@ -431,7 +431,7 @@ struct GitInputScheme : InputScheme
 
         if (!shallow)
             infoAttrs.insert_or_assign("revCount",
-                std::stoull(runProgram("git", true, { "-C", repoDir, "rev-list", "--count", input.getRev()->gitRev() })));
+                std::stoull(runProgramGetStdout("git", true, { "-C", repoDir, "rev-list", "--count", input.getRev()->gitRev() })));
 
         if (!_input.getRev())
             getCache()->add(

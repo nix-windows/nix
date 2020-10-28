@@ -26,6 +26,8 @@ struct RunCommon : virtual Command
         const std::string & program,
         const Strings & args)
     {
+#ifndef _WIN32
+
         stopProgressBar();
 
         restoreSignals();
@@ -48,286 +50,14 @@ struct RunCommon : virtual Command
 
             execv(readLink("/proc/self/exe").c_str(), stringsToCharPtrs(helperArgs).data());
 
-            throw SysError("could not execute chroot helper");
+            throw PosixError("could not execute chroot helper");
         }
 
         execvp(program.c_str(), stringsToCharPtrs(args).data());
 
-        throw SysError("unable to execute '%s'", program);
-    }
-};
+        throw PosixError("unable to execute '%s'", program);
 
-struct CmdShell : InstallablesCommand, RunCommon, MixEnvironment
-{
-    std::vector<std::string> command = { getEnv("SHELL").value_or("bash") };
-
-    CmdShell()
-    {
-        addFlag({
-            .longName = "command",
-            .shortName = 'c',
-            .description = "command and arguments to be executed; defaults to '$SHELL'",
-            .labels = {"command", "args"},
-            .handler = {[&](std::vector<std::string> ss) {
-                if (ss.empty()) throw UsageError("--command requires at least one argument");
-                command = ss;
-            }}
-        });
-    }
-
-    std::string description() override
-    {
-        return "run a shell in which the specified packages are available";
-    }
-
-    Examples examples() override
-    {
-        return {
-            Example{
-                "To start a shell providing GNU Hello from NixOS 20.03:",
-                "nix shell nixpkgs/nixos-20.03#hello"
-            },
-            Example{
-                "To start a shell providing youtube-dl from your 'nixpkgs' channel:",
-                "nix shell nixpkgs#youtube-dl"
-            },
-            Example{
-                "To run GNU Hello:",
-                "nix shell nixpkgs#hello -c hello --greeting 'Hi everybody!'"
-            },
-            Example{
-                "To run GNU Hello in a chroot store:",
-                "nix shell --store ~/my-nix nixpkgs#hello -c hello"
-            },
-        };
-    }
-
-    void run(ref<Store> store) override
-    {
-        auto outPaths = toStorePaths(store, Realise::Outputs, OperateOn::Output, installables);
-
-        auto accessor = store->getFSAccessor();
-
-<<<<<<< HEAD
-#ifndef _WIN32
-        if (ignoreEnvironment) {
-
-            if (!unset.empty())
-                throw UsageError("--unset does not make sense with --ignore-environment");
-
-            std::map<std::string, std::string> kept;
-            for (auto & var : keep) {
-                auto s = getenv(var.c_str());
-                if (s) kept[var] = s;
-            }
-
-            clearEnv();
-
-            for (auto & var : kept)
-                setenv(var.first.c_str(), var.second.c_str(), 1);
-
-        } else {
-
-            if (!keep.empty())
-                throw UsageError("--keep does not make sense without --ignore-environment");
-
-            for (auto & var : unset)
-                unsetenv(var.c_str());
-        }
-
-        std::unordered_set<Path> done;
-        std::queue<Path> todo;
-||||||| merged common ancestors
-        if (ignoreEnvironment) {
-
-            if (!unset.empty())
-                throw UsageError("--unset does not make sense with --ignore-environment");
-
-            std::map<std::string, std::string> kept;
-            for (auto & var : keep) {
-                auto s = getenv(var.c_str());
-                if (s) kept[var] = s;
-            }
-
-            clearEnv();
-
-            for (auto & var : kept)
-                setenv(var.first.c_str(), var.second.c_str(), 1);
-
-        } else {
-
-            if (!keep.empty())
-                throw UsageError("--keep does not make sense without --ignore-environment");
-
-            for (auto & var : unset)
-                unsetenv(var.c_str());
-        }
-
-        std::unordered_set<Path> done;
-        std::queue<Path> todo;
-=======
-        std::unordered_set<StorePath> done;
-        std::queue<StorePath> todo;
->>>>>>> meson
-        for (auto & path : outPaths) todo.push(path);
-
-        setEnviron();
-
-        auto unixPath = tokenizeString<Strings>(getEnv("PATH").value_or(""), ":");
-
-        while (!todo.empty()) {
-            auto path = todo.front();
-            todo.pop();
-            if (!done.insert(path).second) continue;
-
-            if (true)
-                unixPath.push_front(store->printStorePath(path) + "/bin");
-
-            auto propPath = store->printStorePath(path) + "/nix-support/propagated-user-env-packages";
-            if (accessor->stat1(propPath).type == FSAccessor::tRegular) {
-                for (auto & p : tokenizeString<Paths>(readFile(propPath)))
-                    todo.push(store->parseStorePath(p));
-            }
-        }
-
-        setenv("PATH", concatStringsSep(":", unixPath).c_str(), 1);
-
-        Strings args;
-        for (auto & arg : command) args.push_back(arg);
-
-        runProgram(store, *command.begin(), args);
-    }
-};
-
-static auto rCmdShell = registerCommand<CmdShell>("shell");
-
-struct CmdRun : InstallableCommand, RunCommon
-{
-    std::vector<std::string> args;
-
-    CmdRun()
-    {
-        expectArgs({
-            .label = "args",
-            .handler = {&args},
-            .completer = completePath
-        });
-    }
-
-    std::string description() override
-    {
-        return "run a Nix application";
-    }
-
-    Examples examples() override
-    {
-        return {
-            Example{
-                "To run Blender:",
-                "nix run blender-bin"
-            },
-            Example{
-                "To run vim from nixpkgs:",
-                "nix run nixpkgs#vim"
-            },
-            Example{
-                "To run vim from nixpkgs with arguments:",
-                "nix run nixpkgs#vim -- --help"
-            },
-        };
-    }
-
-<<<<<<< HEAD
-            throw PosixError("could not execute chroot helper");
-        }
-||||||| merged common ancestors
-            throw SysError("could not execute chroot helper");
-        }
-=======
-    Strings getDefaultFlakeAttrPaths() override
-    {
-        Strings res{"defaultApp." + settings.thisSystem.get()};
-        for (auto & s : SourceExprCommand::getDefaultFlakeAttrPaths())
-            res.push_back(s);
-        return res;
-    }
-
-    Strings getDefaultFlakeAttrPathPrefixes() override
-    {
-        Strings res{"apps." + settings.thisSystem.get() + ".", "packages"};
-        for (auto & s : SourceExprCommand::getDefaultFlakeAttrPathPrefixes())
-            res.push_back(s);
-        return res;
-    }
-
-    void run(ref<Store> store) override
-    {
-        auto state = getEvalState();
-
-        auto app = installable->toApp(*state);
-
-        state->store->buildPaths(app.context);
->>>>>>> meson
-
-        Strings allArgs{app.program};
-        for (auto & i : args) allArgs.push_back(i);
-
-<<<<<<< HEAD
-        throw PosixError("unable to exec '%s'", cmd);
 #else
-        std::map<std::wstring, std::wstring> uenv;
-
-        if (ignoreEnvironment) {
-
-            if (!unset.empty())
-                throw UsageError("--unset does not make sense with --ignore-environment");
-
-            std::map<std::wstring, std::wstring> kept;
-            for (auto & var : keep) {
-                std::wstring s = getEnvW(from_bytes(var), L"<not-found>");
-                if (s != L"<not-found>")
-                    uenv[from_bytes(var)] = s;
-            }
-        } else {
-
-            if (!keep.empty())
-                throw UsageError("--keep does not make sense without --ignore-environment");
-
-            for (auto & e : getEntireEnvW()) {
-                if (unset.find(to_bytes(e.first)) == unset.end())
-                    uenv[e.first] = e.second;
-            }
-        }
-
-        std::unordered_set<Path> done;
-        std::queue<Path> todo;
-        for (auto & path : outPaths) {
-            std::cerr << "path=[" << path << "]" << std::endl;
-            todo.push(path);
-        }
-        auto windowsPath = tokenizeString<Strings>(getEnv("PATH"), ";");
-
-        while (!todo.empty()) {
-            Path path = todo.front();
-            todo.pop();
-            if (!done.insert(path).second) continue;
-
-            windowsPath.push_front(path + "/bin");
-
-            auto propPath = path + "/nix-support/propagated-user-env-packages";
-            if (accessor->stat1(propPath).type == FSAccessor::tRegular) {
-                for (auto & p : tokenizeString<Paths>(readFile(propPath)))
-                    todo.push(p);
-            }
-        }
-        for (auto & path : windowsPath) {
-            std::cerr << "win=[" << path << "]" << std::endl;
-        }
-
-        for (auto & arg : command) {
-            std::cerr << "arg=[" << arg << "]" << std::endl;
-            //args.push_back(arg);
-        }
 
         stopProgressBar();
 
@@ -407,7 +137,7 @@ struct CmdRun : InstallableCommand, RunCommon
             ucmdline += windowsEscapeW(from_bytes(*v));
         }
 
-        std::wstring uenvline;
+        std::wstring uenvline; // TODO get def from elsewhere
         for (auto & i : uenv)
             uenvline += i.first + L'=' + i.second + L'\0';
         uenvline += L'\0';
@@ -437,12 +167,192 @@ struct CmdRun : InstallableCommand, RunCommon
 
         WaitForSingleObject(pi.hProcess, INFINITE);
         CloseHandle(pi.hProcess);
+
 #endif
-||||||| merged common ancestors
-        throw SysError("unable to exec '%s'", cmd);
-=======
+    }
+};
+
+struct CmdShell : InstallablesCommand, RunCommon, MixEnvironment
+{
+    std::vector<std::string> command = { getEnv("SHELL").value_or("bash") };
+
+    CmdShell()
+    {
+        addFlag({
+            .longName = "command",
+            .shortName = 'c',
+            .description = "command and arguments to be executed; defaults to '$SHELL'",
+            .labels = {"command", "args"},
+            .handler = {[&](std::vector<std::string> ss) {
+                if (ss.empty()) throw UsageError("--command requires at least one argument");
+                command = ss;
+            }}
+        });
+    }
+
+    std::string description() override
+    {
+        return "run a shell in which the specified packages are available";
+    }
+
+    Examples examples() override
+    {
+        return {
+            Example{
+                "To start a shell providing GNU Hello from NixOS 20.03:",
+                "nix shell nixpkgs/nixos-20.03#hello"
+            },
+            Example{
+                "To start a shell providing youtube-dl from your 'nixpkgs' channel:",
+                "nix shell nixpkgs#youtube-dl"
+            },
+            Example{
+                "To run GNU Hello:",
+                "nix shell nixpkgs#hello -c hello --greeting 'Hi everybody!'"
+            },
+            Example{
+                "To run GNU Hello in a chroot store:",
+                "nix shell --store ~/my-nix nixpkgs#hello -c hello"
+            },
+        };
+    }
+
+    void run(ref<Store> store) override
+    {
+        auto outPaths = toStorePaths(store, Realise::Outputs, OperateOn::Output, installables);
+
+        auto accessor = store->getFSAccessor();
+
+#ifndef _WIN32
+        std::unordered_set<StorePath> done;
+        std::queue<StorePath> todo;
+        for (auto & path : outPaths) todo.push(path);
+
+        setEnviron();
+
+        auto unixPath = tokenizeString<Strings>(getEnv("PATH").value_or(""), ":");
+
+        while (!todo.empty()) {
+            auto path = todo.front();
+            todo.pop();
+            if (!done.insert(path).second) continue;
+
+            if (true)
+                unixPath.push_front(store->printStorePath(path) + "/bin");
+
+            auto propPath = store->printStorePath(path) + "/nix-support/propagated-user-env-packages";
+            if (accessor->stat1(propPath).type == FSAccessor::tRegular) {
+                for (auto & p : tokenizeString<Paths>(readFile(propPath)))
+                    todo.push(store->parseStorePath(p));
+            }
+        }
+
+        setenv("PATH", concatStringsSep(":", unixPath).c_str(), 1);
+
+        Strings args;
+        for (auto & arg : command) args.push_back(arg);
+#else
+        std::unordered_set<Path> done;
+        std::queue<Path> todo;
+        for (auto & path : outPaths) {
+            std::cerr << "path=[" << path << "]" << std::endl;
+            todo.push(path);
+        }
+        auto windowsPath = tokenizeString<Strings>(getEnv("PATH"), ";");
+
+        while (!todo.empty()) {
+            Path path = todo.front();
+            todo.pop();
+            if (!done.insert(path).second) continue;
+
+            windowsPath.push_front(path + "/bin");
+
+            auto propPath = path + "/nix-support/propagated-user-env-packages";
+            if (accessor->stat1(propPath).type == FSAccessor::tRegular) {
+                for (auto & p : tokenizeString<Paths>(readFile(propPath)))
+                    todo.push(p);
+            }
+        }
+        for (auto & path : windowsPath) {
+            std::cerr << "win=[" << path << "]" << std::endl;
+        }
+
+        for (auto & arg : command) {
+            std::cerr << "arg=[" << arg << "]" << std::endl;
+            //args.push_back(arg);
+        }
+#endif
+
+        runProgram(store, *command.begin(), args);
+    }
+};
+
+static auto rCmdShell = registerCommand<CmdShell>("shell");
+
+struct CmdRun : InstallableCommand, RunCommon
+{
+    std::vector<std::string> args;
+
+    CmdRun()
+    {
+        expectArgs({
+            .label = "args",
+            .handler = {&args},
+            .completer = completePath
+        });
+    }
+
+    std::string description() override
+    {
+        return "run a Nix application";
+    }
+
+    Examples examples() override
+    {
+        return {
+            Example{
+                "To run Blender:",
+                "nix run blender-bin"
+            },
+            Example{
+                "To run vim from nixpkgs:",
+                "nix run nixpkgs#vim"
+            },
+            Example{
+                "To run vim from nixpkgs with arguments:",
+                "nix run nixpkgs#vim -- --help"
+            },
+        };
+    }
+
+    Strings getDefaultFlakeAttrPaths() override
+    {
+        Strings res{"defaultApp." + settings.thisSystem.get()};
+        for (auto & s : SourceExprCommand::getDefaultFlakeAttrPaths())
+            res.push_back(s);
+        return res;
+    }
+
+    Strings getDefaultFlakeAttrPathPrefixes() override
+    {
+        Strings res{"apps." + settings.thisSystem.get() + ".", "packages"};
+        for (auto & s : SourceExprCommand::getDefaultFlakeAttrPathPrefixes())
+            res.push_back(s);
+        return res;
+    }
+
+    void run(ref<Store> store) override
+    {
+        auto state = getEvalState();
+
+        auto app = installable->toApp(*state);
+
+        state->store->buildPaths(app.context);
+
+        Strings allArgs{app.program};
+        for (auto & i : args) allArgs.push_back(i);
+
         runProgram(store, app.program, allArgs);
->>>>>>> meson
     }
 };
 
@@ -502,22 +412,10 @@ void chrootHelper(int argc, char * * argv)
         Finally freeCwd([&]() { free(cwd); });
 
         if (chroot(tmpDir.c_str()) == -1)
-<<<<<<< HEAD
-            throw PosixError(format("chrooting into '%s'") % tmpDir);
-||||||| merged common ancestors
-            throw SysError(format("chrooting into '%s'") % tmpDir);
-=======
-            throw SysError("chrooting into '%s'", tmpDir);
->>>>>>> meson
+            throw PosixError("chrooting into '%s'", tmpDir);
 
         if (chdir(cwd) == -1)
-<<<<<<< HEAD
-            throw PosixError(format("chdir to '%s' in chroot") % cwd);
-||||||| merged common ancestors
-            throw SysError(format("chdir to '%s' in chroot") % cwd);
-=======
-            throw SysError("chdir to '%s' in chroot", cwd);
->>>>>>> meson
+            throw PosixError("chdir to '%s' in chroot", cwd);
     } else
         if (mount(realStoreDir.c_str(), storeDir.c_str(), "", MS_BIND, 0) == -1)
             throw PosixError("mounting '%s' on '%s'", realStoreDir, storeDir);

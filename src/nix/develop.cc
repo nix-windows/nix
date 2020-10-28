@@ -151,7 +151,7 @@ StorePath getDerivationEnvironment(ref<Store> store, const StorePath & drvPath)
         auto & outPath = *optPath;
         assert(store->isValidPath(outPath));
         auto outPathS = store->toRealPath(outPath);
-        if (lstat(outPathS).st_size)
+        if (lstatPath(outPathS).st_size)
             return outPath;
     }
 

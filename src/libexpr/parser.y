@@ -672,7 +672,7 @@ Expr * EvalState::parseStdin()
 {
     //Activity act(*logger, lvlTalkative, format("parsing standard input"));
 #ifndef _WIN32
-    int fd = STDIN_FILENO:
+    int fd = STDIN_FILENO;
 #else
     HANDLE fd = GetStdHandle(STD_INPUT_HANDLE);
 #endif

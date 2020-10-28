@@ -198,6 +198,7 @@ MixEnvironment::MixEnvironment() : ignoreEnvironment(false)
 }
 
 void MixEnvironment::setEnviron() {
+#ifndef _WIN32
     if (ignoreEnvironment) {
         if (!unset.empty())
             throw UsageError("--unset does not make sense with --ignore-environment");
@@ -216,6 +217,38 @@ void MixEnvironment::setEnviron() {
         for (const auto & var : unset)
             unsetenv(var.c_str());
     }
+#else
+    std::map<std::wstring, std::wstring> uenv;
+
+    if (ignoreEnvironment) {
+
+        if (!unset.empty())
+            throw UsageError("--unset does not make sense with --ignore-environment");
+
+        std::map<std::wstring, std::wstring> kept;
+        for (auto & var : keep) {
+            std::wstring s = getEnvW(from_bytes(var), L"<not-found>");
+            if (s != L"<not-found>")
+                uenv[from_bytes(var)] = s;
+        }
+    } else {
+
+        if (!keep.empty())
+            throw UsageError("--keep does not make sense without --ignore-environment");
+
+        for (auto & e : getEntireEnvW()) {
+            if (unset.find(to_bytes(e.first)) == unset.end())
+                uenv[e.first] = e.second;
+        }
+    }
+
+    std::wstring uenvline;
+    for (auto & i : uenv)
+        uenvline += i.first + L'=' + i.second + L'\0';
+    uenvline += L'\0';
+
+    // TODO?
+#endif
 }
 
 }
