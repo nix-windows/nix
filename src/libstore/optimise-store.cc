@@ -424,6 +424,7 @@ void LocalStore::optimisePath_(Activity * act, OptimiseStats & stats,
     }
     const bool optimized = true;
 #else
+    // TODO: also lift icacls.exe restrictions, if it was set
     if ((wfad.dwFileAttributes & FILE_ATTRIBUTE_READONLY) != 0)
         if (!SetFileAttributesW(wpath.c_str(), wfad.dwFileAttributes & ~FILE_ATTRIBUTE_READONLY))
             throw WinError("SetFileAttributes '%1%'", path);
@@ -432,7 +433,7 @@ void LocalStore::optimisePath_(Activity * act, OptimiseStats & stats,
     if (!MoveFileExW(pathW(tempLink).c_str(), wpath.c_str(), MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH)) {
         WinError winError("MoveFileExW '%1%' '%2%'", tempLink, path);
         if (winError.lastError == ERROR_ACCESS_DENIED) { // it happens, target file may be a running executable
-            printError(format("Access denied '%1%'") %  path);
+            printError(format("MoveFileExW '%1%' '%2%': access denied") % tempLink % path);
             // delete `tempLink`
             if (!SetFileAttributesW(pathW(tempLink).c_str(), wfad.dwFileAttributes & ~FILE_ATTRIBUTE_READONLY))
                 throw WinError("SetFileAttributes '%1%'", tempLink);
