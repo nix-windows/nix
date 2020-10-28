@@ -755,11 +755,13 @@ void DerivationGoal::tryLocalBuild() {
 }
 
 
+#ifndef _WIN32
 static void chmod_(const Path & path, mode_t mode)
 {
     if (chmod(path.c_str(), mode) == -1)
-        throw SysError("setting permissions on '%s'", path);
+        throw PosixError("setting permissions on '%s'", path);
 }
+#endif
 
 
 /* Move/rename path 'src' to 'dst'. Temporarily make 'src' writable if
@@ -775,7 +777,7 @@ static void movePath(const Path & src, const Path & dst)
         chmod_(src, st.st_mode | S_IWUSR);
 
     if (rename(src.c_str(), dst.c_str()))
-        throw SysError("renaming '%1%' to '%2%'", src, dst);
+        throw PosixError("renaming '%1%' to '%2%'", src, dst);
 
     if (changePerm)
         chmod_(dst, st.st_mode);
@@ -819,10 +821,13 @@ void DerivationGoal::buildDone()
 {
     trace("build done");
 
+std::cerr << "DerivationGoal::buildDone()" << std::endl;
+#ifndef _WIN32
     /* Release the build user at the end of this function. We don't do
        it right away because we don't want another build grabbing this
        uid and then messing around with our output. */
     Finally releaseBuildUser([&]() { buildUser.reset(); });
+#endif
 
     sandboxMountNamespace = -1;
 
@@ -830,8 +835,13 @@ void DerivationGoal::buildDone()
        to have terminated.  In fact, the builder could also have
        simply have closed its end of the pipe, so just to be sure,
        kill it. */
-    int status = hook ? hook->pid.kill() : pid.kill();
+    int status =
+#ifndef _WIN32
+            hook ? hook->pid.kill() :
+#endif
+            pid.kill();
 
+//printError("builder process for '%1%' finished status=%2%", drvPath, status);
     debug("builder process for '%s' finished", worker.store.printStorePath(drvPath));
 
     result.timesBuilt++;
@@ -840,16 +850,22 @@ void DerivationGoal::buildDone()
     /* So the child is gone now. */
     worker.childTerminated(this);
 
+#ifndef _WIN32
     /* Close the read side of the logger pipe. */
     if (hook) {
         hook->builderOut.readSide = -1;
         hook->fromHook.readSide = -1;
     } else
         builderOut.readSide = -1;
+#else
+    asyncBuilderOut.hRead = INVALID_HANDLE_VALUE;
+    nul = INVALID_HANDLE_VALUE;
+#endif
 
     /* Close the log file. */
     closeLogFile();
 
+#ifndef _WIN32
     /* When running under a build user, make sure that all processes
        running under that uid are gone.  This is to prevent a
        malicious user from leaving behind a process that keeps files
@@ -859,6 +875,7 @@ void DerivationGoal::buildDone()
 
     /* Terminate the recursive Nix daemon. */
     stopDaemon();
+#endif
 
     bool diskFull = false;
 
@@ -885,6 +902,7 @@ void DerivationGoal::buildDone()
 
             deleteTmpDir(false);
 
+#ifndef _WIN32
             /* Move paths out of the chroot for easier debugging of
                build failures. */
             if (useChroot && buildMode == bmNormal)
@@ -895,6 +913,7 @@ void DerivationGoal::buildDone()
                     if (pathExists(chrootRootDir + p))
                         rename((chrootRootDir + p).c_str(), p.c_str());
                 }
+#endif
 
             auto msg = fmt("builder for '%s' %s",
                 yellowtxt(worker.store.printStorePath(drvPath)),
@@ -980,8 +999,10 @@ void DerivationGoal::buildDone()
         for (auto & i : redirectedOutputs)
             deletePath(worker.store.Store::toRealPath(i.second));
 
+#ifndef _WIN32
         /* Delete the chroot (if we were using one). */
         autoDelChroot.reset(); /* this runs the destructor */
+#endif
 
         deleteTmpDir(true);
 
@@ -1033,6 +1054,7 @@ void DerivationGoal::resolvedFinished() {
     done(BuildResult::Built);
 }
 
+#ifndef _WIN32
 HookReply DerivationGoal::tryBuildHook()
 {
     if (!worker.tryBuildHook || !useDerivation) return rpDecline;
@@ -1129,13 +1151,16 @@ HookReply DerivationGoal::tryBuildHook()
 
     return rpAccept;
 }
+#endif
 
 
+#if __linux__
 int childEntry(void * arg)
 {
     ((DerivationGoal *) arg)->runChild();
     return 1;
 }
+#endif
 
 
 StorePathSet DerivationGoal::exportReferences(const StorePathSet & storePaths)
@@ -1143,6 +1168,12 @@ StorePathSet DerivationGoal::exportReferences(const StorePathSet & storePaths)
     StorePathSet paths;
 
     for (auto & storePath : storePaths) {
+
+        std::cerr << "----------------------------------------------------DerivationGoal::exportReferences '"
+            << worker.store.printStorePath(storePath)
+            << "'"
+            << std::endl;
+
         if (!inputPaths.count(storePath))
             throw BuildError("cannot export references of path '%s' because it is not in the input closure of the derivation", worker.store.printStorePath(storePath));
 
@@ -1204,14 +1235,16 @@ void linkOrCopy(const Path & from, const Path & to)
            It can also fail with EPERM in BeegFS v7 and earlier versions
            which don't allow hard-links to other directories */
         if (errno != EMLINK && errno != EPERM)
-            throw SysError("linking '%s' to '%s'", to, from);
+            throw PosixError("linking '%s' to '%s'", to, from);
         copyPath(from, to);
     }
 }
+#endif
 
 
 void DerivationGoal::startBuilder()
 {
+fprintf(stderr, "DerivationGoal::startBuilder()\n");
     /* Right platform? */
     if (!parsedDrv->canBuildLocally(worker.store))
         throw Error("a '%s' with features {%s} is required to build '%s', but I am a '%s' with features {%s}",
@@ -1249,7 +1282,6 @@ void DerivationGoal::startBuilder()
         else if (settings.sandboxMode == smRelaxed)
             useChroot = !(derivationIsImpure(derivationType)) && !noChroot;
     }
-#endif // _WIN32
 
 
     if (worker.store.storeDir != worker.store.realStoreDir) {
@@ -1259,12 +1291,45 @@ void DerivationGoal::startBuilder()
             throw Error("building using a diverted store is not supported on this platform");
         #endif
     }
+#endif // _WIN32
 
     /* Create a temporary directory where the build will take
        place. */
+#ifndef _WIN32
     tmpDir = createTempDir("", "nix-build-" + std::string(drvPath.name()), false, false, 0700);
+#else
+    tmpDir = tmpDirOrig = createTempDir("", "nix-build-" + std::string(drvPath.name()), false, false);
 
+    // try to shorten the paths and also prevent going ..
+    if (true) {
+        DWORD bitmaskDrives = GetLogicalDrives();
+        for (char letter = 'Z'; letter >= 'D'; letter--) {
+            bool isBusy = (bitmaskDrives & (1 << (letter - 'A'))) != 0;
+            if (isBusy) continue;
+            // make the tmpDit as short as possible but not the root directory of the drive (boost rejects to be built in root dir)
+            tmpDir = (format("%c:/x") % letter).str();
+            //    runProgramWithStatus(RunOptions("subst", { tmpDir.substr(0, 2), tmpDirOrig }));
+            if (DefineDosDeviceW(DDD_NO_BROADCAST_SYSTEM, from_bytes(tmpDir.substr(0, 2)).c_str(), pathW(tmpDirOrig).c_str())) {
+                break;
+            }
+            // TODO: some of the error might be caused by race condition, when another process
+            //       allocated the disk letter after we checked it is free and before we tryed to allocate it
+            //       So we have to retry on some error codes (which?)
+            throw WinError("DefineDosDeviceW(%1%, %2%)", tmpDir.substr(0, 2), tmpDirOrig);
+        }
+        if (tmpDir == tmpDirOrig) {
+            printError("warning: no free drive letter available, build root will be '%1%'", tmpDir);
+        } else {
+            if (!CreateDirectoryW(pathW(tmpDir).c_str(), NULL))
+                throw("CreateDirectoryW when createTempDir '%1%'", tmpDir);
+
+        }
+    }
+#endif
+
+#ifndef _WIN32
     chownToBuilder(tmpDir);
+#endif
 
     for (auto & [outputName, status] : initialOutputs) {
         /* Set scratch path we'll actually use during the build.
@@ -1444,10 +1509,10 @@ void DerivationGoal::startBuilder()
         printMsg(lvlChatty, format("setting up chroot environment in '%1%'") % chrootRootDir);
 
         if (mkdir(chrootRootDir.c_str(), 0750) == -1)
-            throw SysError("cannot create '%1%'", chrootRootDir);
+            throw PosixError("cannot create '%1%'", chrootRootDir);
 
         if (buildUser && chown(chrootRootDir.c_str(), 0, buildUser->getGID()) == -1)
-            throw SysError("cannot change ownership of '%1%'", chrootRootDir);
+            throw PosixError("cannot change ownership of '%1%'", chrootRootDir);
 
         /* Create a writable /tmp in the chroot.  Many builders need
            this.  (Of course they should really respect $TMPDIR
@@ -1484,12 +1549,12 @@ void DerivationGoal::startBuilder()
         chmod_(chrootStoreDir, 01775);
 
         if (buildUser && chown(chrootStoreDir.c_str(), 0, buildUser->getGID()) == -1)
-            throw SysError("cannot change ownership of '%1%'", chrootStoreDir);
+            throw PosixError("cannot change ownership of '%1%'", chrootStoreDir);
 
         for (auto & i : inputPaths) {
             auto p = worker.store.printStorePath(i);
             Path r = worker.store.toRealPath(p);
-            if (S_ISDIR(lstat(r).st_mode))
+            if (S_ISDIR(lstatPath(r).st_mode))
                 dirsInChroot.insert_or_assign(p, r);
             else
                 linkOrCopy(r, chrootRootDir + p);
@@ -1518,8 +1583,10 @@ void DerivationGoal::startBuilder()
 #endif
     }
 
+#ifndef _WIN32
     if (needsHashRewrite() && pathExists(homeDir))
         throw Error("home directory '%1%' exists; please remove it to assure purity of builds without sandboxing", homeDir);
+#endif
 
 #ifndef _WIN32
     if (useChroot && settings.preBuildHook != "" && dynamic_cast<Derivation *>(drv.get())) {
@@ -1557,6 +1624,7 @@ void DerivationGoal::startBuilder()
             }
         }
     }
+#endif
 
     /* Fire up a Nix daemon to process recursive Nix calls from the
        builder. */
@@ -1572,23 +1640,39 @@ void DerivationGoal::startBuilder()
     /* Create a pipe to get the output of the builder. */
     //builderOut.create();
 
+//#ifndef _WIN32
+//    builderOut.create();
+//#else
+////std::cerr << (format("c----create(%p, %p)") % &worker % worker.ioport.get()) << std::endl;
+//    asyncBuilderOut.create(worker.ioport.get());
+//
+//    // Must be inheritable so subprocesses can dup to children.
+//    SECURITY_ATTRIBUTES sa = {0};
+//    sa.nLength = sizeof(SECURITY_ATTRIBUTES);
+//    sa.bInheritHandle = TRUE;
+//    nul = CreateFileA("NUL", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, &sa, OPEN_EXISTING, 0, NULL);
+//    if (!nul.get())
+//        throw WinError("CreateFileA(NUL)");
+//#endif
+
+#ifndef _WIN32
     builderOut.readSide = posix_openpt(O_RDWR | O_NOCTTY);
     if (!builderOut.readSide)
-        throw SysError("opening pseudoterminal master");
+        throw PosixError("opening pseudoterminal master");
 
     std::string slaveName(ptsname(builderOut.readSide.get()));
 
     if (buildUser) {
         if (chmod(slaveName.c_str(), 0600))
-            throw SysError("changing mode of pseudoterminal slave");
+            throw PosixError("changing mode of pseudoterminal slave");
 
         if (chown(slaveName.c_str(), buildUser->getUID(), 0))
-            throw SysError("changing owner of pseudoterminal slave");
+            throw PosixError("changing owner of pseudoterminal slave");
     }
 #if __APPLE__
     else {
         if (grantpt(builderOut.readSide.get()))
-            throw SysError("granting access to pseudoterminal slave");
+            throw PosixError("granting access to pseudoterminal slave");
     }
 #endif
 
@@ -1778,7 +1862,7 @@ void DerivationGoal::startBuilder()
            *before* the child does a chroot. */
         sandboxMountNamespace = open(fmt("/proc/%d/ns/mnt", (pid_t) pid).c_str(), O_RDONLY);
         if (sandboxMountNamespace.get() == -1)
-            throw SysError("getting sandbox mount namespace");
+            throw PosixError("getting sandbox mount namespace");
 
         /* Signal the builder that we've updated its user namespace. */
         writeFull(userNamespaceSync.writeSide.get(), "1");
@@ -2041,7 +2125,9 @@ void DerivationGoal::initTmpDir() {
                 string fn = ".attr-" + hash.to_string(Base32, false);
                 Path p = tmpDir + "/" + fn;
                 writeFile(p, rewriteStrings(i.second, inputRewrites));
+#ifndef _WIN32
                 chownToBuilder(p);
+#endif
                 env[i.first + "Path"] = tmpDirInSandbox + "/" + fn;
             }
         }
@@ -2438,7 +2524,7 @@ void DerivationGoal::startDaemon()
             if (!remote) {
                 if (errno == EINTR) continue;
                 if (errno == EINVAL) break;
-                throw SysError("accepting connection");
+                throw PosixError("accepting connection");
             }
 
             closeOnExec(remote.get());
@@ -2469,7 +2555,7 @@ void DerivationGoal::startDaemon()
 void DerivationGoal::stopDaemon()
 {
     if (daemonSocket && shutdown(daemonSocket.get(), SHUT_RDWR) == -1)
-        throw SysError("shutting down daemon socket");
+        throw PosixError("shutting down daemon socket");
 
     if (daemonThread.joinable())
         daemonThread.join();
@@ -2516,12 +2602,12 @@ void DerivationGoal::addDependency(const StorePath & path)
                 Pid child(startProcess([&]() {
 
                     if (setns(sandboxMountNamespace.get(), 0) == -1)
-                        throw SysError("entering sandbox mount namespace");
+                        throw PosixError("entering sandbox mount namespace");
 
                     createDirs(target);
 
                     if (mount(source.c_str(), target.c_str(), "", MS_BIND, 0) == -1)
-                        throw SysError("bind mount from '%s' to '%s' failed", source, target);
+                        throw PosixError("bind mount from '%s' to '%s' failed", source, target);
 
                     _exit(0);
                 }));
@@ -2542,11 +2628,12 @@ void DerivationGoal::addDependency(const StorePath & path)
 }
 
 
+#ifndef _WIN32
 void DerivationGoal::chownToBuilder(const Path & path)
 {
     if (!buildUser) return;
     if (chown(path.c_str(), buildUser->getUID(), buildUser->getGID()) == -1)
-        throw SysError("cannot change ownership of '%1%'", path);
+        throw PosixError("cannot change ownership of '%1%'", path);
 }
 
 
@@ -2678,12 +2765,12 @@ void DerivationGoal::runChild()
                local to the namespace, though, so setting MS_PRIVATE
                does not affect the outside world. */
             if (mount(0, "/", 0, MS_PRIVATE | MS_REC, 0) == -1)
-                throw SysError("unable to make '/' private");
+                throw PosixError("unable to make '/' private");
 
             /* Bind-mount chroot directory to itself, to treat it as a
                different filesystem from /, as needed for pivot_root. */
             if (mount(chrootRootDir.c_str(), chrootRootDir.c_str(), 0, MS_BIND, 0) == -1)
-                throw SysError("unable to bind mount '%1%'", chrootRootDir);
+                throw PosixError("unable to bind mount '%1%'", chrootRootDir);
 
             /* Bind-mount the sandbox's Nix store onto itself so that
                we can mark it as a "shared" subtree, allowing bind
@@ -2696,10 +2783,10 @@ void DerivationGoal::runChild()
             Path chrootStoreDir = chrootRootDir + worker.store.storeDir;
 
             if (mount(chrootStoreDir.c_str(), chrootStoreDir.c_str(), 0, MS_BIND, 0) == -1)
-                throw SysError("unable to bind mount the Nix store", chrootStoreDir);
+                throw PosixError("unable to bind mount the Nix store", chrootStoreDir);
 
             if (mount(0, chrootStoreDir.c_str(), 0, MS_SHARED, 0) == -1)
-                throw SysError("unable to make '%s' shared", chrootStoreDir);
+                throw PosixError("unable to make '%s' shared", chrootStoreDir);
 
             /* Set up a nearly empty /dev, unless the user asked to
                bind-mount the host /dev. */
@@ -2813,41 +2900,41 @@ void DerivationGoal::runChild()
                shared subtree above, this allows addDependency() to
                make paths appear in the sandbox. */
             if (unshare(CLONE_NEWNS) == -1)
-                throw SysError("unsharing mount namespace");
+                throw PosixError("unsharing mount namespace");
 
             /* Do the chroot(). */
             if (chdir(chrootRootDir.c_str()) == -1)
-                throw SysError("cannot change directory to '%1%'", chrootRootDir);
+                throw PosixError("cannot change directory to '%1%'", chrootRootDir);
 
             if (mkdir("real-root", 0) == -1)
-                throw SysError("cannot create real-root directory");
+                throw PosixError("cannot create real-root directory");
 
             if (pivot_root(".", "real-root") == -1)
-                throw SysError("cannot pivot old root directory onto '%1%'", (chrootRootDir + "/real-root"));
+                throw PosixError("cannot pivot old root directory onto '%1%'", (chrootRootDir + "/real-root"));
 
             if (chroot(".") == -1)
-                throw SysError("cannot change root directory to '%1%'", chrootRootDir);
+                throw PosixError("cannot change root directory to '%1%'", chrootRootDir);
 
             if (umount2("real-root", MNT_DETACH) == -1)
-                throw SysError("cannot unmount real root filesystem");
+                throw PosixError("cannot unmount real root filesystem");
 
             if (rmdir("real-root") == -1)
-                throw SysError("cannot remove real-root directory");
+                throw PosixError("cannot remove real-root directory");
 
             /* Switch to the sandbox uid/gid in the user namespace,
                which corresponds to the build user or calling user in
                the parent namespace. */
             if (setgid(sandboxGid()) == -1)
-                throw SysError("setgid failed");
+                throw PosixError("setgid failed");
             if (setuid(sandboxUid()) == -1)
-                throw SysError("setuid failed");
+                throw PosixError("setuid failed");
 
             setUser = false;
         }
 #endif
 
         if (chdir(tmpDirInSandbox.c_str()) == -1)
-            throw SysError("changing into '%1%'", tmpDir);
+            throw PosixError("changing into '%1%'", tmpDir);
 
         /* Close all other file descriptors. */
         closeMostFDs({STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO});
@@ -2991,7 +3078,7 @@ void DerivationGoal::runChild()
                     if (lstat(path.c_str(), &st)) {
                         if (i.second.optional && errno == ENOENT)
                             continue;
-                        throw SysError("getting attributes of path '%s", path);
+                        throw PosixError("getting attributes of path '%s", path);
                     }
                     if (S_ISDIR(st.st_mode))
                         sandboxProfile += fmt("\t(subpath \"%s\")\n", path);
@@ -3085,7 +3172,7 @@ void DerivationGoal::runChild()
 
         execve(builder, stringsToCharPtrs(args).data(), stringsToCharPtrs(envStrs).data());
 
-        throw SysError("executing '%1%'", drv->builder);
+        throw PosixError("executing '%1%'", drv->builder);
 
     } catch (Error & e) {
         writeFull(STDERR_FILENO, "\1\n");
@@ -3095,10 +3182,12 @@ void DerivationGoal::runChild()
         _exit(1);
     }
 }
+#endif
 
 
 void DerivationGoal::registerOutputs()
 {
+#ifndef _WIN32
     /* When using a build hook, the build hook can register the output
        as valid (by doing `nix-store --import').  If so we don't have
        to do anything here.
@@ -3172,15 +3261,18 @@ void DerivationGoal::registerOutputs()
             continue;
         }
 
+#ifndef _WIN32
         struct stat st;
         if (lstat(actualPath.c_str(), &st) == -1) {
             if (errno == ENOENT)
                 throw BuildError(
                     "builder for '%s' failed to produce output path for output '%s' at '%s'",
                     worker.store.printStorePath(drvPath), outputName, actualPath);
-            throw SysError("getting attributes of path '%s'", actualPath);
+            throw PosixError("getting attributes of path '%s'", actualPath);
         }
+#endif
 
+#ifndef _WIN32
 #ifndef __CYGWIN__
         /* Check that the output is not group or world writable, as
            that means that someone else can have interfered with the
@@ -3192,11 +3284,16 @@ void DerivationGoal::registerOutputs()
                     "suspicious ownership or permission on '%s' for output '%s'; rejecting this build output",
                     actualPath, outputName);
 #endif
+#endif
 
         /* Canonicalise first.  This ensures that the path we're
            rewriting doesn't contain a hard link to /etc/shadow or
            something like that. */
-        canonicalisePathMetaData(actualPath, buildUser ? buildUser->getUID() : -1, inodesSeen);
+        canonicalisePathMetaData(actualPath,
+#ifndef _WIN32
+            buildUser ? buildUser->getUID() : -1,
+#endif
+            inodesSeen);
 
         debug("scanning for references for output '%s' in temp location '%s'", outputName, actualPath);
 
@@ -3285,7 +3382,11 @@ void DerivationGoal::registerOutputs()
 
                 /* FIXME: set proper permissions in restorePath() so
                    we don't have to do another traversal. */
-                canonicalisePathMetaData(actualPath, -1, inodesSeen);
+                canonicalisePathMetaData(actualPath,
+#ifndef _WIN32
+                    -1,
+#endif
+                    inodesSeen);
             }
         };
 
@@ -3462,10 +3563,12 @@ void DerivationGoal::registerOutputs()
                     deletePath(dst);
                     movePath(actualPath, dst);
 
+#ifndef _WIN32
                     handleDiffHook(
                         buildUser ? buildUser->getUID() : getuid(),
                         buildUser ? buildUser->getGID() : getgid(),
                         finalDestPath, dst, worker.store.printStorePath(drvPath), tmpDir);
+#endif
 
                     throw NotDeterministic("derivation '%s' may not be deterministic: output '%s' differs from '%s'",
                         worker.store.printStorePath(drvPath), worker.store.toRealPath(finalDestPath), dst);
@@ -3533,11 +3636,13 @@ void DerivationGoal::registerOutputs()
                     : hintfmt("output '%s' of '%s' differs from previous round",
                         worker.store.printStorePath(i->second.path), worker.store.printStorePath(drvPath));
 
+#ifndef _WIN32
                 handleDiffHook(
                     buildUser ? buildUser->getUID() : getuid(),
                     buildUser ? buildUser->getGID() : getgid(),
                     prev, worker.store.printStorePath(i->second.path),
                     worker.store.printStorePath(drvPath), tmpDir);
+#endif
 
                 if (settings.enforceDeterminism)
                     throw NotDeterministic(hint);
@@ -3559,7 +3664,7 @@ void DerivationGoal::registerOutputs()
             deletePath(prev);
             Path dst = path + checkSuffix;
             if (rename(path.c_str(), dst.c_str()))
-                throw SysError("renaming '%s' to '%s'", path, dst);
+                throw PosixError("renaming '%s' to '%s'", path, dst);
         }
     }
 
@@ -3790,16 +3895,24 @@ Path DerivationGoal::openLogFile()
     auto baseName = std::string(baseNameOf(worker.store.printStorePath(drvPath)));
 
     /* Create a log file. */
-    Path dir = fmt("%s/%s/%s/", worker.store.logDir, worker.store.drvsLogDir, string(baseName, 0, 2));
+    Path dir = fmt("%s/%s/%s", worker.store.logDir, worker.store.drvsLogDir, string(baseName, 0, 2));
     createDirs(dir);
 
     Path logFileName = fmt("%s/%s%s", dir, string(baseName, 2),
         settings.compressLog ? ".bz2" : "");
 
+#ifndef _WIN32
     fdLogFile = open(logFileName.c_str(), O_CREAT | O_WRONLY | O_TRUNC | O_CLOEXEC, 0666);
-    if (!fdLogFile) throw SysError("creating log file '%1%'", logFileName);
+    if (!fdLogFile) throw PosixError("creating log file '%1%'", logFileName);
 
     logFileSink = std::make_shared<FdSink>(fdLogFile.get());
+#else
+    hLogFile = CreateFileW(pathW(logFileName).c_str(), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_POSIX_SEMANTICS, NULL);
+    if (hLogFile.get() == INVALID_HANDLE_VALUE)
+        throw WinError("%2%:%3% CreateFileW '%1%'", logFileName, __FILE__, __LINE__);
+
+    logFileSink = std::make_shared<FdSink>(hLogFile.get());
+#endif
 
     if (settings.compressLog)
         logSink = std::shared_ptr<CompressionSink>(makeCompressionSink("bzip2", *logFileSink));

@@ -33,8 +33,11 @@ private:
     std::shared_ptr<const ValidPathInfo> info;
 
     /* Pipe for the substituter's standard output. */
+#ifndef _WIN32
     Pipe outPipe;
-
+#else
+    AsyncPipe outPipe;
+#endif
     /* The substituter thread. */
     std::thread thr;
 
@@ -80,8 +83,13 @@ public:
     void finished();
 
     /* Callback used by the worker to write to the log. */
+#ifndef _WIN32
     void handleChildOutput(int fd, const string & data) override;
-    void handleEOF(int fd) override;
+    virtual void handleEOF(int fd) override;
+#else
+    void handleChildOutput(HANDLE handle, const string & data) override;
+    virtual void handleEOF(HANDLE handle) override;
+#endif
 
     StorePath getStorePath() { return storePath; }
 };
