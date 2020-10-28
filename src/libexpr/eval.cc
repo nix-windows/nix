@@ -1699,8 +1699,15 @@ std::pair<string, string> decodeContext(std::string_view s)
     if (s.at(0) == '!') {
         size_t index = s.find("!", 1);
         return {std::string(s.substr(index + 1)), std::string(s.substr(1, index - 1))};
-    } else
+    } else {
+#ifndef _WIN32
+        assert(s.at(0) == '/'); // ???
         return {s.at(0) == '/' ? std::string(s) : std::string(s.substr(1)), ""};
+#else
+        assert(('A' <= s.at(0) && s.at(0) <= 'Z') && s.at(1) == ':' && s.at(2) == '/'); // ???
+        return {std::string(s), ""};
+#endif
+    }
 }
 
 
