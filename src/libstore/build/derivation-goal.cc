@@ -769,7 +769,7 @@ static void chmod_(const Path & path, mode_t mode)
    directory's parent link ".."). */
 static void movePath(const Path & src, const Path & dst)
 {
-    auto st = lstat(src);
+    auto st = lstatPath(src);
 
     bool changePerm = (geteuid() && S_ISDIR(st.st_mode) && !(st.st_mode & S_IWUSR));
 
@@ -2591,7 +2591,7 @@ void DerivationGoal::addDependency(const StorePath & path)
             if (pathExists(target))
                 throw Error("store path '%s' already exists in the sandbox", worker.store.printStorePath(path));
 
-            auto st = lstat(source);
+            auto st = lstatPath(source);
 
             if (S_ISDIR(st.st_mode)) {
 

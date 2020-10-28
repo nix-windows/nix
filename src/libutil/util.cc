@@ -116,7 +116,7 @@ Path handleToPath(HANDLE handle) {
 
 #endif
 
-std::string_view::size_type rfindSlash(std::string_view path, std::string_view::size_type from = std::string_view::npos)
+std::string_view::size_type rfindSlash(std::string_view path, std::string_view::size_type from)
 {
 #ifdef _WIN32
     Path::size_type p1 = path.rfind('/', from);

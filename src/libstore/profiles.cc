@@ -41,42 +41,13 @@ std::pair<Generations, std::optional<GenerationNumber>> findGenerations(Path pro
     auto profileName = std::string(baseNameOf(profile));
 
     for (auto & i : readDirectory(profileDir)) {
-<<<<<<< HEAD
-        int n;
-        auto name = i.name();
-        if ((n = parseName(profileName, name)) != -1) {
-            Generation gen;
-            gen.path = profileDir + "/" + name;
-            gen.number = n;
-            struct stat st;
-#ifndef _WIN32
-            if (lstat(gen.path.c_str(), &st) != 0)
-#else
-            if (stat(gen.path.c_str(), &st) != 0)
-#endif
-                throw PosixError(format("statting '%1%'") % gen.path);
-            gen.creationTime = st.st_mtime;
-            gens.push_back(gen);
-||||||| merged common ancestors
-        int n;
-        if ((n = parseName(profileName, i.name)) != -1) {
-            Generation gen;
-            gen.path = profileDir + "/" + i.name;
-            gen.number = n;
-            struct stat st;
-            if (lstat(gen.path.c_str(), &st) != 0)
-                throw SysError(format("statting '%1%'") % gen.path);
-            gen.creationTime = st.st_mtime;
-            gens.push_back(gen);
-=======
-        if (auto n = parseName(profileName, i.name)) {
-            auto path = profileDir + "/" + i.name;
+        if (auto n = parseName(profileName, i.name())) {
+            auto path = profileDir + "/" + i.name();
             gens.push_back({
                 .number = *n,
                 .path = path,
                 .creationTime = lstatPath(path).st_mtime
             });
->>>>>>> meson
         }
     }
 
@@ -285,7 +256,6 @@ Path getDefaultProfile()
     try {
         if (!pathExists(profileLink)) {
             replaceSymlink(
-                getuid() == 0
 #ifndef _WIN32
                 getuid() == 0
 #else
