@@ -146,8 +146,8 @@ std::pair<Tree, time_t> downloadTarball(
         auto members = readDirectory(tmpDir);
         if (members.size() != 1)
             throw nix::Error("tarball '%s' contains an unexpected number of top-level files", url);
-        auto topDir = tmpDir + "/" + members.begin()->name;
-        lastModified = lstat(topDir).st_mtime;
+        auto topDir = tmpDir + "/" + members.begin()->name();
+        lastModified = lstatPath(topDir).st_mtime;
         unpackedStorePath = store->addToStore(name, topDir, FileIngestionMethod::Recursive, htSHA256, defaultPathFilter, NoRepair);
     }
 

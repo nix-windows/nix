@@ -130,7 +130,7 @@ struct MercurialInputScheme : InputScheme
 
         if (!input.getRef() && !input.getRev() && isLocal && pathExists(actualUrl + "/.hg")) {
 
-            bool clean = runProgram("hg", true, { "status", "-R", actualUrl, "--modified", "--added", "--removed" }) == "";
+            bool clean = runProgramGetStdout("hg", true, { "status", "-R", actualUrl, "--modified", "--added", "--removed" }) == "";
 
             if (!clean) {
 
@@ -143,16 +143,16 @@ struct MercurialInputScheme : InputScheme
                 if (settings.warnDirty)
                     warn("Mercurial tree '%s' is unclean", actualUrl);
 
-                input.attrs.insert_or_assign("ref", chomp(runProgram("hg", true, { "branch", "-R", actualUrl })));
+                input.attrs.insert_or_assign("ref", chomp(runProgramGetStdout("hg", true, { "branch", "-R", actualUrl })));
 
                 auto files = tokenizeString<std::set<std::string>>(
-                    runProgram("hg", true, { "status", "-R", actualUrl, "--clean", "--modified", "--added", "--no-status", "--print0" }), "\0"s);
+                    runProgramGetStdout("hg", true, { "status", "-R", actualUrl, "--clean", "--modified", "--added", "--no-status", "--print0" }), "\0"s);
 
                 PathFilter filter = [&](const Path & p) -> bool {
                     assert(hasPrefix(p, actualUrl));
                     std::string file(p, actualUrl.size() + 1);
 
-                    auto st = lstat(p);
+                    auto st = lstatPath(p);
 
                     if (S_ISDIR(st.st_mode)) {
                         auto prefix = file + "/";
@@ -223,7 +223,7 @@ struct MercurialInputScheme : InputScheme
            have to pull again. */
         if (!(input.getRev()
                 && pathExists(cacheDir)
-                && runProgram(
+                && runProgramWithStatus(
                     RunOptions("hg", { "log", "-R", cacheDir, "-r", input.getRev()->gitRev(), "--template", "1" })
                     .killStderr(true)).second == "1"))
         {
@@ -250,7 +250,7 @@ struct MercurialInputScheme : InputScheme
         }
 
         auto tokens = tokenizeString<std::vector<std::string>>(
-            runProgram("hg", true, { "log", "-R", cacheDir, "-r", revOrRef, "--template", "{node} {rev} {branch}" }));
+            runProgramGetStdout("hg", true, { "log", "-R", cacheDir, "-r", revOrRef, "--template", "{node} {rev} {branch}" }));
         assert(tokens.size() == 3);
 
         input.attrs.insert_or_assign("rev", Hash::parseAny(tokens[0], htSHA1).gitRev());
