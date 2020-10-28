@@ -70,10 +70,12 @@ Settings::Settings()
         for (auto & fn : {
 #ifndef _WIN32
                           "/etc/ssl/certs/ca-certificates.crt",
+                          "/nix/var/nix/profiles/default/etc/ssl/certs/ca-bundle.crt"
 #else
-                          "C:/msys64/usr/ssl/certs/ca-bundle.crt", // BUGBUG!!!
+                          nixStateDir + "/profiles/default/etc/ssl/certs/ca-bundle.crt",
+                          nixConfDir + "/certs/ca-bundle.crt"
 #endif
-                          "/nix/var/nix/profiles/default/etc/ssl/certs/ca-bundle.crt"})
+                         })
             if (pathExists(fn)) {
                 caFile = fn;
                 break;

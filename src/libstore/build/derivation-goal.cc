@@ -1957,7 +1957,7 @@ fprintf(stderr, "DerivationGoal::startBuilder()\n");
             //builtinBuildenv(drv2);
         } else
             throw Error(format("unsupported builtin function '%1%'") % string(drv->builder, 8));
-#ifdef __MINGW32__
+#ifdef __MINGW32__ // deprecated, was used only for bootstrap
     } else if ( drv->builder == "/usr/bin/bash"                 // BUGBUG
              || drv->builder == "/bin/bash"                     // BUGBUG
              || drv->builder == "c:/msys64/usr/bin/bash.exe"    // BUGBUG

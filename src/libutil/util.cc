@@ -195,7 +195,7 @@ std::optional<std::wstring> getEnvW(const std::wstring & key)
     DWORD dw = GetEnvironmentVariableW(key.c_str(), buf.data(), buf.size());
     if (0 == dw) {
         WinError winError("GetEnvironmentVariableW '%1%'", to_bytes(key));
-        if (winError.lastError != ERROR_ENVVAR_NOT_FOUND)
+        if (winError.lastError != 0 && winError.lastError != ERROR_ENVVAR_NOT_FOUND)
             throw winError;
         return {};
     }
