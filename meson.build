@@ -196,8 +196,10 @@ boost_dep = declare_dependency(
     dependencies : [
         cpp.find_library('boost_system' + mt),
         cpp.find_library('boost_context' + mt),
-        cpp.find_library('boost_thread' + mt)],
-    link_args :  get_option('boost_link_args'))
+        cpp.find_library('boost_thread' + mt),
+    ],
+    link_args : get_option('boost_link_args'),
+)
 
 if (boost_dep.found())
     config_h.set('HAVE_BOOST', 1, description : 'Define if the Boost library is available.')

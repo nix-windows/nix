@@ -246,7 +246,7 @@ void DerivationGoal::getDerivation()
         return;
     }
 
-    addWaitee(worker.makeSubstitutionGoal(drvPath));
+    addWaitee(upcast_goal(worker.makeSubstitutionGoal(drvPath)));
 
     state = &DerivationGoal::loadDerivation;
 }
@@ -319,10 +319,10 @@ void DerivationGoal::haveDerivation()
                 /* Nothing to wait for; tail call */
                 return DerivationGoal::gaveUpOnSubstitution();
             }
-            addWaitee(worker.makeSubstitutionGoal(
+            addWaitee(upcast_goal(worker.makeSubstitutionGoal(
                 status.known->path,
                 buildMode == bmRepair ? Repair : NoRepair,
-                getDerivationCA(*drv)));
+                getDerivationCA(*drv))));
         }
 
     if (waitees.empty()) /* to prevent hang (no wake-up event) */
@@ -345,8 +345,13 @@ void DerivationGoal::outputsSubstitutionTried()
 
     /*  If the substitutes form an incomplete closure, then we should
         build the dependencies of this derivation, but after that, we
-        can still use the substitutes for this derivation itself. */
-    if (nrIncompleteClosure > 0) retrySubstitution = true;
+        can still use the substitutes for this derivation itself.
+
+        If the nrIncompleteClosure != nrFailed, we have another issue as well.
+        In particular, it may be the case that the hole in the closure is
+        an output of the current derivation, which causes a loop if retried.
+     */
+    if (nrIncompleteClosure > 0 && nrIncompleteClosure == nrFailed) retrySubstitution = true;
 
     nrFailed = nrNoSubstituters = nrIncompleteClosure = 0;
 
@@ -398,7 +403,7 @@ void DerivationGoal::gaveUpOnSubstitution()
         if (!settings.useSubstitutes)
             throw Error("dependency '%s' of '%s' does not exist, and substitution is disabled",
                 worker.store.printStorePath(i), worker.store.printStorePath(drvPath));
-        addWaitee(worker.makeSubstitutionGoal(i));
+        addWaitee(upcast_goal(worker.makeSubstitutionGoal(i)));
     }
 
     if (waitees.empty()) /* to prevent hang (no wake-up event) */
@@ -452,7 +457,7 @@ void DerivationGoal::repairClosure()
         });
         auto drvPath2 = outputsToDrv.find(i);
         if (drvPath2 == outputsToDrv.end())
-            addWaitee(worker.makeSubstitutionGoal(i, Repair));
+            addWaitee(upcast_goal(worker.makeSubstitutionGoal(i, Repair)));
         else
             addWaitee(worker.makeDerivationGoal(drvPath2->second, StringSet(), bmRepair));
     }
@@ -503,7 +508,8 @@ void DerivationGoal::inputsRealised()
     if (useDerivation) {
         auto & fullDrv = *dynamic_cast<Derivation *>(drv.get());
 
-        if (!fullDrv.inputDrvs.empty() && fullDrv.type() == DerivationType::CAFloating) {
+        if ((!fullDrv.inputDrvs.empty() &&
+             fullDrv.type() == DerivationType::CAFloating) || fullDrv.type() == DerivationType::DeferredInputAddressed) {
             /* We are be able to resolve this derivation based on the
                now-known results of dependencies. If so, we become a stub goal
                aliasing that resolved derivation goal */
@@ -3515,6 +3521,15 @@ void DerivationGoal::registerOutputs()
             },
             [&](DerivationOutputCAFloating dof) {
                 return newInfoFromCA(dof);
+            },
+                [&](DerivationOutputDeferred) {
+                // No derivation should reach that point without having been
+                // rewritten first
+                assert(false);
+                // Ugly, but the compiler insists on having this return a value
+                // of type `ValidPathInfo` despite the `assert(false)`, so
+                // let's provide it
+                return *(ValidPathInfo*)0;
             },
         }, output.output);
 

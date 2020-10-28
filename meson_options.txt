@@ -45,11 +45,7 @@ option(
 option(
     'boost_link_args', 
     type : 'array', 
-    value : [
-        '-L/usr/lib64',
-        '-lboost_system-mt',
-        '-lboost_context-mt',
-        '-lboost_thread-mt'],
+    value : [],
     description : 'link args for boost')
 
 option(
