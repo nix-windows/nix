@@ -185,11 +185,18 @@ description : 'Whether link() works on symlinks')
 
 # Look for boost, a required dependency.
 #--------------------------------------------------
+
+if sys_name.contains('windows')
+    mt = '-mt'
+else
+    mt = ''
+endif
+
 boost_dep = declare_dependency(
     dependencies : [
-        cpp.find_library('boost_system'),
-        cpp.find_library('boost_context'),
-        cpp.find_library('boost_thread')],
+        cpp.find_library('boost_system' + mt),
+        cpp.find_library('boost_context' + mt),
+        cpp.find_library('boost_thread' + mt)],
     link_args :  get_option('boost_link_args'))
 
 if (boost_dep.found())
@@ -324,7 +331,7 @@ if (gc_c_dep.found())
         'HAVE_BOEHMGC', 1,
         description : 'Whether to use the Boehm garbage collector.')
 else
-    gc_dep = dependency('', required: true)
+    gc_dep = dependency('', required: false)
 endif
 
 

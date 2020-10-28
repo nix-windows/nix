@@ -540,7 +540,11 @@ bool NixRepl::processLine(string line)
 
             markdown += trim(stripIndentation(doc->doc));
 
+#ifndef _WIN32
             std::cout << renderMarkdownToTerminal(markdown);
+#else
+            std::cout << markdown; // BUGBUG
+#endif
         } else
             throw Error("value does not have documentation");
     }

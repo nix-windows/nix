@@ -253,6 +253,7 @@ public:
 
 
 #ifndef _WIN32
+using AutoCloseFile = class AutoCloseFD;
 class AutoCloseFD
 {
     int fd;
@@ -270,6 +271,7 @@ public:
     int release();
 };
 #else
+using AutoCloseFile = class AutoCloseWindowsHandle;
 class AutoCloseWindowsHandle
 {
     HANDLE handle;
@@ -298,7 +300,7 @@ Path createTempDir(const Path & tmpRoot = "", const Path & prefix = "nix",
     );
 
 /* Create a temporary file, returning a file handle and its path. */
-std::pair<AutoCloseFD, Path> createTempFile(const Path & prefix = "nix");
+std::pair<AutoCloseFile, Path> createTempFile(const Path & prefix = "nix");
 
 
 class Pipe

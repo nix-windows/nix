@@ -131,7 +131,7 @@ std::string_view::size_type rfindSlash(std::string_view path, std::string_view::
 
 
 #ifdef _WIN32
-hintfmt WinError::addLastError(hintfmt && hf)
+hintformat WinError::addLastError(hintformat && hf)
 {
     lastError = GetLastError();
     LPSTR errorText = NULL;
@@ -210,7 +210,9 @@ std::optional<std::wstring> getEnvW(const std::wstring & key)
 
 std::optional<std::string> getEnv(const std::string & key)
 {
-    return to_bytes(getEnvW(from_bytes(key)));
+    auto val = getEnvW(from_bytes(key));
+    if (!val) return std::nullopt;
+    return to_bytes(*val);
 }
 
 std::map<std::wstring, std::wstring, no_case_compare> getEntireEnvW()
@@ -321,9 +323,9 @@ Path absPath(Path path, std::optional<Path> dir, bool resolveSymlinks)
     if (path.length() >= 1 && isslash(path[0]))
         throw Error("cannot absolutize posix path '%1%'", path); // todo: use cygpath?
 
-    if (dir.empty())
+    if (!dir || dir->empty())
         dir = to_bytes(getCwdW());
-    return canonPath(dir + "/" + path);
+    return canonPath(*dir + "/" + path);
 }
 #endif
 
@@ -471,7 +473,7 @@ Path dirOf(const Path & path)
     if (path.length() >= 3 && (('A' <= path[0] && path[0] <= 'Z') || ('a' <= path[0] && path[0] <= 'z')) && path[1] == ':' && isslash(path[2])) {
 //        Path::size_type pos = rfindSlash(path);
         if (pos == string::npos || pos < 2)
-            throw Error(format("invalid file name2 '%1%'") % path);
+            throw Error("invalid file name2 '%1%'", path);
         Path rc = Path(path, 0, pos == 2 ? 3 : pos);
 // fprintf(stderr, "dirOf2(%s) -> [%s]%d\n", path.c_str(), rc.c_str(), path == rc);
         return rc;
@@ -741,7 +743,7 @@ std::cerr << "readDirectory("<<path<<")"<<std::endl;
 DirEntries readDirectory(const Path & path)
 {
     AutoCloseDir dir(opendir(path.c_str()));
-    if (!dir) throw SysError("opening directory '%1%'", path);
+    if (!dir) throw PosixError("opening directory '%1%'", path);
 
     return readDirectory(dir.get(), path);
 }
@@ -1103,9 +1105,9 @@ static Path tempName(Path tmpRoot, const Path & prefix, bool includePid,
     else
         return (format("%1%/%2%-%3%") % tmpRoot % prefix % counter++).str();
 #else
-    if (tmpRoot.empty()) tmpRoot = getEnv("TMPDIR");
-    if (tmpRoot.empty()) tmpRoot = getEnv("TMP");
-    if (tmpRoot.empty()) tmpRoot = getEnv("TEMP");
+    if (tmpRoot.empty()) tmpRoot = getEnv("TMPDIR").value_or("");
+    if (tmpRoot.empty()) tmpRoot = getEnv("TMP").value_or("");
+    if (tmpRoot.empty()) tmpRoot = getEnv("TEMP").value_or("");
     if (tmpRoot.empty()) throw Error("both '%TEMP%' and '%TMP%' are empty");
     tmpRoot = canonPath(tmpRoot, true);
     if (includePid)
@@ -1168,12 +1170,12 @@ Path createTempDir(const Path & tmpRoot, const Path & prefix, bool includePid, b
 #endif
 
 
-std::pair<AutoCloseFD, Path> createTempFile(const Path & prefix)
+std::pair<AutoCloseFile, Path> createTempFile(const Path & prefix)
 {
     Path tmpl(getEnv("TMPDIR").value_or("/tmp") + "/" + prefix + ".XXXXXX");
     // Strictly speaking, this is UB, but who cares...
     // FIXME: use O_TMPFILE.
-    AutoCloseFD fd(mkstemp((char *) tmpl.c_str()));
+    AutoCloseFile fd(mkstemp((char *) tmpl.c_str()));
     if (!fd)
         throw SysError("creating temporary file '%s'", tmpl);
     return {std::move(fd), tmpl};
@@ -1210,7 +1212,7 @@ Path getHome()
             homeDir = pw->pw_dir;
         }
 #else
-        Path homeDir = getEnv("USERPROFILE");
+        Path homeDir = getEnv("USERPROFILE").value_or("");
         assert(!homeDir.empty());
         homeDir = canonPath(homeDir);
 #endif
@@ -1304,7 +1306,7 @@ Paths createDirs(const Path & path)
     }
 
     if (!(dw & FILE_ATTRIBUTE_DIRECTORY)) {
-        throw Error(format("'%1%' is not a directory") % path);
+        throw Error("'%1%' is not a directory", path);
     }
 #endif
 
@@ -2295,7 +2297,7 @@ if (options.input)
         assert(options.program.find('\\') == string::npos);
 
         bool found = false;
-        for (const std::string & subpath : tokenizeString<Strings>(getEnv("PATH", ""), ";")) {
+        for (const std::string & subpath : tokenizeString<Strings>(getEnv("PATH").value_or(""), ";")) {
             Path candidate = canonPath(subpath) + '/' + options.program;
             if (pathExists(candidate       )) { executable = candidate       ; found = true; break; }
             if (pathExists(candidate+".exe")) { executable = candidate+".exe"; found = true; break; }
@@ -3043,6 +3045,7 @@ string showBytes(uint64_t bytes)
 #ifndef _WIN32
 void commonChildInit(Pipe & logPipe)
 {
+#ifndef _WIN32
     const static string pathNullDevice = "/dev/null";
     restoreSignals();
 
@@ -3068,6 +3071,9 @@ void commonChildInit(Pipe & logPipe)
     if (dup2(fdDevNull, STDIN_FILENO) == -1)
         throw PosixError("cannot dup null device into stdin");
     close(fdDevNull);
+#else
+    throw std::runtime_error("commonChildInit: not implemented");
+#endif
 }
 #endif
 

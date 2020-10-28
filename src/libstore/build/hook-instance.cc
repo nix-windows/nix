@@ -1,9 +1,10 @@
+#ifndef _WIN32
+
 #include "globals.hh"
 #include "hook-instance.hh"
 
 namespace nix {
 
-#ifndef _WIN32
 HookInstance::HookInstance()
 {
     fprintf(stderr,"starting build hook '%s'\n", settings.buildHook.get().c_str());
@@ -70,6 +71,7 @@ HookInstance::~HookInstance()
         ignoreException();
     }
 }
-#endif
 
 }
+
+#endif

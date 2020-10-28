@@ -4,7 +4,10 @@
 #include "derivation-goal.hh"
 #include "hook-instance.hh"
 
+#ifndef _WIN32
 #include <poll.h>
+#endif
+
 
 namespace nix {
 

@@ -52,13 +52,13 @@ struct LocalStoreAccessor : public FSAccessor
 
         if (::stat(realPath.c_str(), &st)) {
             if (errno == ENOENT || errno == ENOTDIR) return {Type::tMissing, 0, false};
-            throw PosixError(format("getting status-8 of '%1%'") % path);
+            throw PosixError("getting status-8 of '%1%'", path);
         }
 
         unsigned char dt = getFileType(realPath);
 
         if (dt == DT_UNKNOWN)
-            throw Error(format("file '%1%' has unsupported type") % path);
+            throw Error("file '%1%' has unsupported type", path);
 
         return {
             dt == DT_REG ? Type::tRegular :
