@@ -1,7 +1,9 @@
 #include "args.hh"
 #include "hash.hh"
 
+#ifndef _WIN32
 #include <glob.h>
+#endif
 
 #include <nlohmann/json.hpp>
 
@@ -291,6 +293,7 @@ Args::Flag Args::Flag::mkHashTypeOptFlag(std::string && longName, std::optional<
 
 static void _completePath(std::string_view prefix, bool onlyDirs)
 {
+#ifndef _WIN32
     pathCompletions = true;
     glob_t globbuf;
     int flags = GLOB_NOESCAPE | GLOB_TILDE;
@@ -308,6 +311,7 @@ static void _completePath(std::string_view prefix, bool onlyDirs)
         }
         globfree(&globbuf);
     }
+#endif
 }
 
 void completePath(size_t, std::string_view prefix)
