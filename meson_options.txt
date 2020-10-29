@@ -32,7 +32,8 @@ option(
     value : [
         '-Wdeprecated', 
         '-Wno-non-virtual-dtor',
-        '-Wno-unused-parameter'],
+        '-Wno-unused-parameter'
+    ],
     description : 'C build flags')
 
 

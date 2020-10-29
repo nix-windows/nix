@@ -20,6 +20,7 @@ rem for /f %%i in ('%OLDNIX%\bin\nix-build.exe --no-out-link -E "(import <nixpkg
 rem echo COREUTILS=%COREUTILS%
 rem exit
 
+rem pkgsi686Windows.stdenv is currently MinGW, TODO: change it to explicit pkgsi686Windows.stdenvMinGW
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o i686-stdenv-cc -E "with (import <nixpkgs> { }).pkgsi686Windows; stdenv.cc"'              ) do set STDENV_CC=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o i686-boost     -E "with (import <nixpkgs> { }).pkgsi686Windows; mingwPacman.boost   "'   ) do set BOOST=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o i686-openssl   -E "with (import <nixpkgs> { }).pkgsi686Windows; mingwPacman.openssl "'   ) do set OPENSSL=%%i

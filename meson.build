@@ -25,11 +25,13 @@ project(
 #-------------------------------------------------
 cpp = meson.get_compiler('cpp')
 
-add_project_arguments(get_option('cxxflags'), language : 'cpp')
-add_project_link_arguments(get_option('ldflags'), language: 'cpp')
+if (['gcc', 'clang'].contains(cpp.get_id()))
+  add_project_arguments(get_option('cxxflags'), language : 'cpp')
+  add_project_link_arguments(get_option('ldflags'), language: 'cpp')
 
 # We do a lot of args... we'd otherwise have to convert to __ va_args__
-add_project_arguments('-Wno-variadic-macros', language : 'cpp')
+  add_project_arguments('-Wno-variadic-macros', language : 'cpp')
+endif
 
 
 #cmake = import('cmake')
@@ -189,8 +191,11 @@ bison = find_program('bison', required : true)
 # Look for boost, a required dependency.
 #--------------------------------------------------
 boost_dep = declare_dependency(
-    include_directories : ['C:/work/nix-windows/i686-boost/mingw32/include'],
-    link_args : ['-LC:/work/nix-windows/i686-boost/mingw32/lib', '-lboost_context-mt']
+    include_directories : ['C:/work/nix-windows/x86_64-boost/include'],
+    link_args : ['-LC:/work/nix-windows/x86_64-boost/lib',
+#                '-lboost_context-mt'
+                ]
+#libboost_context-vc142-mt-x64-1_72.lib
 #   dependencies : [
 #       cpp.find_library('boost_system'),
 #       cpp.find_library('boost_context'),
@@ -206,8 +211,11 @@ boost_dep = declare_dependency(
 # Look for liblzma, a required dependency.
 #--------------------------------------------------
 liblzma_dep = declare_dependency(
-    include_directories : ['C:/work/nix-windows/i686-xz/mingw32/include'],
-    link_args : ['-LC:/work/nix-windows/i686-xz/mingw32/lib', '-llzma']
+    include_directories : ['C:/work/nix-windows/x86_64-xz/include'],
+    link_args : ['-LC:/work/nix-windows/x86_64-xz/lib',
+#                '-llzma'
+                 '-lliblzma'
+                ]
 #    dependencies: dependency('liblzma'),
 #    link_args :  get_option('lzma_link_args')
 )
@@ -225,8 +233,11 @@ liblzma_dep = declare_dependency(
 # Look for OpenSSL, a required dependency.
 #--------------------------------------------------
 openssl_dep = declare_dependency(
-    include_directories : ['C:/work/nix-windows/i686-openssl/mingw32/include'],
-    link_args : ['-LC:/work/nix-windows/i686-openssl/mingw32/lib', '-lssl', '-lcrypto']
+    include_directories : ['C:/work/nix-windows/x86_64-openssl/include'],
+    link_args : ['-LC:/work/nix-windows/x86_64-openssl/lib',
+#                '-lssl', '-lcrypto'
+                 '-llibeay32'
+                ]
 #    dependencies: cpp.find_library('ssl'),
 #    link_args :  get_option('openssl_link_args')
 )
@@ -235,8 +246,8 @@ openssl_dep = declare_dependency(
 # Look for SQLite, a required dependency.
 #--------------------------------------------------
 sqlite3_dep = declare_dependency(
-    include_directories : ['C:/work/nix-windows/i686-sqlite/mingw32/include'],
-    link_args : ['-LC:/work/nix-windows/i686-sqlite/mingw32/lib', '-lsqlite3']
+    include_directories : ['C:/work/nix-windows/x86_64-sqlite/include'],
+    link_args : ['-LC:/work/nix-windows/x86_64-sqlite/lib', '-lsqlite3' ]
 #    dependencies : dependency('sqlite3', version : '>= 3.6.19'),
 #    link_args : get_option('sqlite3_link_args')
 )
@@ -246,8 +257,11 @@ sqlite3_dep = declare_dependency(
 #--------------------------------------------------
 
 libcurl_dep = declare_dependency(
-    include_directories : ['C:/work/nix-windows/i686-curl/mingw32/include'],
-    link_args : ['-LC:/work/nix-windows/i686-curl/mingw32/lib', '-lcurl']
+    include_directories : ['C:/work/nix-windows/x86_64-curl/include'],
+    link_args : ['-LC:/work/nix-windows/x86_64-curl/lib',
+#                '-lcurl'
+                 '-llibcurl'
+                ]
 #   dependencies : dependency(
 #       'libcurl',
 #       # Meson was getting confused for some reason
@@ -289,8 +303,11 @@ libcurl_dep = declare_dependency(
 # Look for libbz2, a required dependency.
 #--------------------------------------------------
 libbz2_dep = declare_dependency(
-    include_directories : ['C:/work/nix-windows/i686-bzip2/mingw32/include'],
-    link_args : ['-LC:/work/nix-windows/i686-bzip2/mingw32/lib', '-lbz2']
+    include_directories : ['C:/work/nix-windows/x86_64-bzip2/include'],
+    link_args : ['-LC:/work/nix-windows/x86_64-bzip2/lib',
+#                '-lbz2'
+                 '-llibbz2'
+                ]
 #    dependencies : cpp.find_library('bz2'),
 #    link_args :  get_option('bz2_link_args')
 )
@@ -454,13 +471,17 @@ libbz2_dep = declare_dependency(
 #        'HAVE_LOCALE', 1,
 #        description : 'Define to 1 if you have the <locale.h> header file.')
 #endif
-#
-#if (cpp.has_header('unistd.h'))
-#    config_h.set(
-#        'HAVE_UNISTD_H', 1,
-#        description: 'Define to 1 if you have the <unistd.h> header file.')
-#endif
-#
+
+if (cpp.has_header('unistd.h'))
+    config_h.set(
+        'HAVE_UNISTD_H', 1,
+        description: 'Define to 1 if you have the <unistd.h> header file.')
+else
+    config_h.set(
+        'YY_NO_UNISTD_H', 1,
+        description: 'Define to 1 if you have no <unistd.h> header file.')
+endif
+
 #if (cpp.has_header('stdint.h'))
 #    config_h.set(
 #        'HAVE_STDINT_H', 1,
@@ -619,7 +640,11 @@ install_headers(
     conf,
     install_dir : join_paths(includedir, 'nix'))
 
-add_project_arguments('-include', 'config.h', language : 'cpp')
+if (['gcc', 'clang'].contains(cpp.get_id()))
+  add_project_arguments('-include', 'config.h', language : 'cpp')
+else
+  add_project_arguments('-FI', 'config.h', language : 'cpp')
+endif
 src_inc = [include_directories('.', 'src')]
 
 project_dirs = [
