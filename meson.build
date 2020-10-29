@@ -186,11 +186,11 @@ description : 'Whether link() works on symlinks')
 # Look for boost, a required dependency.
 #--------------------------------------------------
 
-if sys_name.contains('windows')
-    mt = '-mt'
-else
+#if sys_name.contains('windows')
+#    mt = '-mt'
+#else
     mt = ''
-endif
+#endif
 
 boost_dep = declare_dependency(
     dependencies : [
@@ -270,9 +270,14 @@ zlib_dep = declare_dependency(
     link_args :  get_option('zlib_link_args'))
 
 
-# Look for lowdown, a required dependency.
+# Look for lowdown, an optional dependency.
 #--------------------------------------------------
-lowdown_dep =  dependency('lowdown')
+lowdown_dep =  dependency('lowdown', required : false)
+if lowdown_dep.found()
+    config_h.set(
+        'HAVE_LOWDOWN', 1,
+        description : 'Whether to use the lowdown library to output markdown at run time.')
+endif
 
 
 # Look for libdl, a required dependency on Unix.
@@ -310,6 +315,8 @@ if (libsodium_lib.found())
         dependencies : libsodium_lib,
         link_args :  get_option('sodium_link_args'))
     config_h.set('HAVE_SODIUM', 1, description : 'Whether to use libsodium for cryptography.')
+else
+    libsodium_dep = dependency('', required: get_option('with_libsodium'))
 endif
 
 
