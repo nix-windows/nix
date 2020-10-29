@@ -35,7 +35,8 @@ _SQLITE        = $(SQLITE:/=\)
 
 
 CC=$(_STDENV_CC)\bin\cl.exe
-CC_FLAGS=/nologo /std:c++latest /EHsc /MT /Zi /GL
+RUNTIME_LINK=/MT
+CC_FLAGS=/nologo /std:c++latest /EHsc /Zi /GL $(RUNTIME_LINK)
 CC_FLAGS=$(CC_FLAGS) -I$(_BOOST)\include \
                      -I$(_OPENSSL)\include \
                      -I$(_XZ)\include \
