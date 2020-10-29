@@ -18,17 +18,18 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1602702596,
-        "narHash": "sha256-fqJ4UgOb4ZUnCDIapDb4gCrtAah5Rnr2/At3IzMitig=",
-        "owner": "NixOS",
+        "lastModified": 1603932967,
+        "narHash": "sha256-j+0QT5rW8iz6J/nhD2zrWAz7IkCm+EnTP2aRekQPM3A=",
+        "owner": "nix-windows",
         "repo": "nixpkgs",
-        "rev": "ad0d20345219790533ebe06571f82ed6b034db31",
+        "rev": "52d0a80dc584f1283d6f1a535d1f3c901b697e52",
         "type": "github"
       },
       "original": {
-        "id": "nixpkgs",
-        "ref": "nixos-20.09-small",
-        "type": "indirect"
+        "owner": "nix-windows",
+        "ref": "libarchive-windows-29.09",
+        "repo": "nixpkgs",
+        "type": "github"
       }
     },
     "root": {

@@ -1,7 +1,7 @@
 {
   description = "The purely functional package manager";
 
-  inputs.nixpkgs.url = "nixpkgs/nixos-20.09-small";
+  inputs.nixpkgs = { url = "github:nix-windows/nixpkgs/libarchive-windows-29.09"; };
   inputs.lowdown-src = { url = "github:kristapsdz/lowdown"; flake = false; };
 
   outputs = { self, nixpkgs, lowdown-src }:
@@ -76,8 +76,8 @@
             buildPackages.ninja
 
             # Tests
-            buildPackages.git
-            buildPackages.mercurial
+            buildPackages.buildPackages.git # hack around bogus target sensativity
+            buildPackages.buildPackages.mercurial
             buildPackages.jq
           ];
 
@@ -89,10 +89,9 @@
             libarchive
             boost
             nlohmann_json
-            lowdown
             gmock
           ]
-          ++ lib.optional (!stdenv.hostPlatform.isWindows) editline
+          ++ lib.optionals (!stdenv.hostPlatform.isWindows) [ editline lowdown ]
           ++ lib.optionals stdenv.isLinux [libseccomp utillinuxMinimal]
           ++ lib.optional (stdenv.isLinux || stdenv.isDarwin) libsodium;
 
@@ -103,8 +102,9 @@
           });
 
         propagatedDeps =
-          [ (boehmgc.override { enableLargeConfig = true; })
-          ];
+          lib.optional
+            (!stdenv.hostPlatform.isWindows)
+            (boehmgc.override { enableLargeConfig = true; });
 
         perlDeps =
           [ perl
@@ -147,6 +147,8 @@
 
           configureFlags = configureFlags ++
             [ "--sysconfdir=/etc" ];
+
+          mesonAutoFeatures = "auto";
 
           enableParallelBuilding = true;
 
@@ -215,7 +217,7 @@
 
           outputs = [ "out" "bin" "dev" ];
 
-          nativeBuildInputs = [ which ];
+          nativeBuildInputs = [ buildPackages.which ];
 
           configurePhase =
             ''
@@ -490,6 +492,18 @@
 
           stripAllList = ["bin"];
         };
+        nix-windows = let
+          nixpkgs-windows = import nixpkgs {
+            inherit system;
+            crossSystem = nixpkgs.lib.systems.examples.mingwW64;
+            overlays = [ self.overlay ];
+            config = {
+              permittedInsecurePackages = [
+                "openssl-1.0.2u"
+              ];
+            };
+          };
+        in nixpkgs-windows.nix;
       });
 
       defaultPackage = forAllSystems (system: self.packages.${system}.nix);
