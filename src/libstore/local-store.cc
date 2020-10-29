@@ -690,10 +690,10 @@ void canonicalisePathMetaData(const Path & path, InodesSeen & inodesSeen)
     {
       // nix-store path is shorter than 255 chars and has no unicode, so it is safe to skip \\?\ prefixing, anyway compact.exe does undestand it
       if (isDirectory(path)) {
-        auto rc = runProgramWithOptions(RunOptions("compact", { "/C", "/S:"+path, "/I" }));
+        auto rc = runProgramWithStatus(RunOptions("compact", { "/C", "/S:"+path, "/I" }));
         assert(rc.first == 0);
       } else {
-        auto rc = runProgramWithOptions(RunOptions("compact", { "/C",       path, "/I" }));
+        auto rc = runProgramWithStatus(RunOptions("compact", { "/C",       path, "/I" }));
         assert(rc.first == 0);
       }
     }

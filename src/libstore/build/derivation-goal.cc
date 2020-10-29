@@ -27,8 +27,8 @@
 #include <unistd.h>
 #include <sys/mman.h>
 #include <sys/utsname.h>
-#endif
 #include <sys/resource.h>
+#endif
 
 #if HAVE_STATVFS
 #include <sys/statvfs.h>

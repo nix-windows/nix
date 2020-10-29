@@ -3581,11 +3581,13 @@ void EvalState::createBaseEnv()
     mkInt(v, 5);
     addConstant("__langVersion", v);
 
+#ifndef _WIN32
     // Miscellaneous
     if (evalSettings.enableNativeCode) {
         addPrimOp("__importNative", 2, prim_importNative);
         addPrimOp("__exec", 1, prim_exec);
     }
+#endif
 
     /* Add a value containing the current Nix expression search path. */
     mkList(v, searchPath.size());
