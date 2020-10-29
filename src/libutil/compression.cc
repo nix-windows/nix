@@ -8,7 +8,7 @@
 #include <cstdio>
 #include <cstring>
 
-#ifndef _MSC_VER // brotli and cmake not ported to nix/msvc yet
+#ifndef _WIN32 //!(defined(_MSC_VER) || defined(__MINGW32__)) // brotli and cmake not ported to nix/msvc yet
 #include <brotli/decode.h>
 #include <brotli/encode.h>
 #endif
@@ -149,7 +149,7 @@ struct BzipDecompressionSink : ChunkedCompressionSink
     }
 };
 
-#ifndef _MSC_VER
+#ifndef _WIN32
 struct BrotliDecompressionSink : ChunkedCompressionSink
 {
     Sink & nextSink;
@@ -219,7 +219,7 @@ ref<CompressionSink> makeDecompressionSink(const std::string & method, Sink & ne
         return make_ref<XzDecompressionSink>(nextSink);
     else if (method == "bzip2")
         return make_ref<BzipDecompressionSink>(nextSink);
-#ifndef _MSC_VER
+#ifndef _WIN32
     else if (method == "br")
         return make_ref<BrotliDecompressionSink>(nextSink);
 #endif
@@ -359,7 +359,7 @@ struct BzipCompressionSink : ChunkedCompressionSink
     }
 };
 
-#ifndef _MSC_VER
+#ifndef _WIN32
 struct BrotliCompressionSink : ChunkedCompressionSink
 {
     Sink & nextSink;
@@ -422,7 +422,7 @@ ref<CompressionSink> makeCompressionSink(const std::string & method, Sink & next
         return make_ref<XzCompressionSink>(nextSink, parallel);
     else if (method == "bzip2")
         return make_ref<BzipCompressionSink>(nextSink);
-#ifndef _MSC_VER
+#ifndef _WIN32
     else if (method == "br")
         return make_ref<BrotliCompressionSink>(nextSink);
 #endif

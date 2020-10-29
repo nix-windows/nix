@@ -10,7 +10,7 @@
 src_inc += include_directories('.', 'primops')
 
 libexpr_src = files(
-    join_paths(meson.source_root(), 'src/libexpr/primops/context.cc'),
+#   join_paths(meson.source_root(), 'src/libexpr/primops/context.cc'),
     join_paths(meson.source_root(), 'src/libexpr/primops/fetchGit.cc'),
     join_paths(meson.source_root(), 'src/libexpr/primops/fetchMercurial.cc'),
     join_paths(meson.source_root(), 'src/libexpr/primops/fromTOML.cc'),
@@ -33,7 +33,7 @@ libexpr_headers = files(
     join_paths(meson.source_root(), 'src/libexpr/common-eval-args.hh'),
     join_paths(meson.source_root(), 'src/libexpr/eval.hh'),
     join_paths(meson.source_root(), 'src/libexpr/eval-inline.hh'),
-    join_paths(meson.source_root(), 'src/libexpr/function-trace.hh'),
+#   join_paths(meson.source_root(), 'src/libexpr/function-trace.hh'),
     join_paths(meson.source_root(), 'src/libexpr/get-drvs.hh'),
     join_paths(meson.source_root(), 'src/libexpr/json-to-value.hh'),
     join_paths(meson.source_root(), 'src/libexpr/names.hh'),
@@ -51,14 +51,15 @@ libexpr_headers = files(
 #============================================================================
 
 libexpr_dep_list = [
-    gc_dep,
-    libdl_dep,
-    libsodium_dep,
+    boost_dep,
+#   gc_dep,
+#   libdl_dep,
+#   libsodium_dep,
 ]
 
-if sys_name == 'freebsd'
-    libexpr_dep_list += libdl_dep
-endif
+#if sys_name == 'freebsd'
+#    libexpr_dep_list += libdl_dep
+#endif
 
 
 

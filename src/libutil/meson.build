@@ -56,10 +56,11 @@ libutil_dep_list = [
     boost_dep,
     libbz2_dep,
     liblzma_dep,
-    libbrotli_dep,
+#   libbrotli_dep,
     openssl_dep,
-    pthread_dep,
-    libsodium_dep]
+#   pthread_dep,
+#   libsodium_dep
+]
 
 
 

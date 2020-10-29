@@ -31,7 +31,9 @@
 #endif
 
 #ifdef _WIN32
+#ifdef _MSC_VER
 #define BOOST_STACKTRACE_USE_BACKTRACE
+#endif
 #include <boost/stacktrace.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 #include <codecvt>

@@ -25,9 +25,11 @@ libmain_headers = files(
 #============================================================================
 
 libmain_dep_list = [
-    pthread_dep,
+    boost_dep,
+#   pthread_dep,
     openssl_dep,
-    libsodium_dep]
+#   libsodium_dep
+]
 
 
 
