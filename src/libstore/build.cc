@@ -4608,6 +4608,10 @@ void Worker::run(const Goals & _topGoals)
 }
 
 
+typedef WINBOOL (WINAPI * TGetQueuedCompletionStatusEx)(HANDLE, LPOVERLAPPED_ENTRY, ULONG, PULONG, DWORD, WINBOOL);
+
+TGetQueuedCompletionStatusEx pGetQueuedCompletionStatusEx = (TGetQueuedCompletionStatusEx)(-1);
+
 void Worker::waitForInput()
 {
     printMsg(lvlVomit, "waiting for children");
@@ -4680,14 +4684,25 @@ void Worker::waitForInput()
     }
 #else
 
+    if (pGetQueuedCompletionStatusEx == (TGetQueuedCompletionStatusEx)(-1)) {
+      pGetQueuedCompletionStatusEx = (TGetQueuedCompletionStatusEx) GetProcAddress(GetModuleHandle("kernel32"), "GetQueuedCompletionStatusEx");
+      assert(pGetQueuedCompletionStatusEx != (TGetQueuedCompletionStatusEx)(-1));
+    }
 
     OVERLAPPED_ENTRY oentries[0x20] = {0};
     ULONG removed;
-    if (!GetQueuedCompletionStatusEx(ioport.get(), oentries, sizeof(oentries)/sizeof(*oentries), &removed, useTimeout ? (timeout.tv_sec*1000) : INFINITE, FALSE)) {
-        WinError winError("GetQueuedCompletionStatusEx");
-        if (winError.lastError != WAIT_TIMEOUT)
-            throw winError;
+
+    if (pGetQueuedCompletionStatusEx != 0) { // we are on at least Windows Vista / Server 2008
+        if (!pGetQueuedCompletionStatusEx(ioport.get(), oentries, sizeof(oentries)/sizeof(*oentries), &removed, useTimeout ? (timeout.tv_sec*1000) : INFINITE, FALSE)) {
+            WinError winError("GetQueuedCompletionStatusEx");
+            if (winError.lastError != WAIT_TIMEOUT)
+                throw winError;
+        }
+    } else { // we are on legacy Windows
+      assert(!"no GetQueuedCompletionStatusEx");
     }
+
+
 /*
     std::cerr << "XXX removed       " << removed        << std::endl;
     for (ULONG i = 0; i<removed; i++ ) {
