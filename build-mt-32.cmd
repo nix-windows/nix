@@ -23,7 +23,6 @@ rem exit
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o i686-stdenv-cc -E "with (import <nixpkgs> { }).pkgsi686Windows; stdenv.cc"'                                              ) do set STDENV_CC=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o i686-boost     -E "with (import <nixpkgs> { }).pkgsi686Windows; boost172.override{ staticRuntime=true; static=true; }"'   ) do set BOOST=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o i686-openssl   -E "with (import <nixpkgs> { }).pkgsi686Windows; openssl .override{ staticRuntime=true; static=true; }"'   ) do set OPENSSL=%%i
-for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o i686-zlib      -E "with (import <nixpkgs> { }).pkgsi686Windows; zlib    .override{ staticRuntime=true; static=true; }"'   ) do set ZLIB=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o i686-xz        -E "with (import <nixpkgs> { }).pkgsi686Windows; xz      .override{ staticRuntime=true; static=true; }"'   ) do set XZ=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o i686-bzip2     -E "with (import <nixpkgs> { }).pkgsi686Windows; bzip2   .override{ staticRuntime=true; static=true; }"'   ) do set BZIP2=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o i686-curl      -E "with (import <nixpkgs> { }).pkgsi686Windows; curl    .override{ staticRuntime=true; static=true; zlib=zlib.override{staticRuntime=true; static=true;}; openssl=openssl.override{staticRuntime=true;}; }"') do set CURL=%%i

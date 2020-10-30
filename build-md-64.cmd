@@ -22,7 +22,6 @@ rem exit
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o x86_64-stdenv-cc -E "with (import <nixpkgs> { }); stdenv.cc                         "' ) do set STDENV_CC=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o x86_64-boost     -E "with (import <nixpkgs> { }); boost172 .override{ static=true; }"' ) do set BOOST=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o x86_64-openssl   -E "with (import <nixpkgs> { }); openssl                           "' ) do set OPENSSL=%%i
-for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o x86_64-zlib      -E "with (import <nixpkgs> { }); zlib                              "' ) do set ZLIB=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o x86_64-xz        -E "with (import <nixpkgs> { }); xz                                "' ) do set XZ=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o x86_64-bzip2     -E "with (import <nixpkgs> { }); bzip2                             "' ) do set BZIP2=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o x86_64-curl      -E "with (import <nixpkgs> { }); curl                              "' ) do set CURL=%%i

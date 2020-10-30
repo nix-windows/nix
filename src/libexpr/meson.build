@@ -50,16 +50,21 @@ libexpr_headers = files(
 # dependancies
 #============================================================================
 
-libexpr_dep_list = [
+if not sys_name.contains('windows')
+  libexpr_dep_list = [
+    gc_dep,
+    libdl_dep,
+    libsodium_dep,
+  ]
+else
+  libexpr_dep_list = [
     boost_dep,
-#   gc_dep,
-#   libdl_dep,
-#   libsodium_dep,
-]
+  ]
+endif
 
-#if sys_name == 'freebsd'
-#    libexpr_dep_list += libdl_dep
-#endif
+if sys_name == 'freebsd'
+    libexpr_dep_list += libdl_dep
+endif
 
 
 
@@ -119,7 +124,7 @@ libexpr_src += custom_target(
 
 libexpr_lib = library(
     'nixexpr',
-    install : true,
+    install : not sys_name.contains('windows'), # static_library in windows
     install_mode : 'rwxr-xr-x',
     install_dir : libdir,
     include_directories : src_inc,
@@ -128,6 +133,8 @@ libexpr_lib = library(
     link_args : libexpr_link_args,
     dependencies : libexpr_dep_list)
 
-install_headers(
+if not sys_name.contains('windows')
+  install_headers(
     libexpr_headers,
     install_dir : join_paths(includedir, 'nix'))
+endif

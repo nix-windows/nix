@@ -72,31 +72,42 @@ libstore_headers = files(
     join_paths(meson.source_root(), 'src/libstore/store-api.hh'),
     join_paths(meson.source_root(), 'src/libstore/worker-protocol.hh'))
 
+if not sys_name.contains('windows')
 libstore_data = files(
     join_paths(meson.source_root(), 'src/libstore/sandbox-defaults.sb'),
     join_paths(meson.source_root(), 'src/libstore/sandbox-minimal.sb'),
     join_paths(meson.source_root(), 'src/libstore/sandbox-network.sb'))
+endif
 
 # dependancies
 #============================================================================
 
-libstore_dep_list = [
+if not sys_name.contains('windows')
+  libstore_dep_list = [
     boost_dep,
     libbz2_dep,
     libcurl_dep,
-#   libdl_dep,
-#   pthread_dep,
+    libdl_dep,
+    pthread_dep,
     sqlite3_dep,
-#   libsodium_dep
-]
+    libsodium_dep
+  ]
+else
+  libstore_dep_list = [
+    boost_dep,
+    libbz2_dep,
+    libcurl_dep,
+    sqlite3_dep,
+  ]
+endif
 
-#if sys_name.contains('linux')
-#    libstore_dep_list += libseccomp_dep
-#endif
+if sys_name.contains('linux')
+    libstore_dep_list += libseccomp_dep
+endif
 
-#if sys_name.contains('freebsd')
-#    libstore_dep_list += libdl_dep
-#endif
+if sys_name.contains('freebsd')
+    libstore_dep_list += libdl_dep
+endif
 
 
 
@@ -114,39 +125,50 @@ libstore_link_args = []
 
 # compiler args
 #============================================================================
-
-libstore_cxx_args = [
-#   '-DNIX_PREFIX="@0@" '.format(prefix),
+if not sys_name.contains('windows')
+  libstore_cxx_args = [
+    '-DNIX_PREFIX="@0@" '.format(prefix),
     '-DNIX_STORE_DIR="@0@" '.format(nixstoredir),
     '-DNIX_DATA_DIR="@0@" '.format(datadir),
     '-DNIX_STATE_DIR="@0@" '.format(join_paths(localstatedir, 'nix')),
     '-DNIX_LOG_DIR="@0@" '.format(join_paths(localstatedir, 'log/nix')),
     '-DNIX_CONF_DIR="@0@" '.format(join_paths(sysconfdir, 'nix')),
-#   '-DNIX_LIBEXEC_DIR="@0@" '.format(libexecdir),
+    '-DNIX_LIBEXEC_DIR="@0@" '.format(libexecdir),
     '-DNIX_BIN_DIR="@0@" '.format(bindir),
-#   '-DNIX_MAN_DIR="@0@" '.format(mandir),
-#   '-DSANDBOX_SHELL="@0@" '.format(get_option('sandbox_shell')),
-#   '-DLSOF="@0@" '.format(lsof)
-]
-
+    '-DNIX_MAN_DIR="@0@" '.format(mandir),
+    '-DSANDBOX_SHELL="@0@" '.format(get_option('sandbox_shell')),
+    '-DLSOF="@0@" '.format(lsof)
+  ]
+else
+  libstore_cxx_args = [
+    '-DNIX_STORE_DIR="@0@" '.format(nixstoredir),
+    '-DNIX_DATA_DIR="@0@" '.format(datadir),
+    '-DNIX_STATE_DIR="@0@" '.format(join_paths(localstatedir, 'nix')),
+    '-DNIX_LOG_DIR="@0@" '.format(join_paths(localstatedir, 'log/nix')),
+    '-DNIX_CONF_DIR="@0@" '.format(join_paths(sysconfdir, 'nix')),
+    '-DNIX_BIN_DIR="@0@" '.format(bindir),
+  ]
+endif
 
 
 
 # targets
 #============================================================================
 
-#gen_header = '''
-#  echo 'R"foo(' >> "$1"
-#  cat @INPUT@ >> "$1"
-#  echo ')foo"' >> "$1"
-#'''
-#
-#libstore_src += custom_target(
-#  'schema.sql.gen.hh',
-#  output : 'schema.sql.gen.hh',
-#  input : 'schema.sql',
-#  command : [bash, '-c', gen_header, 'sh', '@OUTPUT@'])
+# FIXME: there is just no `sh`
+if not sys_name.contains('windows')
+gen_header = '''
+  echo 'R"foo(' >> "$1"
+  cat @INPUT@ >> "$1"
+  echo ')foo"' >> "$1"
+'''
 
+libstore_src += custom_target(
+  'schema.sql.gen.hh',
+  output : 'schema.sql.gen.hh',
+  input : 'schema.sql',
+  command : [bash, '-c', gen_header, 'sh', '@OUTPUT@'])
+endif
 
 
 
@@ -155,7 +177,7 @@ libstore_cxx_args = [
 
 libstore_lib = library(
     'nixstore',
-    install : true,
+    install : not sys_name.contains('windows'), # static_library in windows
     install_mode : 'rwxr-xr-x',
     install_dir : libdir,
     include_directories : src_inc,
@@ -165,10 +187,12 @@ libstore_lib = library(
     link_args : libstore_link_args,
     dependencies : libstore_dep_list)
 
-install_headers(
+if not sys_name.contains('windows')
+  install_headers(
     libstore_headers,
     install_dir : join_paths(includedir, 'nix'))
 
-install_data(
+  install_data(
     libstore_data,
     install_dir : join_paths(datadir, 'nix/sandbox'))
+endif

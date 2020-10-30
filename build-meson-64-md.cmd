@@ -26,7 +26,6 @@ for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o x86_64-stdenv-cc    
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o x86_64-stdenv-cc-redist -E "with (import <nixpkgs> { }); stdenv.cc.redist                 "') do set STDENV_CC_REDIST=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o x86_64-boost            -E "with (import <nixpkgs> { }); boost172.override{ static=true; }"') do set BOOST=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o x86_64-openssl          -E "with (import <nixpkgs> { }); openssl                          "') do set OPENSSL=%%i
-for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o x86_64-zlib             -E "with (import <nixpkgs> { }); zlib                             "') do set ZLIB=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o x86_64-xz               -E "with (import <nixpkgs> { }); xz                               "') do set XZ=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o x86_64-bzip2            -E "with (import <nixpkgs> { }); bzip2                            "') do set BZIP2=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o x86_64-curl             -E "with (import <nixpkgs> { }); curl                             "') do set CURL=%%i
@@ -51,8 +50,9 @@ PATH=%STDENV_CC%\bin;%STDENV_CC_REDIST%\x64\Microsoft.VC142.DebugCRT;%STDENV_CC_
 
 md                                       ..\builddir64-vs2019-64-md
 
-    %MESON%\mingw64\bin\meson setup      ..\builddir64-vs2019-64-md . --backend vs2019 --default-library static --buildtype release
-rem --optimization 2
+    %MESON%\mingw64\bin\meson setup      ..\builddir64-vs2019-64-md . --backend vs2019 --default-library static --buildtype release ^
+                                                                      -Db_vscrt=md -Db_lto=true ^
+                                                                      -Dwith_boost=%BOOST% -Dwith_openssl=%OPENSSL% -Dwith_lzma=%XZ% -Dwith_bz2=%BZIP2% -Dwith_curl=%CURL% -Dwith_sqlite3=%SQLITE%
 
 rem %MESON%\mingw64\bin\meson compile -C ..\builddir64-vs2019-64-md --clean
     %MESON%\mingw64\bin\meson compile -C ..\builddir64-vs2019-64-md --verbose

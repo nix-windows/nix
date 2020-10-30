@@ -24,7 +24,6 @@ rem pkgsi686Windows.stdenv is currently MinGW, TODO: change it to explicit pkgsi
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o i686-stdenv-cc -E "with (import <nixpkgs> { }).pkgsi686Windows; stdenv.cc"'              ) do set STDENV_CC=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o i686-boost     -E "with (import <nixpkgs> { }).pkgsi686Windows; mingwPacman.boost   "'   ) do set BOOST=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o i686-openssl   -E "with (import <nixpkgs> { }).pkgsi686Windows; mingwPacman.openssl "'   ) do set OPENSSL=%%i
-for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o i686-zlib      -E "with (import <nixpkgs> { }).pkgsi686Windows; mingwPacman.zlib    "'   ) do set ZLIB=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o i686-xz        -E "with (import <nixpkgs> { }).pkgsi686Windows; mingwPacman.xz      "'   ) do set XZ=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o i686-bzip2     -E "with (import <nixpkgs> { }).pkgsi686Windows; mingwPacman.bzip2   "'   ) do set BZIP2=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o i686-curl      -E "with (import <nixpkgs> { }).pkgsi686Windows; mingwPacman.curl    "'   ) do set CURL=%%i
@@ -46,12 +45,13 @@ echo MESON=%MESON%
 
 PATH=%STDENV_CC%\bin;%BISON%\usr\bin;%FLEX%\usr\bin;%PATH%
 
-md ..\builddir
+md                                       ..\builddir-gcc-32
 
-    %MESON%\mingw32\bin\meson setup   ..\builddir .
-rem %MESON%\mingw32\bin\meson compile -C ..\builddir --clean
-    %MESON%\mingw32\bin\meson compile -C ..\builddir
-rem %MESON%\mingw32\bin\meson install -C ..\builddir
+    %MESON%\mingw32\bin\meson setup      ..\builddir-gcc-32 . --buildtype release --default-library static ^
+                                                              -Dwith_boost=%BOOST%/mingw32 -Dwith_openssl=%OPENSSL%/mingw32 -Dwith_lzma=%XZ%/mingw32 -Dwith_bz2=%BZIP2%/mingw32 -Dwith_curl=%CURL%/mingw32 -Dwith_sqlite3=%SQLITE%/mingw32
+rem %MESON%\mingw32\bin\meson compile -C ..\builddir-gcc-32 --clean
+    %MESON%\mingw32\bin\meson compile -C ..\builddir-gcc-32
+    %MESON%\mingw32\bin\meson install -C ..\builddir-gcc-32
 
 rem remove garbage like downloaded .iso files
 rem %OLDNIX%\bin\nix-store.exe --gc

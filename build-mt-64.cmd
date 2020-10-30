@@ -23,7 +23,6 @@ rem exit
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o x86_64-stdenv-cc -E "with (import <nixpkgs> { }); stdenv.cc"'                                            ) do set STDENV_CC=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o x86_64-boost     -E "with (import <nixpkgs> { }); boost172.override{ staticRuntime=true; static=true; }"') do set BOOST=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o x86_64-openssl   -E "with (import <nixpkgs> { }); openssl .override{ staticRuntime=true;              }"') do set OPENSSL=%%i
-for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o x86_64-zlib      -E "with (import <nixpkgs> { }); zlib    .override{ staticRuntime=true;              }"') do set ZLIB=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o x86_64-xz        -E "with (import <nixpkgs> { }); xz      .override{ staticRuntime=true;              }"') do set XZ=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o x86_64-bzip2     -E "with (import <nixpkgs> { }); bzip2   .override{ staticRuntime=true;              }"') do set BZIP2=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o x86_64-curl      -E "with (import <nixpkgs> { }); curl    .override{ staticRuntime=true; zlib=zlib.override{staticRuntime=true;}; openssl=openssl.override{staticRuntime=true;}; }"') do set CURL=%%i

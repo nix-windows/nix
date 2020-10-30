@@ -24,13 +24,16 @@ libmain_headers = files(
 # dependancies
 #============================================================================
 
-libmain_dep_list = [
-    boost_dep,
-#   pthread_dep,
+if not sys_name.contains('windows')
+  libmain_dep_list = [
+    pthread_dep,
     openssl_dep,
-#   libsodium_dep
-]
-
+    libsodium_dep]
+else
+  libmain_dep_list = [
+    boost_dep,
+    openssl_dep]
+endif
 
 
 
@@ -67,7 +70,7 @@ libstore_cxx_args = []
 
 libmain_lib = library(
     'nixmain',
-    install : true,
+    install : not sys_name.contains('windows'), # static_library in windows
     install_mode : 'rwxr-xr-x',
     install_dir : libdir,
     include_directories : src_inc,
@@ -76,6 +79,8 @@ libmain_lib = library(
     link_args : libmain_link_args,
     dependencies : libmain_dep_list)
 
-install_headers(
+if not sys_name.contains('windows')
+  install_headers(
     libmain_headers,
     install_dir : join_paths(includedir, 'nix'))
+endif

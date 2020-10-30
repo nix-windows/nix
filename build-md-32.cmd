@@ -23,7 +23,6 @@ rem exit
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o i686-stdenv-cc -E "with (import <nixpkgs> { }).pkgsi686Windows; stdenv.cc                         "' ) do set STDENV_CC=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o i686-boost     -E "with (import <nixpkgs> { }).pkgsi686Windows; boost172 .override{ static=true; }"' ) do set BOOST=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o i686-openssl   -E "with (import <nixpkgs> { }).pkgsi686Windows; openssl                           "' ) do set OPENSSL=%%i
-for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o i686-zlib      -E "with (import <nixpkgs> { }).pkgsi686Windows; zlib                              "' ) do set ZLIB=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o i686-xz        -E "with (import <nixpkgs> { }).pkgsi686Windows; xz                                "' ) do set XZ=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o i686-bzip2     -E "with (import <nixpkgs> { }).pkgsi686Windows; bzip2                             "' ) do set BZIP2=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o i686-curl      -E "with (import <nixpkgs> { }).pkgsi686Windows; curl                              "' ) do set CURL=%%i
