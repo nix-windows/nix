@@ -1239,16 +1239,18 @@ SymlinkType createSymlink(const Path & target, const Path & link)
 {
     if (pCreateSymbolicLinkW == (TCreateSymbolicLinkW)(-1)) {
       pCreateSymbolicLinkW = (TCreateSymbolicLinkW)GetProcAddress(GetModuleHandle("kernel32"), "CreateSymbolicLinkW");
+//    pCreateSymbolicLinkW = 0; // debug
       assert(pCreateSymbolicLinkW != (TCreateSymbolicLinkW)(-1));
     }
 
+    assert(!target.empty() && !link.empty());
+    assert(target[0] != '/' && link[0] != '/');
+    std::wstring wlink = pathW(link);
+    optional<std::wstring> wtarget = maybePathW(target);
+    SymlinkType st;
+
     if (pCreateSymbolicLinkW != 0) { // we are at least on Windows Vista / Server 2008
-        assert(!target.empty() && !link.empty());
-        assert(target[0] != '/' && link[0] != '/');
         BOOLEAN rc;
-        std::wstring wlink = pathW(link);
-        optional<std::wstring> wtarget = maybePathW(target);
-        SymlinkType st;
         if (!wtarget) {
             std::cerr << "path not absolute (" << target  << "), so make a dangling symlink" << std::endl;
             std::wstring danglingTarget = from_bytes(target);
@@ -1275,26 +1277,132 @@ SymlinkType createSymlink(const Path & target, const Path & link)
             }
         }
         if (!rc) {
-            WinError winError("creating symlink from '%1%' to '%2%'", link, target);
+            WinError winError("createSymlink('%1%', '%2%')", link, target);
             if (winError.lastError == ERROR_PRIVILEGE_NOT_HELD) {
-                fprintf(stderr, "TODO: wscalate UAC and add privilege\n");fflush(stderr);
+                fprintf(stderr, "TODO: escalate UAC and add privilege\n");fflush(stderr);
                 _exit(113);
             }
             fprintf(stderr, "CreateSymbolicLinkW failed code=%ld\n", winError.lastError);
             throw winError;
         }
-        return st;
     } else {
         // we are on legacy Windows with no symlinks
         // actually, we are able to create symlinks and read them back, but they do not behave like symlinks
         // what can be done here?
         // 1. for directories there are junctions
         // 2. for files there are hard links
-        // is it enough?
-        SymlinkType st;
-        assert(!"FIXME: no symlink api");
-        return st;
+        //    is it enough? probably, yes. but it will change GC and
+
+        if (!wtarget) {
+            std::cerr << "path not absolute (" << target  << "), so make a dangling symlink" << std::endl;
+            std::wstring danglingTarget = from_bytes(target);
+            std::replace(danglingTarget.begin(), danglingTarget.end(), '/', '\\');
+
+            const size_t bufferSize = offsetof(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer) + (danglingTarget.size()+1) * 4;
+            assert(bufferSize <= MAXIMUM_REPARSE_DATA_BUFFER_SIZE);
+            {
+                AutoCloseWindowsHandle fd = CreateFileW(wlink.c_str(), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_POSIX_SEMANTICS, 0);
+                if (fd.get() == INVALID_HANDLE_VALUE)
+                    throw WinError("createSymlink: CreateFileW(%1%)", wlink.c_str());
+            }
+            {
+                AutoCloseWindowsHandle hFile = CreateFileW(wlink.c_str(), 0, FILE_SHARE_READ|FILE_SHARE_WRITE, 0, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT|FILE_FLAG_POSIX_SEMANTICS, 0);
+                if (hFile.get() == INVALID_HANDLE_VALUE)
+                    throw WinError("createSymlink('%1%'): CreateFileW", wlink.c_str());
+
+                REPARSE_DATA_BUFFER *rdb = (REPARSE_DATA_BUFFER *)malloc(MAXIMUM_REPARSE_DATA_BUFFER_SIZE);
+                memset(rdb, 0, MAXIMUM_REPARSE_DATA_BUFFER_SIZE);
+                rdb->ReparseTag = IO_REPARSE_TAG_SYMLINK;
+                rdb->SymbolicLinkReparseBuffer.Flags = /*SYMLINK_FLAG_RELATIVE*/1;
+                rdb->SymbolicLinkReparseBuffer.SubstituteNameOffset = 0;
+                rdb->SymbolicLinkReparseBuffer.SubstituteNameLength = danglingTarget.size();
+                rdb->SymbolicLinkReparseBuffer.PrintNameOffset      = (danglingTarget.size()+1) * 2;
+                rdb->SymbolicLinkReparseBuffer.PrintNameLength      = danglingTarget.size();
+                memcpy(((char*)rdb->SymbolicLinkReparseBuffer.PathBuffer)+rdb->SymbolicLinkReparseBuffer.SubstituteNameOffset, danglingTarget.c_str(), danglingTarget.size()*2);
+                memcpy(((char*)rdb->SymbolicLinkReparseBuffer.PathBuffer)+rdb->SymbolicLinkReparseBuffer.PrintNameOffset     , danglingTarget.c_str(), danglingTarget.size()*2);
+
+                DWORD rd;
+                BOOL rc = DeviceIoControl(hFile.get(), FSCTL_SET_REPARSE_POINT, 0, 0, rdb, bufferSize, &rd, NULL);
+                free(rdb);
+                if (!rc)
+                    throw WinError("createSymlink('%1%'): DeviceIoControl", wlink.c_str());
+            }
+            st = SymlinkTypeDangling;
+        } else {
+            while (wtarget->size() >= 2 && (*wtarget)[wtarget->size()-2] == '\\' && (*wtarget)[wtarget->size()-1] == '.') { // links to "c:\blablabla\." do not work well
+              wtarget = wtarget->substr(0, wtarget->size()-2);
+            }
+            DWORD dw = GetFileAttributesW(wtarget->c_str()); // fails on
+            if (dw == 0xFFFFFFFF) {
+                std::cerr << "GetFileAttributesW(" << to_bytes(*wtarget)  << ") failed with "<<GetLastError()<<", so make a dangling symlink" << std::endl;
+                std::wstring danglingTarget = from_bytes(target);
+                std::replace(danglingTarget.begin(), danglingTarget.end(), '/', '\\');
+
+                const size_t bufferSize = offsetof(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer) + (danglingTarget.size()+1) * 4;
+                assert(bufferSize <= MAXIMUM_REPARSE_DATA_BUFFER_SIZE);
+                {
+                    AutoCloseWindowsHandle fd = CreateFileW(wlink.c_str(), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_POSIX_SEMANTICS, 0);
+                    if (fd.get() == INVALID_HANDLE_VALUE)
+                        throw WinError("createSymlink: CreateFileW(%1%)", wlink.c_str());
+                }
+                {
+                    AutoCloseWindowsHandle hFile = CreateFileW(wlink.c_str(), 0, FILE_SHARE_READ|FILE_SHARE_WRITE, 0, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT|FILE_FLAG_POSIX_SEMANTICS, 0);
+                    if (hFile.get() == INVALID_HANDLE_VALUE)
+                        throw WinError("createSymlink('%1%'): CreateFileW", wlink.c_str());
+
+                    REPARSE_DATA_BUFFER* rdb = static_cast<REPARSE_DATA_BUFFER*>(malloc(MAXIMUM_REPARSE_DATA_BUFFER_SIZE));
+                    memset(rdb, 0, MAXIMUM_REPARSE_DATA_BUFFER_SIZE);
+                    rdb->SymbolicLinkReparseBuffer.Flags = 0;
+                    rdb->SymbolicLinkReparseBuffer.SubstituteNameOffset = 0;
+                    rdb->SymbolicLinkReparseBuffer.SubstituteNameLength = danglingTarget.size();
+                    rdb->SymbolicLinkReparseBuffer.PrintNameOffset      = (danglingTarget.size()+1) * 2;
+                    rdb->SymbolicLinkReparseBuffer.PrintNameLength      = danglingTarget.size();
+                    memcpy(((char*)rdb->SymbolicLinkReparseBuffer.PathBuffer)+rdb->SymbolicLinkReparseBuffer.SubstituteNameOffset, danglingTarget.c_str(), danglingTarget.size()*2);
+                    memcpy(((char*)rdb->SymbolicLinkReparseBuffer.PathBuffer)+rdb->SymbolicLinkReparseBuffer.PrintNameOffset     , danglingTarget.c_str(), danglingTarget.size()*2);
+
+                    DWORD rd;
+                    BOOL rc = DeviceIoControl(hFile.get(), FSCTL_SET_REPARSE_POINT, 0, 0, rdb, bufferSize, &rd, NULL);
+                    free(rdb);
+                    if (!rc)
+                        throw WinError("createSymlink('%1%'): DeviceIoControl", wlink.c_str());
+                }
+                st = SymlinkTypeDangling;
+            } else if (dw & FILE_ATTRIBUTE_DIRECTORY) {
+                if (!CreateDirectoryW(wlink.c_str(), NULL))
+                    throw WinError("createSymlink: CreateDirectoryW('%1%')", wlink.c_str());
+
+                const size_t bufferSize = offsetof(REPARSE_DATA_BUFFER, MountPointReparseBuffer.PathBuffer) + (wtarget->size()+1) * 4;
+                assert(bufferSize <= MAXIMUM_REPARSE_DATA_BUFFER_SIZE);
+                {
+                    AutoCloseWindowsHandle hFile = CreateFileW(wlink.c_str(), 0, FILE_SHARE_READ|FILE_SHARE_WRITE, 0, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT|FILE_FLAG_POSIX_SEMANTICS|FILE_FLAG_BACKUP_SEMANTICS, 0);
+                    if (hFile.get() == INVALID_HANDLE_VALUE)
+                        throw WinError("createSymlink('%1%'): CreateFileW", wlink.c_str());
+
+                    REPARSE_DATA_BUFFER *rdb = (REPARSE_DATA_BUFFER *)malloc(MAXIMUM_REPARSE_DATA_BUFFER_SIZE);
+                    memset(rdb, 0, MAXIMUM_REPARSE_DATA_BUFFER_SIZE);
+                    rdb->ReparseTag = IO_REPARSE_TAG_MOUNT_POINT;
+                    rdb->MountPointReparseBuffer.SubstituteNameOffset = 0;
+                    rdb->MountPointReparseBuffer.SubstituteNameLength = wtarget->size();
+                    rdb->MountPointReparseBuffer.PrintNameOffset      = (wtarget->size()+1) * 2;
+                    rdb->MountPointReparseBuffer.PrintNameLength      = wtarget->size();
+                    memcpy(((char*)rdb->MountPointReparseBuffer.PathBuffer)+rdb->MountPointReparseBuffer.SubstituteNameOffset, wtarget->c_str(), wtarget->size()*2);
+                    memcpy(((char*)rdb->MountPointReparseBuffer.PathBuffer)+rdb->MountPointReparseBuffer.PrintNameOffset     , wtarget->c_str(), wtarget->size()*2);
+
+                    DWORD rd;
+                    BOOL rc = DeviceIoControl(hFile.get(), FSCTL_SET_REPARSE_POINT, 0, 0, rdb, bufferSize, &rd, NULL);
+                    free(rdb);
+                    if (!rc)
+                        throw WinError("createSymlink('%1%'): DeviceIoControl", wlink.c_str());
+                }
+                st = SymlinkTypeDirectory;
+            } else {
+                if (!CreateHardLinkW(wlink.c_str(), wtarget->c_str(), NULL))
+                    throw WinError("createSymlink: CreateHardLinkW('%1%', '%2%')", wlink.c_str(), wtarget->c_str());
+                st = SymlinkTypeFile;
+            }
+        }
     }
+    return st;
 }
 #endif
 
@@ -2563,7 +2671,7 @@ std::string windowsEscape(const std::string & s)
 {
     if (s.empty() || s.find_first_of("&()<>[]{}^=;!'+,`!\"\t ") != std::string::npos) {
         std::string r = "\"";
-        for (auto i=0; i < s.length(); ) {
+        for (size_t i=0; i < s.length(); ) {
             if (s[i] == '"') {
                 r += '\\';
                 r += s[i++];
@@ -2597,7 +2705,7 @@ std::wstring windowsEscapeW(const std::wstring & s)
 {
     if (s.empty() || s.find_first_of(L"&()<>[]{}^=;!'+,`!\"\t ") != std::wstring::npos) {
         std::wstring r = L"\"";
-        for (auto i=0; i < s.length(); ) {
+        for (size_t i=0; i < s.length(); ) {
             if (s[i] == L'"') {
                 r += L'\\';
                 r += s[i++];

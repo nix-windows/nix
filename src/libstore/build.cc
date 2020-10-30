@@ -1979,7 +1979,7 @@ fprintf(stderr, "DerivationGoal::startBuilder()\n");
             printError(format("warning: no free drive letter available, build root will be '%1%'") % tmpDir);
         } else {
             if (!CreateDirectoryW(pathW(tmpDir).c_str(), NULL))
-                throw("CreateDirectoryW when createTempDir '%1%'", tmpDir);
+                throw WinError("CreateDirectoryW when createTempDir '%1%'", tmpDir);
 
         }
     }
