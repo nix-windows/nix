@@ -738,3 +738,10 @@ endif
 foreach dir : project_dirs
     subdir(dir)
 endforeach
+
+if sys_name.contains('windows')
+  install_data('corepkgs/fetchurl.nix',                   install_dir : bindir+'/../nix/corepkgs')
+  install_data('corepkgs/derivation.nix',                 install_dir : bindir+'/../nix/corepkgs')
+  install_data('corepkgs/imported-drv-to-derivation.nix', install_dir : bindir+'/../nix/corepkgs')
+  install_data('corepkgs/buildenv.nix',                   install_dir : bindir+'/../nix/corepkgs')
+endif
