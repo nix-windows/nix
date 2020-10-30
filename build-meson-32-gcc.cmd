@@ -51,7 +51,7 @@ md                                       ..\builddir-gcc-32
                                                               -Dwith_boost=%BOOST%/mingw32 -Dwith_openssl=%OPENSSL%/mingw32 -Dwith_lzma=%XZ%/mingw32 -Dwith_bz2=%BZIP2%/mingw32 -Dwith_curl=%CURL%/mingw32 -Dwith_sqlite3=%SQLITE%/mingw32
 rem %MESON%\mingw32\bin\meson compile -C ..\builddir-gcc-32 --clean
     %MESON%\mingw32\bin\meson compile -C ..\builddir-gcc-32
-    %MESON%\mingw32\bin\meson install -C ..\builddir-gcc-32
+rem %MESON%\mingw32\bin\meson install -C ..\builddir-gcc-32
 
 rem remove garbage like downloaded .iso files
 rem %OLDNIX%\bin\nix-store.exe --gc
