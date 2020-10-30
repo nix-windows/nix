@@ -2,8 +2,8 @@
 
 #ifdef _WIN32
 #undef _WIN32_WINNT
-//#define _WIN32_WINNT 0x0500 // Windows XP, for CreateHardlink()
-#define _WIN32_WINNT 0x0502 // Windows XP, for RtlCaptureStackBackTrace()
+#define _WIN32_WINNT 0x0500 // Windows XP, for CreateHardlink()
+//#define _WIN32_WINNT 0x0502 // Windows XP, for RtlCaptureStackBackTrace()
 #include <winsock2.h>
 #include <windows.h>
 #ifdef _MSC_VER

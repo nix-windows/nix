@@ -31,10 +31,12 @@
 #endif
 
 #ifdef _WIN32
-#ifdef _MSC_VER
-#define BOOST_STACKTRACE_USE_BACKTRACE
-#endif
-#include <boost/stacktrace.hpp>
+
+//#ifdef _MSC_VER && (_WIN32_WINNT >= 0x0502)
+//#define BOOST_STACKTRACE_USE_BACKTRACE
+//#include <boost/stacktrace.hpp>
+//#endif
+
 #include <boost/algorithm/string/predicate.hpp>
 #include <codecvt>
 #define random() rand()
