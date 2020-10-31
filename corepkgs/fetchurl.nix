@@ -1,5 +1,6 @@
 { system ? "" # obsolete
-, url
+, urls ? [url]
+, url ? builtins.head urls
 , md5 ? "", sha1 ? "", sha256 ? "", sha512 ? ""
 , outputHash ?
     if sha512 != "" then sha512 else if sha1 != "" then sha1 else if md5 != "" then md5 else sha256
@@ -7,7 +8,7 @@
     if sha512 != "" then "sha512" else if sha1 != "" then "sha1" else if md5 != "" then "md5" else "sha256"
 , executable ? false
 , unpack ? false
-, name ? baseNameOf (toString url)
+, name ? baseNameOf (toString (builtins.head urls))
 }:
 
 derivation {
@@ -17,7 +18,7 @@ derivation {
   inherit outputHashAlgo outputHash;
   outputHashMode = if unpack || executable then "recursive" else "flat";
 
-  inherit name url executable unpack;
+  inherit name urls executable unpack;
 
   system = "builtin";
 
@@ -32,6 +33,6 @@ derivation {
     "http_proxy" "https_proxy" "ftp_proxy" "all_proxy" "no_proxy"
   ];
 
-  # To make "nix-prefetch-url" work.
-  urls = [ url ];
+  # to support older nix.exe
+  url = builtins.head urls;
 }

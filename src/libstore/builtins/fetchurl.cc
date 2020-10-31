@@ -24,15 +24,16 @@ void builtinFetchurl(const BasicDerivation & drv, const std::string & netrcData)
     };
 
     Path storePath = getAttr("out");
-    auto mainUrl = getAttr("url");
+    std::vector<std::string> mainUrls = tokenizeString<std::vector<string>>(getAttr("urls"), " ");
+    assert(!mainUrls.empty());
     bool unpack = get(drv.env, "unpack", "") == "1";
 
     /* Note: have to use a fresh downloader here because we're in
        a forked process. */
     auto downloader = makeDownloader();
 
-    auto fetch = [&](const std::string & url) {
-
+    auto fetch = [&](const std::vector<std::string> & urls) {
+        std::string url = urls[0]; // todo: support multiurl
         auto source = sinkToSource([&](Sink & sink) {
 
             /* No need to do TLS verification, because we check the hash of
@@ -42,7 +43,7 @@ void builtinFetchurl(const BasicDerivation & drv, const std::string & netrcData)
             request.decompress = false;
 
             auto decompressor = makeDecompressionSink(
-                unpack && hasSuffix(mainUrl, ".xz") ? "xz" : "none", sink);
+                unpack && hasSuffix(url, ".xz") ? "xz" : "none", sink);
             downloader->download(std::move(request), *decompressor);
             decompressor->finish();
         });
@@ -61,19 +62,23 @@ void builtinFetchurl(const BasicDerivation & drv, const std::string & netrcData)
     };
 
     /* Try the hashed mirrors first. */
-    if (getAttr("outputHashMode") == "flat")
-        for (auto hashedMirror : settings.hashedMirrors.get())
-            try {
-                if (!hasSuffix(hashedMirror, "/")) hashedMirror += '/';
-                auto ht = parseHashType(getAttr("outputHashAlgo"));
-                fetch(hashedMirror + printHashType(ht) + "/" + Hash(getAttr("outputHash"), ht).to_string(Base16, false));
-                return;
-            } catch (Error & e) {
-                debug(e.what());
-            }
+    if (getAttr("outputHashMode") == "flat") {
+        std::vector<std::string> mirrorsUrls;
+        for (auto hashedMirror : settings.hashedMirrors.get()) {
+            if (!hasSuffix(hashedMirror, "/")) hashedMirror += '/';
+            auto ht = parseHashType(getAttr("outputHashAlgo"));
+            mirrorsUrls.push_back(hashedMirror + printHashType(ht) + "/" + Hash(getAttr("outputHash"), ht).to_string(Base16, false));
+        }
+        try {
+            fetch(mirrorsUrls);
+            return;
+        } catch (Error & e) {
+            debug(e.what());
+        }
+    }
 
     /* Otherwise try the specified URL. */
-    fetch(mainUrl);
+    fetch(mainUrls);
 }
 
 }
