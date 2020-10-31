@@ -21,16 +21,16 @@ rem echo COREUTILS=%COREUTILS%
 rem exit
 
 rem pkgsi686Windows.stdenv is currently MinGW, TODO: change it to explicit pkgsi686Windows.stdenvMinGW
-for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system i686-windows -o i686-stdenv-cc -E "with (import <nixpkgs> { }); stdenv.cc"'              ) do set STDENV_CC=%%i
-for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system i686-windows -o i686-boost     -E "with (import <nixpkgs> { }); mingwPacman.boost   "'   ) do set BOOST=%%i
-for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system i686-windows -o i686-openssl   -E "with (import <nixpkgs> { }); mingwPacman.openssl "'   ) do set OPENSSL=%%i
-for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system i686-windows -o i686-xz        -E "with (import <nixpkgs> { }); mingwPacman.xz      "'   ) do set XZ=%%i
-for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system i686-windows -o i686-bzip2     -E "with (import <nixpkgs> { }); mingwPacman.bzip2   "'   ) do set BZIP2=%%i
-for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system i686-windows -o i686-curl      -E "with (import <nixpkgs> { }); mingwPacman.curl    "'   ) do set CURL=%%i
-for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system i686-windows -o i686-sqlite    -E "with (import <nixpkgs> { }); mingwPacman.sqlite3 "'   ) do set SQLITE=%%i
-for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system i686-windows -o i686-flex      -E "with (import <nixpkgs> { });  msysPacman.flex    "'   ) do set FLEX=%%i
-for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system i686-windows -o i686-bison     -E "with (import <nixpkgs> { });  msysPacman.bison   "'   ) do set BISON=%%i
-for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system i686-windows -o i686-meson     -E "with (import <nixpkgs> { }); mingwPacman.meson   "'   ) do set MESON=%%i
+for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o i686-stdenv-cc -E "with (import <nixpkgs> { }); pkgsi686Windows.stdenv.cc"'              ) do set STDENV_CC=%%i
+for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o i686-boost     -E "with (import <nixpkgs> { }); pkgsi686Windows.mingwPacman.boost   "'   ) do set BOOST=%%i
+for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o i686-openssl   -E "with (import <nixpkgs> { }); pkgsi686Windows.mingwPacman.openssl "'   ) do set OPENSSL=%%i
+for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o i686-xz        -E "with (import <nixpkgs> { }); pkgsi686Windows.mingwPacman.xz      "'   ) do set XZ=%%i
+for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o i686-bzip2     -E "with (import <nixpkgs> { }); pkgsi686Windows.mingwPacman.bzip2   "'   ) do set BZIP2=%%i
+for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o i686-curl      -E "with (import <nixpkgs> { }); pkgsi686Windows.mingwPacman.curl    "'   ) do set CURL=%%i
+for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o i686-sqlite    -E "with (import <nixpkgs> { }); pkgsi686Windows.mingwPacman.sqlite3 "'   ) do set SQLITE=%%i
+for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o i686-flex      -E "with (import <nixpkgs> { }); pkgsi686Windows. msysPacman.flex    "'   ) do set FLEX=%%i
+for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o i686-bison     -E "with (import <nixpkgs> { }); pkgsi686Windows. msysPacman.bison   "'   ) do set BISON=%%i
+for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed -o i686-meson     -E "with (import <nixpkgs> { }); pkgsi686Windows.mingwPacman.meson   "'   ) do set MESON=%%i
 echo STDENV_CC=%STDENV_CC%
 echo BOOST=%BOOST%
 echo OPENSSL=%OPENSSL%

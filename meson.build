@@ -375,7 +375,7 @@ elif get_option('with_bz2') != ''
   libbz2_dep = declare_dependency(
     variables : {'dlls': get_option('with_bz2') + '/bin/libbz2-1.dll' },
     include_directories : [get_option('with_bz2') + '/include'],
-    link_args : ['-L' + get_option('with_bz2') + '/lib', '-llibbz2'])
+    link_args : ['-L' + get_option('with_bz2') + '/lib', '-lbz2'])
 else
   libbz2_dep = declare_dependency(
     dependencies : cpp.find_library('bz2'))

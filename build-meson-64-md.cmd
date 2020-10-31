@@ -3,7 +3,7 @@
 
 rem path to old nix (mingw's is ok)
 rem "build.cmd install" replaces OLDNIX
-set OLDNIX=C:\work\nix-bootstrap
+set OLDNIX=C:\work\nix-bootstrap-64.bak
 
 set NIX_BIN_DIR=%OLDNIX%\bin
 set NIX_CONF_DIR=%OLDNIX%\etc
@@ -22,17 +22,17 @@ rem TODO: change stdenv to explicit stdenvVC2019
 
 rem `stdenv.cc.redist` is for VCRUNTIME140D.DLL and UCRTBASED.DLL. to avoid "meson.build:13:0: ERROR: Executables created by cpp compiler cl are not runnable."
 
-for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system x86_64-windows -o x86_64-stdenv-cc        -E "with (import <nixpkgs> { }); stdenv.cc                        "') do set STDENV_CC=%%i
-for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system x86_64-windows -o x86_64-stdenv-cc-redist -E "with (import <nixpkgs> { }); stdenv.cc.redist                 "') do set STDENV_CC_REDIST=%%i
-for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system x86_64-windows -o x86_64-boost            -E "with (import <nixpkgs> { }); boost172.override{ static=true; }"') do set BOOST=%%i
-for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system x86_64-windows -o x86_64-openssl          -E "with (import <nixpkgs> { }); openssl                          "') do set OPENSSL=%%i
-for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system x86_64-windows -o x86_64-xz               -E "with (import <nixpkgs> { }); xz                               "') do set XZ=%%i
-for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system x86_64-windows -o x86_64-bzip2            -E "with (import <nixpkgs> { }); bzip2                            "') do set BZIP2=%%i
-for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system x86_64-windows -o x86_64-curl             -E "with (import <nixpkgs> { }); curl                             "') do set CURL=%%i
-for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system x86_64-windows -o x86_64-sqlite           -E "with (import <nixpkgs> { }); sqlite                           "') do set SQLITE=%%i
-for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system x86_64-windows -o x86_64-flex             -E "with (import <nixpkgs> { });  msysPacman.flex                 "') do set FLEX=%%i
-for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system x86_64-windows -o x86_64-bison            -E "with (import <nixpkgs> { });  msysPacman.bison                "') do set BISON=%%i
-for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system x86_64-windows -o x86_64-meson            -E "with (import <nixpkgs> { }); mingwPacman.meson                "') do set MESON=%%i
+for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system x86_64-windows -o x86_64-stdenv-cc        -E "with (import <nixpkgs> { }); pkgsMsvc2019.stdenv.cc                        "') do set STDENV_CC=%%i
+for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system x86_64-windows -o x86_64-stdenv-cc-redist -E "with (import <nixpkgs> { }); pkgsMsvc2019.stdenv.cc.redist                 "') do set STDENV_CC_REDIST=%%i
+for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system x86_64-windows -o x86_64-boost            -E "with (import <nixpkgs> { }); pkgsMsvc2019.boost172.override{ static=true; }"') do set BOOST=%%i
+for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system x86_64-windows -o x86_64-openssl          -E "with (import <nixpkgs> { }); pkgsMsvc2019.openssl                          "') do set OPENSSL=%%i
+for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system x86_64-windows -o x86_64-xz               -E "with (import <nixpkgs> { }); pkgsMsvc2019.xz                               "') do set XZ=%%i
+for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system x86_64-windows -o x86_64-bzip2            -E "with (import <nixpkgs> { }); pkgsMsvc2019.bzip2                            "') do set BZIP2=%%i
+for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system x86_64-windows -o x86_64-curl             -E "with (import <nixpkgs> { }); pkgsMsvc2019.curl                             "') do set CURL=%%i
+for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system x86_64-windows -o x86_64-sqlite           -E "with (import <nixpkgs> { }); pkgsMsvc2019.sqlite                           "') do set SQLITE=%%i
+for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system x86_64-windows -o x86_64-flex             -E "with (import <nixpkgs> { });  msysPacman.flex                              "') do set FLEX=%%i
+for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system x86_64-windows -o x86_64-bison            -E "with (import <nixpkgs> { });  msysPacman.bison                             "') do set BISON=%%i
+for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system x86_64-windows -o x86_64-meson            -E "with (import <nixpkgs> { }); mingwPacman.meson                             "') do set MESON=%%i
 echo STDENV_CC=%STDENV_CC%
 echo STDENV_CC_REDIST=%STDENV_CC_REDIST%
 echo BOOST=%BOOST%
