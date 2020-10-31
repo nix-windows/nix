@@ -3,7 +3,7 @@
 
 rem path to old nix (mingw's is ok)
 rem "build.cmd install" replaces OLDNIX
-set OLDNIX=C:\work\nix-bootstrap
+set OLDNIX=C:\work\nix-bootstrap-64.bak
 
 set NIX_BIN_DIR=%OLDNIX%\bin
 set NIX_CONF_DIR=%OLDNIX%\etc
