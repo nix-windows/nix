@@ -27,17 +27,20 @@ project(
 sys_name = host_machine.system().to_lower()
 
 cpp = meson.get_compiler('cpp')
+
 is_msvc = ['msvc', 'clang-cl', 'intel-cl'].contains(cpp.get_id())
 is_gcc  = ['gcc', 'clang'                ].contains(cpp.get_id())
+isx86_64 = host_machine.cpu() == 'x86_64'
+isi686   = host_machine.cpu() == 'x86'
 
-if not is_msvc
+if is_gcc
   add_project_arguments(get_option('cxxflags'), language : 'cpp')
   add_project_link_arguments(get_option('ldflags'), language: 'cpp')
 
 # We do a lot of args... we'd otherwise have to convert to __ va_args__
   add_project_arguments('-Wno-variadic-macros', language : 'cpp')
-#else
-#  add_project_link_arguments('-subsystem:console,5.01', language: 'cpp')
+elif is_msvc and isi686
+  add_project_link_arguments('-subsystem:console,5.01 -SAFESEH:NO', language: 'cpp')
 endif
 
 if not sys_name.contains('windows')
@@ -134,7 +137,6 @@ endif
 
 # Construct a Nix system name (like "i686-linux").
 #-------------------------------------------------
-isx86_64 = host_machine.cpu() == 'x86_64'
 if not sys_name.contains('windows')
   machine_name = host_machine.cpu()
   cpu_archs = ['x86_64', 'armv6', 'armv7', '']
@@ -279,7 +281,7 @@ elif (get_option('with_openssl') != '') and is_gcc and isx86_64
                                   ]) },
     include_directories : [get_option('with_openssl') + '/include'],
     link_args : ['-L' + get_option('with_openssl') + '/lib', '-lssl', '-lcrypto' ])
-elif (get_option('with_openssl') != '') and is_gcc and not isx86_64
+elif (get_option('with_openssl') != '') and is_gcc and isi686
   openssl_dep = declare_dependency(
     variables : {'dlls': ';'.join([ get_option('with_openssl') + '/bin/libssl-1_1.dll',
                                     get_option('with_openssl') + '/bin/libcrypto-1_1.dll',
@@ -336,7 +338,7 @@ elif get_option('with_curl') != '' and is_gcc and isx86_64
                                     get_option('with_curl') + '/bin/libiconv-2.dll']) },
     include_directories : [get_option('with_curl') + '/include'],
     link_args : ['-L' + get_option('with_curl') + '/lib', '-lcurl'])
-elif get_option('with_curl') != '' and is_gcc and not isx86_64
+elif get_option('with_curl') != '' and is_gcc and isi686
   libcurl_dep = declare_dependency(
     variables : {'dlls': ';'.join([ get_option('with_curl') + '/bin/libcurl-4.dll',
                                     get_option('with_curl') + '/bin/zlib1.dll',

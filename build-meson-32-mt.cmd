@@ -18,7 +18,7 @@ set NIX_PATH=nixpkgs=C:\work\nixpkgs-windows
 rem `--option system x86_64-windows` covers the case of 32-bit nix-build.exe (also, `pkgsCross.windows64.stdenv.cc` should allow to build 64-bit code on 32-bit Windows)
 
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system i686-windows -o i686-stdenv-cc        -E "with (import <nixpkgs> { }); pkgsMsvc2019.stdenv.cc                                            "') do set STDENV_CC=%%i
-for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system i686-windows -o i686-boost            -E "with (import <nixpkgs> { }); pkgsMsvc2019.boost172.override{ staticRuntime=true; static=true; }"') do set BOOST=%%i
+for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system i686-windows -o i686-boost            -E "with (import <nixpkgs> { }); pkgsMsvc2019.boost174.override{ staticRuntime=true; static=true; }"') do set BOOST=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system i686-windows -o i686-openssl          -E "with (import <nixpkgs> { }); pkgsMsvc2019.openssl .override{ staticRuntime=true;              }"') do set OPENSSL=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system i686-windows -o i686-xz               -E "with (import <nixpkgs> { }); pkgsMsvc2019.xz      .override{ staticRuntime=true;              }"') do set XZ=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system i686-windows -o i686-bzip2            -E "with (import <nixpkgs> { }); pkgsMsvc2019.bzip2   .override{ staticRuntime=true;              }"') do set BZIP2=%%i

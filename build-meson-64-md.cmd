@@ -21,7 +21,7 @@ rem `stdenv.cc.redist` is for VCRUNTIME140D.DLL and UCRTBASED.DLL. to avoid "mes
 
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system x86_64-windows -o x86_64-stdenv-cc        -E "with (import <nixpkgs> { }); pkgsMsvc2019.stdenv.cc                        "') do set STDENV_CC=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system x86_64-windows -o x86_64-stdenv-cc-redist -E "with (import <nixpkgs> { }); pkgsMsvc2019.stdenv.cc.redist                 "') do set STDENV_CC_REDIST=%%i
-for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system x86_64-windows -o x86_64-boost            -E "with (import <nixpkgs> { }); pkgsMsvc2019.boost172.override{ static=true; }"') do set BOOST=%%i
+for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system x86_64-windows -o x86_64-boost            -E "with (import <nixpkgs> { }); pkgsMsvc2019.boost174.override{ static=true; }"') do set BOOST=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system x86_64-windows -o x86_64-openssl          -E "with (import <nixpkgs> { }); pkgsMsvc2019.openssl                          "') do set OPENSSL=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system x86_64-windows -o x86_64-xz               -E "with (import <nixpkgs> { }); pkgsMsvc2019.xz                               "') do set XZ=%%i
 for /f %%i in ('%OLDNIX%\bin\nix-build.exe --keep-failed --option system x86_64-windows -o x86_64-bzip2            -E "with (import <nixpkgs> { }); pkgsMsvc2019.bzip2                            "') do set BZIP2=%%i
