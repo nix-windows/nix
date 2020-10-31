@@ -28,6 +28,7 @@ sys_name = host_machine.system().to_lower()
 
 cpp = meson.get_compiler('cpp')
 is_msvc = ['msvc', 'clang-cl', 'intel-cl'].contains(cpp.get_id())
+is_gcc  = ['gcc', 'clang'                ].contains(cpp.get_id())
 
 if not is_msvc
   add_project_arguments(get_option('cxxflags'), language : 'cpp')
@@ -35,6 +36,8 @@ if not is_msvc
 
 # We do a lot of args... we'd otherwise have to convert to __ va_args__
   add_project_arguments('-Wno-variadic-macros', language : 'cpp')
+#else
+#  add_project_link_arguments('-subsystem:console,5.01', language: 'cpp')
 endif
 
 if not sys_name.contains('windows')
@@ -131,6 +134,7 @@ endif
 
 # Construct a Nix system name (like "i686-linux").
 #-------------------------------------------------
+isx86_64 = host_machine.cpu() == 'x86_64'
 if not sys_name.contains('windows')
   machine_name = host_machine.cpu()
   cpu_archs = ['x86_64', 'armv6', 'armv7', '']
@@ -208,11 +212,11 @@ endif
 
 # Look for boost, a required dependency.
 #--------------------------------------------------
-if (get_option('with_boost') != '' and is_msvc)
+if get_option('with_boost') != '' and is_msvc
   boost_dep = declare_dependency(
     include_directories : [get_option('with_boost') + '/include'],
     link_args : ['-L' + get_option('with_boost') + '/lib' ])
-elif (get_option('with_boost') != '')
+elif get_option('with_boost') != '' and is_gcc
   boost_dep = declare_dependency(
     variables : {'dlls': get_option('with_boost') + '/bin/libboost_context-mt.dll'},
     include_directories : [get_option('with_boost') + '/include'],
@@ -233,12 +237,12 @@ endif
 
 # Look for liblzma, a required dependency.
 #--------------------------------------------------
-if (get_option('with_lzma') != '') and is_msvc
+if get_option('with_lzma') != '' and is_msvc
   liblzma_dep = declare_dependency(
     variables : {'dlls': get_option('with_lzma') + '/bin/liblzma.dll' },
     include_directories : [get_option('with_lzma') + '/include'],
     link_args : ['-L' + get_option('with_lzma') + '/lib', '-lliblzma' ])
-elif (get_option('with_lzma') != '')
+elif get_option('with_lzma') != '' and is_gcc
   liblzma_dep = declare_dependency(
     variables : {'dlls': get_option('with_lzma') + '/bin/liblzma-5.dll' },
     include_directories : [get_option('with_lzma') + '/include'],
@@ -268,10 +272,18 @@ if get_option('with_openssl') != '' and is_msvc
                                     get_option('with_openssl') + '/bin/ssleay32.dll']) },
     include_directories : [get_option('with_openssl') + '/include'],
     link_args : ['-L' + get_option('with_openssl') + '/lib', '-llibeay32' ])
-elif (get_option('with_openssl') != '')
+elif (get_option('with_openssl') != '') and is_gcc and isx86_64
+  openssl_dep = declare_dependency(
+    variables : {'dlls': ';'.join([ get_option('with_openssl') + '/bin/libssl-1_1-x64.dll',
+                                    get_option('with_openssl') + '/bin/libcrypto-1_1-x64.dll'
+                                  ]) },
+    include_directories : [get_option('with_openssl') + '/include'],
+    link_args : ['-L' + get_option('with_openssl') + '/lib', '-lssl', '-lcrypto' ])
+elif (get_option('with_openssl') != '') and is_gcc and not isx86_64
   openssl_dep = declare_dependency(
     variables : {'dlls': ';'.join([ get_option('with_openssl') + '/bin/libssl-1_1.dll',
-                                    get_option('with_openssl') + '/bin/libcrypto-1_1.dll']) },
+                                    get_option('with_openssl') + '/bin/libcrypto-1_1.dll',
+                                  ]) },
     include_directories : [get_option('with_openssl') + '/include'],
     link_args : ['-L' + get_option('with_openssl') + '/lib', '-lssl', '-lcrypto' ])
 else
@@ -287,7 +299,7 @@ if get_option('with_sqlite3') != '' and is_msvc
     variables : {'dlls': get_option('with_sqlite3') + '/bin/sqlite3.dll' },
     include_directories : [get_option('with_sqlite3') + '/include'],
     link_args : ['-L' + get_option('with_sqlite3') + '/lib', '-lsqlite3' ])
-elif get_option('with_sqlite3') != ''
+elif get_option('with_sqlite3') != '' and is_gcc
   sqlite3_dep = declare_dependency(
     variables : {'dlls': get_option('with_sqlite3') + '/bin/libsqlite3-0.dll' },
     include_directories : [get_option('with_sqlite3') + '/include'],
@@ -306,7 +318,25 @@ if get_option('with_curl') != '' and is_msvc
                                     get_option('with_curl') + '/bin/zlib1.dll']) },
     include_directories : [get_option('with_curl') + '/include'],
     link_args : ['-L' + get_option('with_curl') + '/lib', '-llibcurl'])
-elif (get_option('with_curl') != '') 
+elif get_option('with_curl') != '' and is_gcc and isx86_64
+  libcurl_dep = declare_dependency(
+    variables : {'dlls': ';'.join([ get_option('with_curl') + '/bin/libcurl-4.dll',
+                                    get_option('with_curl') + '/bin/zlib1.dll',
+                                    get_option('with_curl') + '/bin/libbrotlicommon.dll',
+                                    get_option('with_curl') + '/bin/libbrotlidec.dll',
+                                    get_option('with_curl') + '/bin/libbrotlienc.dll',
+                                    get_option('with_curl') + '/bin/libidn2-0.dll',
+                                    get_option('with_curl') + '/bin/libpsl-5.dll',
+                                    get_option('with_curl') + '/bin/libnghttp2-14.dll',
+                                    get_option('with_curl') + '/bin/libssh2-1.dll',
+                                    get_option('with_curl') + '/bin/libidn2-0.dll',
+                                    get_option('with_curl') + '/bin/libintl-8.dll',
+                                  # get_option('with_curl') + '/bin/libzstd.dll',                  32 bit only
+                                    get_option('with_curl') + '/bin/libunistring-2.dll',
+                                    get_option('with_curl') + '/bin/libiconv-2.dll']) },
+    include_directories : [get_option('with_curl') + '/include'],
+    link_args : ['-L' + get_option('with_curl') + '/lib', '-lcurl'])
+elif get_option('with_curl') != '' and is_gcc and not isx86_64
   libcurl_dep = declare_dependency(
     variables : {'dlls': ';'.join([ get_option('with_curl') + '/bin/libcurl-4.dll',
                                     get_option('with_curl') + '/bin/zlib1.dll',
@@ -371,7 +401,7 @@ if get_option('with_bz2') != '' and is_msvc
   libbz2_dep = declare_dependency(
     include_directories : [get_option('with_bz2') + '/include'],
     link_args : ['-L' + get_option('with_bz2') + '/lib', '-llibbz2'])
-elif get_option('with_bz2') != ''
+elif get_option('with_bz2') != '' and is_gcc
   libbz2_dep = declare_dependency(
     variables : {'dlls': get_option('with_bz2') + '/bin/libbz2-1.dll' },
     include_directories : [get_option('with_bz2') + '/include'],
@@ -715,7 +745,7 @@ endif
 
 if is_msvc
   add_project_arguments('-FI', 'config.h', language : 'cpp')
-else
+elif is_gcc
   add_project_arguments('-include', 'config.h', language : 'cpp')
 endif
 src_inc = [include_directories('.', 'src')]

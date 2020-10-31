@@ -2,8 +2,7 @@
 
 
 rem path to old nix (mingw's is ok)
-rem "build.cmd install" replaces OLDNIX
-set OLDNIX=C:\work\nix-bootstrap-64.bak
+set OLDNIX=C:\work\nix-bootstrap-golden
 
 set NIX_BIN_DIR=%OLDNIX%\bin
 set NIX_CONF_DIR=%OLDNIX%\etc
@@ -17,8 +16,6 @@ set NIX_STATE_DIR=C:\nix2-data\var\nix
 set NIX_PATH=nixpkgs=C:\work\nixpkgs-windows
 
 rem `--option system x86_64-windows` covers the case of 32-bit nix-build.exe (also, `pkgsCross.windows64.stdenv.cc` should allow to build 64-bit code on 32-bit Windows)
-
-rem TODO: change stdenv to explicit stdenvVC2019
 
 rem `stdenv.cc.redist` is for VCRUNTIME140D.DLL and UCRTBASED.DLL. to avoid "meson.build:13:0: ERROR: Executables created by cpp compiler cl are not runnable."
 
@@ -48,15 +45,15 @@ echo MESON=%MESON%
 
 PATH=%STDENV_CC%\bin;%STDENV_CC_REDIST%\x64\Microsoft.VC142.DebugCRT;%STDENV_CC_REDIST%\x64\Microsoft.UniversalCRT.Debug;%BISON%\usr\bin;%FLEX%\usr\bin;%PATH%
 
-md                                       ..\builddir64-vs2019-64-md
+md                                       ..\builddir64-vs2019-md
 
-    %MESON%\mingw64\bin\meson setup      ..\builddir64-vs2019-64-md . --backend vs2019 --default-library static --buildtype release ^
-                                                                      -Db_vscrt=md -Db_lto=true ^
-                                                                      -Dwith_boost=%BOOST% -Dwith_openssl=%OPENSSL% -Dwith_lzma=%XZ% -Dwith_bz2=%BZIP2% -Dwith_curl=%CURL% -Dwith_sqlite3=%SQLITE%
+    %MESON%\mingw64\bin\meson setup      ..\builddir64-vs2019-md . --backend vs2019 --default-library static --buildtype release ^
+                                                                   -Db_vscrt=md -Db_lto=true ^
+                                                                   -Dwith_boost=%BOOST% -Dwith_openssl=%OPENSSL% -Dwith_lzma=%XZ% -Dwith_bz2=%BZIP2% -Dwith_curl=%CURL% -Dwith_sqlite3=%SQLITE%
 
-rem %MESON%\mingw64\bin\meson compile -C ..\builddir64-vs2019-64-md --clean
-    %MESON%\mingw64\bin\meson compile -C ..\builddir64-vs2019-64-md --verbose
-rem %MESON%\mingw64\bin\meson install -C ..\builddir64-vs2019-64-md
+rem %MESON%\mingw64\bin\meson compile -C ..\builddir64-vs2019-md --clean
+    %MESON%\mingw64\bin\meson compile -C ..\builddir64-vs2019-md --verbose
+rem %MESON%\mingw64\bin\meson install -C ..\builddir64-vs2019-md
 
 rem remove garbage like downloaded .iso files
 rem %OLDNIX%\bin\nix-store.exe --gc
