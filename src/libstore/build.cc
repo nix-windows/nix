@@ -2483,43 +2483,43 @@ fprintf(stderr, "DerivationGoal::startBuilder()\n");
             //builtinBuildenv(drv2);
         } else
             throw Error(format("unsupported builtin function '%1%'") % string(drv->builder, 8));
-#ifdef __MINGW32__ // deprecated, was used only for bootstrap
-    } else if ( drv->builder == "/usr/bin/bash"                 // BUGBUG
-             || drv->builder == "/bin/bash"                     // BUGBUG
-             || drv->builder == "c:/msys64/usr/bin/bash.exe"    // BUGBUG
-              ) {
-        /* Fill in bash environment. */
-        Path envfile = env["NIX_BUILD_TOP"] + "/msys-bash-env";
-        std::string content = "#!/usr/bin/bash\n\n";
-        for (auto & i : env) {
-            if (i.first.find('-') != std::string::npos) {
-                std::cerr << "skip invalid env variable name '" << i.first << "'" << std::endl;
-                content += "# ";
-            }
-            std::string value = rewriteStrings(i.second, inputRewrites);
-            if (hasPrefix(value, "C:/")) { // BUGBUG: mingw hack
-                std::string newvalue = "";
-                for (const string & path : tokenizeString<Strings>(value)) {
-                    if (!newvalue.empty()) newvalue += " ";
-                    newvalue += "/c" + path.substr(2); // poor man cygpath
-                }
-                std::replace(newvalue.begin(), newvalue.end(), '\\', '/');
-                value = newvalue;
-            }
-            content += "export " + i.first + "=" + shellEscape(value) + "\n";
-        }
-        writeFile(envfile, content);
-
-        /* Fill in Windows environment. */
-        uenv[L"BASH_ENV"] = from_bytes(envfile);
-        uenv[L"PATH"] = L"C:\\msys64\\usr\\bin;C:\\Windows\\System32\\Wbem;C:\\Windows\\System32"; // todo: peek it from the current env? "C:\msys64\mingw64\bin" for nix.exe, "C:\Windows\System32" for cmd.exe
-
-//      uargs.push_back(L"/usr/bin/bash"); // no
-//      uargs.push_back(L"C:/msys64/usr/bin/bash"); // ok
-        uargs.push_back(L"C:\\msys64\\usr\\bin\\bash.exe"); // ok
-        for (auto & i : drv->args)
-            uargs.push_back(from_bytes(rewriteStrings(i, inputRewrites)));
-#endif
+//#ifdef __MINGW32__ // deprecated, was used only for bootstrap
+//    } else if ( drv->builder == "/usr/bin/bash"                 // BUGBUG
+//             || drv->builder == "/bin/bash"                     // BUGBUG
+//             || drv->builder == "c:/msys64/usr/bin/bash.exe"    // BUGBUG
+//              ) {
+//        /* Fill in bash environment. */
+//        Path envfile = env["NIX_BUILD_TOP"] + "/msys-bash-env";
+//        std::string content = "#!/usr/bin/bash\n\n";
+//        for (auto & i : env) {
+//            if (i.first.find('-') != std::string::npos) {
+//                std::cerr << "skip invalid env variable name '" << i.first << "'" << std::endl;
+//                content += "# ";
+//            }
+//            std::string value = rewriteStrings(i.second, inputRewrites);
+//            if (hasPrefix(value, "C:/")) { // BUGBUG: mingw hack
+//                std::string newvalue = "";
+//                for (const string & path : tokenizeString<Strings>(value)) {
+//                    if (!newvalue.empty()) newvalue += " ";
+//                    newvalue += "/c" + path.substr(2); // poor man cygpath
+//                }
+//                std::replace(newvalue.begin(), newvalue.end(), '\\', '/');
+//                value = newvalue;
+//            }
+//            content += "export " + i.first + "=" + shellEscape(value) + "\n";
+//        }
+//        writeFile(envfile, content);
+//
+//        /* Fill in Windows environment. */
+//        uenv[L"BASH_ENV"] = from_bytes(envfile);
+//        uenv[L"PATH"] = L"C:\\msys64\\usr\\bin;C:\\Windows\\System32\\Wbem;C:\\Windows\\System32"; // todo: peek it from the current env? "C:\msys64\mingw64\bin" for nix.exe, "C:\Windows\System32" for cmd.exe
+//
+////      uargs.push_back(L"/usr/bin/bash"); // no
+////      uargs.push_back(L"C:/msys64/usr/bin/bash"); // ok
+//        uargs.push_back(L"C:\\msys64\\usr\\bin\\bash.exe"); // ok
+//        for (auto & i : drv->args)
+//            uargs.push_back(from_bytes(rewriteStrings(i, inputRewrites)));
+//#endif
     } else if (boost::algorithm::iends_with(drv->builder, "cmd.exe") // "C:/Windows/System32/cmd.exe"
             || boost::algorithm::iends_with(drv->builder, "perl.exe")
             || boost::algorithm::iends_with(drv->builder, "lua53.exe")) {
@@ -4688,7 +4688,7 @@ void Worker::waitForInput()
 
     if (pGetQueuedCompletionStatusEx == (TGetQueuedCompletionStatusEx)(-1)) {
       pGetQueuedCompletionStatusEx = (TGetQueuedCompletionStatusEx) GetProcAddress(GetModuleHandle("kernel32"), "GetQueuedCompletionStatusEx");
-//    pGetQueuedCompletionStatusEx = 0; // <- for testing
+      pGetQueuedCompletionStatusEx = 0; // <- for testing
       assert(pGetQueuedCompletionStatusEx != (TGetQueuedCompletionStatusEx)(-1));
     }
 
@@ -4713,9 +4713,11 @@ void Worker::waitForInput()
             if (winError.lastError == ERROR_BROKEN_PIPE) {
                 gotEOF = true;
                 removed = 1;
-            } else if (winError.lastError != WAIT_TIMEOUT)
+            } else if (winError.lastError == WAIT_TIMEOUT) {
+                removed = 0;
+            } else {
                 throw winError;
-            removed = 0;
+            }
         } else {
             removed = 1;
         }
@@ -4792,19 +4794,19 @@ std::cerr << "bytesRead     " << bytesRead                 << std::endl;
             decltype(p) nextp = p+1;
             for (ULONG i = 0; i<removed; i++) {
                 if (oentries[i].lpCompletionKey == ((ULONG_PTR)((*p)->hRead.get()) ^ 0x5555)) {
+                    printMsg(lvlVomit, format("%1%: read %2% bytes") % goal->getName() % oentries[i].dwNumberOfBytesTransferred);
+                    if (oentries[i].dwNumberOfBytesTransferred > 0) {
+                        string data((char *) (*p)->buffer.data(), oentries[i].dwNumberOfBytesTransferred);
+                      //std::cerr << "read  [" << data << "]" << std::endl;
+                        j->lastOutput = after;
+                        goal->handleChildOutput((*p)->hRead.get(), data);
+                    }
+
                     if (gotEOF) {
                         debug(format("%1%: got EOF") % goal->getName());
                         goal->handleEOF((*p)->hRead.get());
                         nextp = j->pipes.erase(p); // no need to maintain `j->pipes` ?
                     } else {
-                        if (oentries[i].dwNumberOfBytesTransferred > 0) {
-                            printMsg(lvlVomit, format("%1%: read %2% bytes") % goal->getName() % oentries[i].dwNumberOfBytesTransferred);
-                            string data((char *) (*p)->buffer.data(), oentries[i].dwNumberOfBytesTransferred);
-                          //std::cerr << "read  [" << data << "]" << std::endl;
-                            j->lastOutput = after;
-                            goal->handleChildOutput((*p)->hRead.get(), data);
-                        }
-
                         BOOL rc = ReadFile((*p)->hRead.get(), (*p)->buffer.data(), (*p)->buffer.size(), &(*p)->got, &(*p)->overlapped);
                         if (rc) {
                            // here is possible (but not obligatory) to call `goal->handleChildOutput` and repeat ReadFile immediately
