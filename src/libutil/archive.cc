@@ -165,7 +165,9 @@ static void dump(const Path & path, const std::wstring & wpath, /* the same path
         std::map<std::wstring, std::pair<DWORD, uint64_t>> unhacked;
 
         WIN32_FIND_DATAW wfd;
-        HANDLE hFind = FindFirstFileExW((wpath + L"\\*").c_str(), FindExInfoBasic, &wfd, FindExSearchNameMatch, NULL, 0);
+        HANDLE hFind = FindFirstFileExW((wpath + L"\\*").c_str(),
+                                        FindExInfoStandard /*from Windows 7/Server 2008 R2: FindExInfoBasic*/,
+                                        &wfd, FindExSearchNameMatch, NULL, 0);
         if (hFind == INVALID_HANDLE_VALUE) {
             throw WinError("FindFirstFileExW when dumping nar '%1%'", path);
         } else {

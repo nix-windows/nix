@@ -65,7 +65,9 @@ LocalStore::InodeHash LocalStore::loadInodeHash()
 #else
     WIN32_FIND_DATAW wfd;
     std::wstring wlinksDir = pathW(linksDir);
-    HANDLE hFind = FindFirstFileExW((wlinksDir + L"\\*").c_str(), FindExInfoBasic, &wfd, FindExSearchNameMatch, NULL, 0);
+    HANDLE hFind = FindFirstFileExW((wlinksDir + L"\\*").c_str(),
+                                    FindExInfoStandard /*from Windows 7/Server 2008 R2: FindExInfoBasic*/,
+                                    &wfd, FindExSearchNameMatch, NULL, 0);
     if (hFind == INVALID_HANDLE_VALUE) {
         throw WinError("FindFirstFileExW when LocalStore::loadInodeHash()");
     } else {
@@ -128,7 +130,9 @@ Strings LocalStore::readDirectoryIgnoringInodes(const Path & path, const InodeHa
 #else
     WIN32_FIND_DATAW wfd;
     std::wstring wpath = pathW(path);
-    HANDLE hFind = FindFirstFileExW((wpath + L"\\*").c_str(), FindExInfoBasic, &wfd, FindExSearchNameMatch, NULL, 0);
+    HANDLE hFind = FindFirstFileExW((wpath + L"\\*").c_str(),
+                                    FindExInfoStandard /*from Windows 7/Server 2008 R2: FindExInfoBasic*/,
+                                    &wfd, FindExSearchNameMatch, NULL, 0);
     if (hFind == INVALID_HANDLE_VALUE) {
         throw WinError("FindFirstFileExW when LocalStore::readDirectoryIgnoringInodes()");
     } else {

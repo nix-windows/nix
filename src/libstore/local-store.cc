@@ -662,7 +662,9 @@ static void canonicalisePathMetaData_(const std::wstring & wpath, const WIN32_FI
                 // do not follow symlinks?
             } else {
                 WIN32_FIND_DATAW wfd;
-                HANDLE hFind = FindFirstFileExW((wpath + L"\\*").c_str(), FindExInfoBasic, &wfd, FindExSearchNameMatch, NULL, 0);
+                HANDLE hFind = FindFirstFileExW((wpath + L"\\*").c_str(),
+                                                FindExInfoStandard /*from Windows 7/Server 2008 R2: FindExInfoBasic*/,
+                                                &wfd, FindExSearchNameMatch, NULL, 0);
                 if (hFind == INVALID_HANDLE_VALUE) {
                     throw WinError("FindFirstFileExW when canonicalisePathMetaData '%1%'", to_bytes(wpath));
                 } else {

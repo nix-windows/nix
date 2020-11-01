@@ -705,7 +705,9 @@ std::cerr << "readDirectory("<<path<<")"<<std::endl;
     const std::wstring wpath = pathW(path);
 
     WIN32_FIND_DATAW wfd;
-    HANDLE hFind = FindFirstFileExW((wpath + L"\\*").c_str(), FindExInfoBasic, &wfd, FindExSearchNameMatch, NULL, 0);
+    HANDLE hFind = FindFirstFileExW((wpath + L"\\*").c_str(),
+                                    FindExInfoStandard /*from Windows 7/Server 2008 R2: FindExInfoBasic*/,
+                                    &wfd, FindExSearchNameMatch, NULL, 0);
     if (hFind == INVALID_HANDLE_VALUE) {
         throw WinError("FindFirstFileExW when readDirectory '%1%'", path);
     } else {
@@ -981,7 +983,9 @@ static void _deletePath(const std::wstring & wpath, const DWORD * pdwFileAttribu
     if ((dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0) {
         if ((dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) == 0) {
             WIN32_FIND_DATAW wfd;
-            HANDLE hFind = FindFirstFileExW((wpath + L"\\*").c_str(), FindExInfoBasic, &wfd, FindExSearchNameMatch, NULL, 0);
+            HANDLE hFind = FindFirstFileExW((wpath + L"\\*").c_str(),
+                                            FindExInfoStandard /*from Windows 7/Server 2008 R2: FindExInfoBasic*/,
+                                            &wfd, FindExSearchNameMatch, NULL, 0);
             if (hFind == INVALID_HANDLE_VALUE) {
                 throw WinError("FindFirstFileExW when deletePath '%1%'", to_bytes(wpath));
             } else {
