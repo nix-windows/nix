@@ -64,6 +64,10 @@ rec {
     pkgconfig
     meson
     ninja
+
+    ## Tests
+    #git
+    #mercurial
   ];
 
   buildDeps = with pkgs; [
@@ -75,10 +79,6 @@ rec {
     boehmgc
     boost
     curl
-
-    # Tests
-    git
-    mercurial
   ] ++ lib.optionals (!stdenv.hostPlatform.isWindows) [
     editline
   ] ++ lib.optionals stdenv.isLinux [libseccomp utillinuxMinimal]

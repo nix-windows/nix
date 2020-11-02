@@ -120,7 +120,8 @@ endif
 #============================================================================
 
 libstore_link_list = [
-    libutil_lib]
+  libutil_lib,
+]
 
 libstore_link_args = []
 
