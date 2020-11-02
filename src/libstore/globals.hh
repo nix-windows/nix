@@ -9,6 +9,14 @@
 
 #include <sys/types.h>
 
+#ifdef _WIN32
+  #ifdef _WIN64
+    #define SYSTEM "x86_64-windows"
+  #else
+    #define SYSTEM "i686-windows"
+  #endif
+#endif
+
 namespace nix {
 
 typedef enum { smEnabled, smRelaxed, smDisabled } SandboxMode;
@@ -268,9 +276,8 @@ public:
     Setting<StringSet> extraPlatforms{this,
 #ifdef _WIN32
         std::string{SYSTEM} == "x86_64-windows" ? StringSet{"i686-windows"} :
-#else
-        std::string{SYSTEM} == "x86_64-linux" ? StringSet{"i686-linux"} :
 #endif
+        std::string{SYSTEM} == "x86_64-linux"   ? StringSet{"i686-linux"} :
         StringSet{},
         "extra-platforms",
         "Additional platforms that can be built on the local system. "

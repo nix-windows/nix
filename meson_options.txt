@@ -30,7 +30,7 @@ option(
     'cxxflags',
     type : 'array',
     value : [
-        '-Wdeprecated', 
+        '-Wdeprecated',
         '-Wno-non-virtual-dtor',
         '-Wno-unused-parameter'],
     description : 'C build flags')
@@ -40,6 +40,11 @@ option(
 
 # link args
 #============================================================================
+
+option(
+    'with_boost',
+    type : 'string',
+    description : 'path to boost')
 
 option(
     'boost_link_args', 
@@ -52,6 +57,11 @@ option(
     description : 'link args for boost')
 
 option(
+    'with_brotli',
+    type : 'string',
+    description : 'path to libbrotli')
+
+option(
     'brotli_link_args',
     type : 'array',
     value : [
@@ -59,6 +69,11 @@ option(
         '-lbrotlienc',
         '-lbrotlidec'],
     description : 'link args for libbrotli')
+
+option(
+    'with_bz2',
+    type : 'string',
+    description : 'path to libbz2')
 
 option(
     'bz2_link_args',
@@ -69,12 +84,22 @@ option(
     description : 'link args for libbz2')
 
 option(
+    'with_curl',
+    type : 'string',
+    description : 'path to libcurl')
+
+option(
     'curl_link_args',
     type : 'array',
     value : [
         '-L/usr/local/lib',
         '-lcurl'],
     description : 'link args for libcurl')
+
+option(
+    'with_dl',
+    type : 'string',
+    description : 'path to libdl')
 
 option(
     'dl_link_args',
@@ -85,12 +110,22 @@ option(
     description : 'link args for libdl')
 
 option(
+    'with_lzma',
+    type : 'string',
+    description : 'path to liblzma')
+
+option(
     'lzma_link_args',
     type : 'array',
     value : [
         '-L/usr/local/lib',
         '-llzma'],
     description : 'link args for liblzma')
+
+option(
+    'with_openssl',
+    type : 'string',
+    description : 'path to openssl')
 
 option(
     'openssl_link_args',
@@ -101,6 +136,11 @@ option(
     description : 'link args for openssl')
 
 option(
+    'with_sodium',
+    type : 'string',
+    description : 'path to libsodium')
+
+option(
     'sodium_link_args',
     type : 'array',
     value : [
@@ -109,12 +149,22 @@ option(
     description : 'link args for libsodium')
 
 option(
+    'with_sqlite3',
+    type : 'string',
+    description : 'path to sqlite3')
+
+option(
     'sqlite3_link_args',
     type : 'array',
     value : [
         '-L/usr/local/lib',
         '-lsqlite3'],
     description : 'link args for sqlite3')
+
+option(
+    'with_gc',
+    type : 'string',
+    description : 'path to boehm garbage collector')
 
 option(
     'gc_link_args',

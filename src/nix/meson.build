@@ -15,7 +15,6 @@ nix_src_files = [
     join_paths(meson.source_root(), 'src/nix/cat.cc'),
     join_paths(meson.source_root(), 'src/nix/command.cc'),
     join_paths(meson.source_root(), 'src/nix/copy.cc'),
-    join_paths(meson.source_root(), 'src/nix/doctor.cc'),
     join_paths(meson.source_root(), 'src/nix/dump-path.cc'),
     join_paths(meson.source_root(), 'src/nix/edit.cc'),
     join_paths(meson.source_root(), 'src/nix/eval.cc'),
@@ -37,6 +36,11 @@ nix_src_files = [
     join_paths(meson.source_root(), 'src/nix/upgrade-nix.cc'),
     join_paths(meson.source_root(), 'src/nix/verify.cc'),
     join_paths(meson.source_root(), 'src/nix/why-depends.cc'),
+]
+
+if not build_on_windows
+  nix_src_files += [
+    join_paths(meson.source_root(), 'src/nix/doctor.cc'),
 
     join_paths(meson.source_root(), 'src/build-remote/build-remote.cc'),
     join_paths(meson.source_root(), 'src/nix-build/nix-build.cc'),
@@ -51,7 +55,8 @@ nix_src_files = [
     join_paths(meson.source_root(), 'src/nix-store/dotgraph.cc'),
     join_paths(meson.source_root(), 'src/nix-store/graphml.cc'),
     join_paths(meson.source_root(), 'src/nix-store/nix-store.cc'),
-]
+  ]
+endif
 
 if editline_dep.found()
   nix_src_files += [join_paths(meson.source_root(), 'src/nix/repl.cc')]
@@ -59,7 +64,8 @@ endif
 
 nix_src = files(nix_src_files)
 
-nix_ln_src = [
+if not build_on_windows
+  nix_ln_src = [
     [ bindir, 'nix-build' ],
     [ bindir, 'nix-channel' ],
     [ bindir, 'nix-collect-garbage' ],
@@ -71,20 +77,29 @@ nix_ln_src = [
     [ bindir, 'nix-prefetch-url' ],
     [ bindir, 'nix-shell' ],
     [ bindir, 'nix-store' ],
-    [ join_paths(libexecdir, 'nix'), 'build-remote' ]]
+    [ join_paths(libexecdir, 'nix'), 'build-remote' ],
+  ]
+endif
 
-nix_headers = files (
+nix_header_files = [
     join_paths(meson.source_root(), 'src/nix/command.hh'),
     join_paths(meson.source_root(), 'src/nix/legacy.hh'),
     join_paths(meson.source_root(), 'src/nix/progress-bar.hh'),
+]
+if not build_on_windows
+  nix_header_files += [
     join_paths(meson.source_root(), 'src/nix-env/user-env.hh'),
     join_paths(meson.source_root(), 'src/nix-store/dotgraph.hh'),
-    join_paths(meson.source_root(), 'src/nix-store/graphml.hh'))
+    join_paths(meson.source_root(), 'src/nix-store/graphml.hh'),
+  ]
+endif
+nix_headers = files(nix_header_files)
 
 # dependancies
 #============================================================================
 
 nix_dep_list = [
+    boost_dep,
     pthread_dep,
     libdl_dep,
     boost_dep,
@@ -141,10 +156,10 @@ nix_bin = executable(
     link_with : nix_link_list,
     dependencies : nix_dep_list)
 
-
-# meson does not yet support installing symlink files.
-# this is a simple workaround
-foreach name : nix_ln_src
+if not build_on_windows
+  # meson does not yet support installing symlink files.
+  # this is a simple workaround
+  foreach name : nix_ln_src
     meson.add_install_script(
         'ln',
         '-sf',
@@ -154,9 +169,23 @@ foreach name : nix_ln_src
         'cp',
         '-r',
         name[1],
-        join_paths(name[0], name[1]))   
-endforeach
+        join_paths(name[0], name[1]))
+  endforeach
 
-install_headers(
+  install_headers(
     nix_headers,
-    install_dir : join_paths(includedir, 'nix'))
+    install_dir : join_paths(includedir, 'nix'),
+  )
+endif
+
+# Requires newer Meson
+#
+# if build_on_windows
+#   foreach dep : [ boost_dep, libcurl_dep, libbz2_dep, liblzma_dep, openssl_dep, sqlite3_dep ]
+#     foreach dll : dep.get_variable(internal: 'dlls', default_value: '').split(';')
+#       if dll != ''
+#         install_data(dll, install_dir : bindir)
+#       endif
+#     endforeach
+#   endforeach
+# endif

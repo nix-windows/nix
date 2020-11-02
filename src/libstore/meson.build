@@ -9,11 +9,10 @@
 
 src_inc += include_directories('.')
 
-libstore_src = files(
+libstore_src_files = [
     join_paths(meson.source_root(), 'src/libstore/binary-cache-store.cc'),
     join_paths(meson.source_root(), 'src/libstore/build.cc'),
     join_paths(meson.source_root(), 'src/libstore/crypto.cc'),
-    join_paths(meson.source_root(), 'src/libstore/daemon.cc'),
     join_paths(meson.source_root(), 'src/libstore/derivations.cc'),
     join_paths(meson.source_root(), 'src/libstore/download.cc'),
     join_paths(meson.source_root(), 'src/libstore/export-import.cc'),
@@ -30,7 +29,6 @@ libstore_src = files(
     join_paths(meson.source_root(), 'src/libstore/nar-info.cc'),
     join_paths(meson.source_root(), 'src/libstore/nar-info-disk-cache.cc'),
     join_paths(meson.source_root(), 'src/libstore/optimise-store.cc'),
-    join_paths(meson.source_root(), 'src/libstore/parsed-derivations.cc'),
     join_paths(meson.source_root(), 'src/libstore/pathlocks.cc'),
     join_paths(meson.source_root(), 'src/libstore/profiles.cc'),
     join_paths(meson.source_root(), 'src/libstore/references.cc'),
@@ -42,13 +40,20 @@ libstore_src = files(
     join_paths(meson.source_root(), 'src/libstore/ssh-store.cc'),
     join_paths(meson.source_root(), 'src/libstore/store-api.cc'),
     join_paths(meson.source_root(), 'src/libstore/builtins/buildenv.cc'),
-    join_paths(meson.source_root(), 'src/libstore/builtins/fetchurl.cc'))
+    join_paths(meson.source_root(), 'src/libstore/builtins/fetchurl.cc'),
+]
+if not build_on_windows
+  libstore_src_files += [
+    join_paths(meson.source_root(), 'src/libstore/daemon.cc'),
+    join_paths(meson.source_root(), 'src/libstore/parsed-derivations.cc'),
+  ]
+endif
+libstore_src = files(libstore_src_files)
 
-libstore_headers = files(
+libstore_headers_files = [
     join_paths(meson.source_root(), 'src/libstore/binary-cache-store.hh'),
     join_paths(meson.source_root(), 'src/libstore/builtins.hh'),
     join_paths(meson.source_root(), 'src/libstore/crypto.hh'),
-    join_paths(meson.source_root(), 'src/libstore/daemon.hh'),
     join_paths(meson.source_root(), 'src/libstore/derivations.hh'),
     join_paths(meson.source_root(), 'src/libstore/download.hh'),
     join_paths(meson.source_root(), 'src/libstore/fs-accessor.hh'),
@@ -58,7 +63,6 @@ libstore_headers = files(
     join_paths(meson.source_root(), 'src/libstore/nar-accessor.hh'),
     join_paths(meson.source_root(), 'src/libstore/nar-info-disk-cache.hh'),
     join_paths(meson.source_root(), 'src/libstore/nar-info.hh'),
-    join_paths(meson.source_root(), 'src/libstore/parsed-derivations.hh'),
     join_paths(meson.source_root(), 'src/libstore/pathlocks.hh'),
     join_paths(meson.source_root(), 'src/libstore/profiles.hh'),
     join_paths(meson.source_root(), 'src/libstore/references.hh'),
@@ -70,17 +74,29 @@ libstore_headers = files(
     join_paths(meson.source_root(), 'src/libstore/sqlite.hh'),
     join_paths(meson.source_root(), 'src/libstore/ssh.hh'),
     join_paths(meson.source_root(), 'src/libstore/store-api.hh'),
-    join_paths(meson.source_root(), 'src/libstore/worker-protocol.hh'))
+    join_paths(meson.source_root(), 'src/libstore/worker-protocol.hh'),
+]
+if not build_on_windows
+  libstore_headers_files += [
+    join_paths(meson.source_root(), 'src/libstore/daemon.hh'),
+    join_paths(meson.source_root(), 'src/libstore/parsed-derivations.hh'),
+  ]
+endif
+libstore_headers = files(libstore_headers_files)
 
-libstore_data = files(
+if not build_on_windows
+  libstore_data = files(
     join_paths(meson.source_root(), 'src/libstore/sandbox-defaults.sb'),
     join_paths(meson.source_root(), 'src/libstore/sandbox-minimal.sb'),
-    join_paths(meson.source_root(), 'src/libstore/sandbox-network.sb'))
+    join_paths(meson.source_root(), 'src/libstore/sandbox-network.sb'),
+  )
+endif
 
 # dependancies
 #============================================================================
 
 libstore_dep_list = [
+    boost_dep,
     libbz2_dep,
     libcurl_dep,
     libdl_dep,
@@ -115,17 +131,22 @@ libstore_link_args = []
 #============================================================================
 
 libstore_cxx_args = [
-    '-DNIX_PREFIX="@0@" '.format(prefix),
     '-DNIX_STORE_DIR="@0@" '.format(nixstoredir),
     '-DNIX_DATA_DIR="@0@" '.format(datadir),
     '-DNIX_STATE_DIR="@0@" '.format(join_paths(localstatedir, 'nix')),
     '-DNIX_LOG_DIR="@0@" '.format(join_paths(localstatedir, 'log/nix')),
     '-DNIX_CONF_DIR="@0@" '.format(join_paths(sysconfdir, 'nix')),
-    '-DNIX_LIBEXEC_DIR="@0@" '.format(libexecdir),
     '-DNIX_BIN_DIR="@0@" '.format(bindir),
+]
+if not build_on_windows
+  libstore_cxx_args += [
+    '-DNIX_PREFIX="@0@" '.format(prefix),
+    '-DNIX_LIBEXEC_DIR="@0@" '.format(libexecdir),
     '-DNIX_MAN_DIR="@0@" '.format(mandir),
     '-DSANDBOX_SHELL="@0@" '.format(get_option('sandbox_shell')),
-    '-DLSOF="@0@" '.format(lsof)]
+    '-DLSOF="@0@" '.format(lsof),
+  ]
+endif
 
 
 
@@ -133,6 +154,8 @@ libstore_cxx_args = [
 # targets
 #============================================================================
 
+# FIXME: there is just no `sh`
+if not build_on_windows
 gen_header = '''
   echo 'R"foo(' >> "$1"
   cat @INPUT@ >> "$1"
@@ -144,6 +167,7 @@ libstore_src += custom_target(
   output : 'schema.sql.gen.hh',
   input : 'schema.sql',
   command : [bash, '-c', gen_header, 'sh', '@OUTPUT@'])
+endif
 
 
 
@@ -153,7 +177,7 @@ libstore_src += custom_target(
 
 libstore_lib = library(
     'nixstore',
-    install : true,
+    install : get_option('default_library') != 'static',
     install_mode : 'rwxr-xr-x',
     install_dir : libdir,
     include_directories : src_inc,
@@ -163,10 +187,12 @@ libstore_lib = library(
     link_args : libstore_link_args,
     dependencies : libstore_dep_list)
 
-install_headers(
+if not build_on_windows
+  install_headers(
     libstore_headers,
     install_dir : join_paths(includedir, 'nix'))
 
-install_data(
+  install_data(
     libstore_data,
     install_dir : join_paths(datadir, 'nix/sandbox'))
+endif
