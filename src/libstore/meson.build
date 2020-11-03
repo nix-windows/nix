@@ -9,11 +9,10 @@
 
 src_inc += include_directories('.')
 
-libstore_src = files(
+libstore_src_files = [
     'binary-cache-store.cc',
     'content-address.cc',
     'crypto.cc',
-    'daemon.cc',
     'derivations.cc',
     'dummy-store.cc',
     'export-import.cc',
@@ -33,7 +32,6 @@ libstore_src = files(
     'nar-info.cc',
     'nar-info-disk-cache.cc',
     'optimise-store.cc',
-    'parsed-derivations.cc',
     'path.cc',
     'pathlocks.cc',
     'profiles.cc',
@@ -57,14 +55,20 @@ libstore_src = files(
     'builtins/buildenv.cc',
     'builtins/fetchurl.cc',
     'builtins/unpack-channel.cc',
-)
+]
+if not build_on_windows
+  libstore_src_files += [
+    'daemon.cc',
+    'parsed-derivations.cc',
+  ]
+endif
+libstore_src = files(libstore_src_files)
 
-libstore_headers = files(
+libstore_headers_files = [
     'binary-cache-store.hh',
     'builtins.hh',
     'content-address.hh',
     'crypto.hh',
-    'daemon.hh',
     'derivations.hh',
     'filetransfer.hh',
     'fs-accessor.hh',
@@ -77,7 +81,6 @@ libstore_headers = files(
     'nar-accessor.hh',
     'nar-info-disk-cache.hh',
     'nar-info.hh',
-    'parsed-derivations.hh',
     'path.hh',
     'path-info.hh',
     'pathlocks.hh',
@@ -101,18 +104,28 @@ libstore_headers = files(
     'build/worker.hh',
 
     'builtins/buildenv.hh',
-)
+]
+if not build_on_windows
+  libstore_headers_files += [
+    'daemon.hh',
+    'parsed-derivations.hh',
+  ]
+endif
+libstore_headers = files(libstore_headers_files)
 
-libstore_data = files(
+if not build_on_windows
+  libstore_data = files(
     'sandbox-defaults.sb',
     'sandbox-minimal.sb',
     'sandbox-network.sb',
-)
+  )
+endif
 
 # dependancies
 #============================================================================
 
 libstore_dep_list = [
+    boost_dep,
     libbz2_dep,
     libcurl_dep,
     libdl_dep,
@@ -136,7 +149,7 @@ endif
 #============================================================================
 
 libstore_link_list = [
-    libutil_lib,
+  libutil_lib,
 ]
 
 libstore_link_args = []
@@ -148,17 +161,22 @@ libstore_link_args = []
 #============================================================================
 
 libstore_cxx_args = [
-    '-DNIX_PREFIX="@0@" '.format(prefix),
     '-DNIX_STORE_DIR="@0@" '.format(nixstoredir),
     '-DNIX_DATA_DIR="@0@" '.format(datadir),
     '-DNIX_STATE_DIR="@0@" '.format(join_paths(localstatedir, 'nix')),
     '-DNIX_LOG_DIR="@0@" '.format(join_paths(localstatedir, 'log/nix')),
     '-DNIX_CONF_DIR="@0@" '.format(join_paths(sysconfdir, 'nix')),
-    '-DNIX_LIBEXEC_DIR="@0@" '.format(libexecdir),
     '-DNIX_BIN_DIR="@0@" '.format(bindir),
+]
+if not build_on_windows
+  libstore_cxx_args += [
+    '-DNIX_PREFIX="@0@" '.format(prefix),
+    '-DNIX_LIBEXEC_DIR="@0@" '.format(libexecdir),
     '-DNIX_MAN_DIR="@0@" '.format(mandir),
     '-DSANDBOX_SHELL="@0@" '.format(get_option('sandbox_shell')),
-    '-DLSOF="@0@" '.format(lsof)]
+    '-DLSOF="@0@" '.format(lsof),
+  ]
+endif
 
 
 
@@ -166,11 +184,15 @@ libstore_cxx_args = [
 # targets
 #============================================================================
 
-libstore_src += custom_target(
-  'schema.sql.gen.hh',
-  output : 'schema.sql.gen.hh',
-  input : 'schema.sql',
-  command : [bash, '-c', gen_header, 'sh', '@OUTPUT@'])
+# FIXME: there is just no `sh`
+if not build_on_windows
+  libstore_src += custom_target(
+    'schema.sql.gen.hh',
+    output : 'schema.sql.gen.hh',
+    input : 'schema.sql',
+    command : [bash, '-c', gen_header, 'sh', '@OUTPUT@'],
+  )
+endif
 
 
 
@@ -179,7 +201,7 @@ libstore_src += custom_target(
 
 libstore_lib = library(
     'nixstore',
-    install : true,
+    install : get_option('default_library') != 'static',
     install_mode : 'rwxr-xr-x',
     install_dir : libdir,
     include_directories : src_inc,
@@ -189,10 +211,12 @@ libstore_lib = library(
     link_args : libstore_link_args,
     dependencies : libstore_dep_list)
 
-install_headers(
+if not build_on_windows
+  install_headers(
     libstore_headers,
     install_dir : join_paths(includedir, 'nix'))
 
-install_data(
+  install_data(
     libstore_data,
     install_dir : join_paths(datadir, 'nix/sandbox'))
+endif

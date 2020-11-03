@@ -9,12 +9,11 @@
 
 src_inc += include_directories('.', 'primops')
 
-libexpr_src = files(
+libexpr_src_files = [
     'flake/flake.cc',
     'flake/flakeref.cc',
     'flake/lockfile.cc',
 
-    'primops/context.cc',
     'primops/fetchMercurial.cc',
     'primops/fetchTree.cc',
     'primops/fromTOML.cc',
@@ -31,9 +30,15 @@ libexpr_src = files(
     'primops.cc',
     'value-to-json.cc',
     'value-to-xml.cc',
-)
+]
+if not build_on_windows
+  libexpr_src_files += [
+    'primops/context.cc',
+  ]
+endif
+libexpr_src = files(libexpr_src_files)
 
-libexpr_headers = files(
+libexpr_headers_files = [
     'flake/flake.hh',
     'flake/flakeref.hh',
     'flake/lockfile.hh',
@@ -44,7 +49,6 @@ libexpr_headers = files(
     'eval-cache.hh',
     'eval.hh',
     'eval-inline.hh',
-    'function-trace.hh',
     'get-drvs.hh',
     'json-to-value.hh',
     'nixexpr.hh',
@@ -53,7 +57,13 @@ libexpr_headers = files(
     'value.hh',
     'value-to-json.hh',
     'value-to-xml.hh',
-)
+]
+if not build_on_windows
+  libexpr_headers_files += [
+    'function-trace.hh',
+  ]
+endif
+libexpr_headers = files(libexpr_headers_files)
 
 
 
@@ -64,7 +74,7 @@ libexpr_dep_list = [
     gc_dep,
     libdl_dep,
     libsodium_dep,
-    gc_dep,
+    boost_dep,
 ]
 
 if sys_name == 'freebsd'
@@ -146,7 +156,7 @@ libexpr_src += custom_target(
 
 libexpr_lib = library(
     'nixexpr',
-    install : true,
+    install : get_option('default_library') != 'static',
     install_mode : 'rwxr-xr-x',
     install_dir : libdir,
     include_directories : src_inc,
@@ -155,6 +165,8 @@ libexpr_lib = library(
     link_args : libexpr_link_args,
     dependencies : libexpr_dep_list)
 
-install_headers(
+if not build_on_windows
+  install_headers(
     libexpr_headers,
     install_dir : join_paths(includedir, 'nix'))
+endif

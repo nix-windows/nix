@@ -13,28 +13,36 @@
 project(
     'nix',
     'cpp',
-    
+
     default_options : [
         'cpp_std=c++17',
     ],
-    version : run_command('cat', './.version').stdout().strip(),
+#   version : run_command('cat', './.version').stdout().strip(),
+    version : '2.1.3', # no cat so far
     license : 'MIT'
 )
 
-# init compiler 
+# init compiler
 #-------------------------------------------------
+
+build_on_windows = build_machine.system().to_lower().contains('windows')
+sys_name = host_machine.system().to_lower()
+
 cpp = meson.get_compiler('cpp')
+is_msvc = ['msvc', 'clang-cl', 'intel-cl'].contains(cpp.get_id())
 
-add_project_arguments(get_option('cxxflags'), language : 'cpp')
-add_project_link_arguments(get_option('ldflags'), language: 'cpp')
+if not is_msvc
+  add_project_arguments(get_option('cxxflags'), language : 'cpp')
+  add_project_link_arguments(get_option('ldflags'), language: 'cpp')
 
-# We do a lot of args... we'd otherwise have to convert to __ va_args__
-add_project_arguments('-Wno-variadic-macros', language : 'cpp')
+  # We do a lot of args... we'd otherwise have to convert to __ va_args__
+  add_project_arguments('-Wno-variadic-macros', language : 'cpp')
+endif
 
-
-cmake = import('cmake')
-pkg = import('pkgconfig')
-
+if not build_on_windows
+  cmake = import('cmake')
+  pkg = import('pkgconfig')
+endif
 
 
 
@@ -86,37 +94,50 @@ config_h.set_quoted(
 
 # set install directories
 #-------------------------------------------------
-prefix = get_option('prefix')
-libdir = join_paths(prefix, get_option('libdir'))
-bindir = join_paths(prefix, get_option('bindir'))
-datadir = join_paths(prefix, get_option('datadir'))
-sysconfdir = join_paths(prefix, get_option('sysconfdir'))
-libexecdir = join_paths(prefix, get_option('libexecdir'))
-mandir = join_paths(prefix, get_option('mandir'))
-includedir = join_paths(prefix, get_option('includedir'))
+if not build_on_windows
+  prefix = get_option('prefix')
+  libdir = join_paths(prefix, get_option('libdir'))
+  bindir = join_paths(prefix, get_option('bindir'))
+  datadir = join_paths(prefix, get_option('datadir'))
+  sysconfdir = join_paths(prefix, get_option('sysconfdir'))
+  libexecdir = join_paths(prefix, get_option('libexecdir'))
+  mandir = join_paths(prefix, get_option('mandir'))
+  includedir = join_paths(prefix, get_option('includedir'))
+else
+  #prefix = get_option('prefix')
+  libdir = 'C:\\work\\nix-bootstrap\\bin' # join_paths(prefix, get_option('libdir'))
+  bindir = 'C:\\work\\nix-bootstrap\\bin' # join_paths(prefix, get_option('bindir'))
+  datadir = 'C:\\work\\nix-bootstrap\\share' # join_paths(prefix, get_option('datadir'))
+  sysconfdir = 'C:\\work\\nix-bootstrap\\etc' # join_paths(prefix, get_option('sysconfdir'))
+  includedir = 'C:\\work\\nix-bootstrap\\include' # join_paths(prefix, get_option('includedir'))
+endif
 
 # set nix directories
 #-------------------------------------------------
 
-# State should be stored in /nix/var, unless the user overrides it explicitly.
-if get_option('normal_var')
+if not build_on_windows
+  # State should be stored in /nix/var, unless the user overrides it explicitly.
+  if get_option('normal_var')
     localstatedir = '/nix/var'
-else
+  else
     localstatedir =  join_paths(prefix, get_option('localstatedir'))
+  endif
+
+  nixstoredir = get_option('nixstoredir')
+
+  profiledir =  join_paths(sysconfdir, 'profile.d')
+else
+  localstatedir = 'C:\\nix\\var'
+  nixstoredir = 'C:\\nix\\store' # get_option('nixstoredir')
 endif
-
-nixstoredir = get_option('nixstoredir')
-
-profiledir =  join_paths(sysconfdir, 'profile.d')
 
 # Construct a Nix system name (like "i686-linux").
 #-------------------------------------------------
-machine_name = host_machine.cpu()
-sys_name = host_machine.system().to_lower()
+if not build_on_windows
+  machine_name = host_machine.cpu()
+  cpu_archs = ['x86_64', 'armv6', 'armv7', '']
 
-cpu_archs = ['x86_64', 'armv6', 'armv7', '']
-
-foreach cpu : cpu_archs 
+  foreach cpu : cpu_archs
     if (host_machine.cpu().contains(cpu))
         if cpu.contains('armv')
             machine_name = cpu + '1'
@@ -125,14 +146,14 @@ foreach cpu : cpu_archs
         endif
         break
     endif
-endforeach
+  endforeach
 
-system= '"' + machine_name + '-' + sys_name + '"'
-message('system name: ' + system)
-config_h.set(
+  system= '"' + machine_name + '-' + sys_name + '"'
+  message('system name: ' + system)
+  config_h.set(
     'SYSTEM', system,
     description : 'platform identifier (`cpu-os`)')
-
+endif
 
 
 
@@ -142,64 +163,78 @@ config_h.set(
 
 # look for required programs
 #--------------------------------------------------
-cat = find_program('cat', required : true)
-ln = find_program('ln', required : true)
-cp = find_program('cp', required : true)
-rm = find_program('rm', required : true)
-bash = find_program('bash', required : true)
-echo = find_program('echo', required : true)
-patch = find_program('patch', required : true)
 flex = find_program('flex', required : true)
 bison = find_program('bison', required : true)
-sed = find_program('sed', required : true)
-tar = find_program('tar', required : true)
-bzip2 = find_program('bzip2', required : true)
-gzip = find_program('gzip', required : true)
-xz = find_program('xz', required : true)
-dot = find_program('dot', required : false)
-lsof = find_program('lsof', required : false)
-tr = find_program('tr', required : true)
-coreutils = run_command('dirname', cat.path()).stdout().strip()
+
+if not build_on_windows
+  cat = find_program('cat', required : true)
+  ln = find_program('ln', required : true)
+  cp = find_program('cp', required : true)
+  rm = find_program('rm', required : true)
+  bash = find_program('bash', required : true)
+  echo = find_program('echo', required : true)
+  patch = find_program('patch', required : true)
+  sed = find_program('sed', required : true)
+  tar = find_program('tar', required : true)
+  bzip2 = find_program('bzip2', required : true)
+  gzip = find_program('gzip', required : true)
+  xz = find_program('xz', required : true)
+  dot = find_program('dot', required : false)
+  lsof = find_program('lsof', required : false)
+  tr = find_program('tr', required : true)
+  coreutils = run_command('dirname', cat.path()).stdout().strip()
 
 
-# Check whether the store optimiser can optimise symlinks.
-#-------------------------------------------------
-gen_header = '''
-ln -s bla tmp_link
-if ln tmp_link tmp_link2 2> /dev/null; then
+  # Check whether the store optimiser can optimise symlinks.
+  #-------------------------------------------------
+  symlink_test = '''
+  ln -s bla tmp_link
+  if ln tmp_link tmp_link2 2> /dev/null; then
     echo 1
-else
+  else
     echo 0
-fi
-'''
+  fi
+  '''
 
-run_command('sh', '-c', 'rm tmp_link*') 
-can_link_symlink = run_command('sh', '-c', gen_header).stdout().strip()
-if can_link_symlink.to_int() == 1
+  run_command('sh', '-c', 'rm tmp_link*')
+  can_link_symlink = run_command('sh', '-c', symlink_test).stdout().strip()
+  if can_link_symlink.to_int() == 1
     run_command('sh', '-c', 'rm tmp_link*')
-endif 
+  endif
 
-config_h.set('CAN_LINK_SYMLINK', can_link_symlink,
-description : 'Whether link() works on symlinks')
+  config_h.set('CAN_LINK_SYMLINK', can_link_symlink,
+  description : 'Whether link() works on symlinks')
+endif
 
 
 # Look for boost, a required dependency.
 #--------------------------------------------------
 
-#if sys_name.contains('windows')
-#    mt = '-mt'
-#else
+if (get_option('with_boost') != '' and is_msvc)
+  boost_dep = declare_dependency(
+    include_directories : [get_option('with_boost') + '/include'],
+    link_args : ['-L' + get_option('with_boost') + '/lib' ])
+elif (get_option('with_boost') != '')
+  boost_dep = declare_dependency(
+    variables : {'dlls': get_option('with_boost') + '/bin/libboost_context-mt.dll'},
+    include_directories : [get_option('with_boost') + '/include'],
+    link_args : ['-L' + get_option('with_boost') + '/lib', '-lboost_context-mt' ])
+else
+  #if sys_name.contains('windows')
+  #  mt = '-mt'
+  #else
     mt = ''
-#endif
+  #endif
 
-boost_dep = declare_dependency(
+  boost_dep = declare_dependency(
     dependencies : [
-        cpp.find_library('boost_system' + mt),
-        cpp.find_library('boost_context' + mt),
-        cpp.find_library('boost_thread' + mt),
+      cpp.find_library('boost_system' + mt),
+      cpp.find_library('boost_context' + mt),
+      cpp.find_library('boost_thread' + mt),
     ],
     link_args : get_option('boost_link_args'),
-)
+  )
+endif
 
 if (boost_dep.found())
     config_h.set('HAVE_BOOST', 1, description : 'Define if the Boost library is available.')
@@ -211,44 +246,122 @@ libarchive_dep = dependency('libarchive')
 
 # Look for liblzma, a required dependency.
 #--------------------------------------------------
-liblzma_dep = declare_dependency(
+if (get_option('with_lzma') != '') and is_msvc
+  liblzma_dep = declare_dependency(
+    variables : {'dlls': get_option('with_lzma') + '/bin/liblzma.dll' },
+    include_directories : [get_option('with_lzma') + '/include'],
+    link_args : ['-L' + get_option('with_lzma') + '/lib', '-lliblzma' ])
+elif (get_option('with_lzma') != '')
+  liblzma_dep = declare_dependency(
+    variables : {'dlls': get_option('with_lzma') + '/bin/liblzma-5.dll' },
+    include_directories : [get_option('with_lzma') + '/include'],
+    link_args : ['-L' + get_option('with_lzma') + '/lib', '-llzma' ])
+else
+  liblzma_dep = declare_dependency(
     dependencies: dependency('liblzma'),
-    link_args :  get_option('lzma_link_args'))
-
+    link_args :  get_option('lzma_link_args'),
+  )
+endif
 
 # Look for libbrotli{enc,dec}.
 #--------------------------------------------------
-libbrotli_dep = declare_dependency(
+if build_on_windows
+  # todo
+  libbrotli_dep = dependency('', required: false)
+else
+  libbrotli_dep = declare_dependency(
     dependencies: [
         dependency('libbrotlienc'),
-        dependency('libbrotlidec')],
-    link_args :  get_option('brotli_link_args'))
+        dependency('libbrotlidec'),
+    ],
+    link_args :  get_option('brotli_link_args'),
+  )
+endif
 
+if (libbrotli_dep.found())
+  config_h.set('HAVE_BROTLI', 1, description : 'Define if the Brotli compression library is available.')
+endif
 
 # Look for OpenSSL, a required dependency.
 #--------------------------------------------------
-openssl_dep = declare_dependency(
+if get_option('with_openssl') != '' and is_msvc
+  openssl_dep = declare_dependency(
+    variables : {'dlls': ';'.join([ get_option('with_openssl') + '/bin/libeay32.dll',
+                                    get_option('with_openssl') + '/bin/ssleay32.dll']) },
+    include_directories : [get_option('with_openssl') + '/include'],
+    link_args : ['-L' + get_option('with_openssl') + '/lib', '-llibeay32' ],
+  )
+elif (get_option('with_openssl') != '')
+  openssl_dep = declare_dependency(
+    variables : {'dlls': ';'.join([ get_option('with_openssl') + '/bin/libssl-1_1.dll',
+                                    get_option('with_openssl') + '/bin/libcrypto-1_1.dll']) },
+    include_directories : [get_option('with_openssl') + '/include'],
+    link_args : ['-L' + get_option('with_openssl') + '/lib', '-lssl', '-lcrypto' ],
+  )
+else
+  openssl_dep = declare_dependency(
     dependencies: cpp.find_library('ssl'),
-    link_args :  get_option('openssl_link_args'))
+    link_args :  get_option('openssl_link_args'),
+  )
+endif
 
 
 # Look for SQLite, a required dependency.
 #--------------------------------------------------
-sqlite3_dep = declare_dependency(
+if get_option('with_sqlite3') != '' and is_msvc
+  sqlite3_dep = declare_dependency(
+    variables : {'dlls': get_option('with_sqlite3') + '/bin/sqlite3.dll' },
+    include_directories : [get_option('with_sqlite3') + '/include'],
+    link_args : ['-L' + get_option('with_sqlite3') + '/lib', '-lsqlite3' ])
+elif get_option('with_sqlite3') != ''
+  sqlite3_dep = declare_dependency(
+    variables : {'dlls': get_option('with_sqlite3') + '/bin/libsqlite3-0.dll' },
+    include_directories : [get_option('with_sqlite3') + '/include'],
+    link_args : ['-L' + get_option('with_sqlite3') + '/lib', '-lsqlite3' ])
+else
+  sqlite3_dep = declare_dependency(
     dependencies : dependency('sqlite3', version : '>= 3.6.19'),
-    link_args : get_option('sqlite3_link_args'))
-
+    link_args : get_option('sqlite3_link_args')
+  )
+endif
 
 # Look for libcurl, a required dependency.
 #--------------------------------------------------
 
-libcurl_dep = declare_dependency(
+if get_option('with_curl') != '' and is_msvc
+  libcurl_dep = declare_dependency(
+    variables : {'dlls': ';'.join([ get_option('with_curl') + '/bin/libcurl.dll',
+                                    get_option('with_curl') + '/bin/zlib1.dll']) },
+    include_directories : [get_option('with_curl') + '/include'],
+    link_args : ['-L' + get_option('with_curl') + '/lib', '-llibcurl'])
+elif (get_option('with_curl') != '')
+  libcurl_dep = declare_dependency(
+    variables : {'dlls': ';'.join([ get_option('with_curl') + '/bin/libcurl-4.dll',
+                                    get_option('with_curl') + '/bin/zlib1.dll',
+                                    get_option('with_curl') + '/bin/libbrotlicommon.dll',
+                                    get_option('with_curl') + '/bin/libbrotlidec.dll',
+                                    get_option('with_curl') + '/bin/libbrotlienc.dll',
+                                    get_option('with_curl') + '/bin/libidn2-0.dll',
+                                    get_option('with_curl') + '/bin/libpsl-5.dll',
+                                    get_option('with_curl') + '/bin/libnghttp2-14.dll',
+                                    get_option('with_curl') + '/bin/libssh2-1.dll',
+                                    get_option('with_curl') + '/bin/libidn2-0.dll',
+                                    get_option('with_curl') + '/bin/libintl-8.dll',
+                                    get_option('with_curl') + '/bin/libzstd.dll',
+                                    get_option('with_curl') + '/bin/libunistring-2.dll',
+                                    get_option('with_curl') + '/bin/libiconv-2.dll']) },
+    include_directories : [get_option('with_curl') + '/include'],
+    link_args : ['-L' + get_option('with_curl') + '/lib', '-lcurl'])
+else
+  libcurl_dep = declare_dependency(
     dependencies : dependency(
         'libcurl',
         # Meson was getting confused for some reason
         static : sys_name.contains('windows'),
     ),
-    link_args :  get_option('curl_link_args'))
+    link_args :  get_option('curl_link_args')
+  )
+endif
 
 
 # Look for pthread, a required dependency.
@@ -256,7 +369,7 @@ libcurl_dep = declare_dependency(
 
 # Work around Meson not recognizing obscure alternative MCF threading.
 # https://github.com/mesonbuild/meson/issues/553#issuecomment-552602641
-if sys_name.contains('windows')
+if sys_name.contains('windows') and not is_msvc
   pthread_dep = dependency('', required : false)
 else
   pthread_dep = dependency('threads')
@@ -287,21 +400,32 @@ libdl_needed = not sys_name.contains('windows')
 libdl_lib = cpp.find_library('dl', required : libdl_needed)
 
 if libdl_lib.found()
-    libdl_dep = declare_dependency(
-        dependencies : libdl_lib,
-        link_args :  get_option('dl_link_args'),
-        required : libdl_needed)
+  libdl_dep = declare_dependency(
+      dependencies : libdl_lib,
+      link_args :  get_option('dl_link_args'),
+      required : libdl_needed)
 else
-    libdl_dep = dependency('', required: false)
+  libdl_dep = dependency('', required: false)
 endif
 
 
 # Look for libbz2, a required dependency.
 #--------------------------------------------------
-libbz2_dep = declare_dependency(
+if get_option('with_bz2') != '' and is_msvc
+  libbz2_dep = declare_dependency(
+    include_directories : [get_option('with_bz2') + '/include'],
+    link_args : ['-L' + get_option('with_bz2') + '/lib', '-llibbz2'])
+elif get_option('with_bz2') != ''
+  libbz2_dep = declare_dependency(
+    variables : {'dlls': get_option('with_bz2') + '/bin/libbz2-1.dll' },
+    include_directories : [get_option('with_bz2') + '/include'],
+    link_args : ['-L' + get_option('with_bz2') + '/lib', '-llibbz2'])
+else
+  libbz2_dep = declare_dependency(
     dependencies : cpp.find_library('bz2'),
-    link_args :  get_option('bz2_link_args'))
-
+    link_args :  get_option('bz2_link_args'),
+  )
+endif
 
 # Optional dependancies
 #============================================================================
@@ -355,7 +479,7 @@ s3_dep = [
 
 # Look for editline, a dependency required just by nix-repl.
 #--------------------------------------------------
-# NOTE: The the libeditline.pc file was added only in libeditline >= 1.15.2, see 
+# NOTE: The the libeditline.pc file was added only in libeditline >= 1.15.2, see
 # https://github.com/troglobit/editline/commit/0a8f2ef4203c3a4a4726b9dd1336869cd0da8607,
 # but e.g. Ubuntu 16.04 has an older version, so we fall back to searching for
 # editline.h when the pkg-config approach fails.
@@ -394,22 +518,22 @@ endif
 
 if (sys_name.contains('freebsd'))
     add_project_arguments('-D_GNU_SOURCE', language : 'cpp')
-    config_h.set('_GNU_SOURCE', 1)  
+    config_h.set('_GNU_SOURCE', 1)
 endif
 
 if (sys_name.contains('sunos'))
-    # Solaris requires -lsocket -lnsl for network functions 
+    # Solaris requires -lsocket -lnsl for network functions
 endif
 
-if sys_name.contains('windows')
-    windows_version_desc = '''
-      Windows SDK version we will use.
-      Newer version will have their headers trimmed of new functionality.
-    '''
-    windows_version = '0x0A00' # Windows 10
-    config_h.set('WINVER', windows_version, description : windows_version_desc)
-    config_h.set('_WIN32_WINNT', windows_version, description : windows_version_desc)
-endif
+#if build_on_windows
+#    windows_version_desc = '''
+#      Windows SDK version we will use.
+#      Newer version will have their headers trimmed of new functionality.
+#    '''
+#    windows_version = '0x0A00' # Windows 10
+#    config_h.set('WINVER', windows_version, description : windows_version_desc)
+#    config_h.set('_WIN32_WINNT', windows_version, description : windows_version_desc)
+#endif
 
 
 
@@ -614,30 +738,51 @@ conf = configure_file(
     output : 'config.h',
     configuration : config_h)
 
-install_headers(
+if not build_on_windows
+  install_headers(
     conf,
     install_dir : join_paths(includedir, 'nix'))
+endif
 
-add_project_arguments('-include', 'config.h', language : 'cpp')
+if is_msvc
+  add_project_arguments('-FI', 'config.h', language : 'cpp')
+else
+  add_project_arguments('-include', 'config.h', language : 'cpp')
+endif
 src_inc = [include_directories('.', 'src')]
 
-# Needed by multiple libraries
-gen_header = '''
-  echo 'R"foo(' >> "$1"
-  cat @INPUT@ >> "$1"
-  echo ')foo"' >> "$1"
-'''
+# FIXME: there is just no `sh`
+if not build_on_windows
+  # Needed by multiple libraries
+  gen_header = '''
+    echo 'R"foo(' >> "$1"
+    cat @INPUT@ >> "$1"
+    echo ')foo"' >> "$1"
+  '''
+endif
 
-project_dirs = [
+if not build_on_windows
+  project_dirs = [
     'src',
     'scripts',
     'corepkgs',
     'misc',
     'doc',
     'tests',
-]
-
+  ]
+else
+  project_dirs = [
+    'src',
+  ]
+endif
 
 foreach dir : project_dirs
     subdir(dir)
 endforeach
+
+if build_on_windows
+  install_data('corepkgs/fetchurl.nix',                   install_dir : bindir+'/../nix/corepkgs')
+  install_data('corepkgs/derivation.nix',                 install_dir : bindir+'/../nix/corepkgs')
+  install_data('corepkgs/imported-drv-to-derivation.nix', install_dir : bindir+'/../nix/corepkgs')
+  install_data('corepkgs/buildenv.nix',                   install_dir : bindir+'/../nix/corepkgs')
+endif

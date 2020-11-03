@@ -1,4 +1,4 @@
-# Nix lib store build file
+# Nix exec build file
 #============================================================================
 
 
@@ -9,31 +9,31 @@
 
 src_inc += include_directories('.')
 
-libmain_src = files(
-    'common-args.cc',
-    'loggers.cc',
-    'progress-bar.cc',
-    'shared.cc',
-    'stack.cc',
+nix_src_files = [
+    join_paths(meson.source_root(), 'src/nix-build/nix-build.cc'),
+]
+
+#if editline_dep.found()
+#  nix_src_files += [join_paths(meson.source_root(), 'src/nix/repl.cc')]
+#endif
+
+nix_src = files(nix_src_files)
+
+nix_headers = files (
 )
-
-libmain_headers = files(
-    'common-args.hh',
-    'loggers.hh',
-    'progress-bar.hh',
-    'shared.hh',
-)
-
-
-
 
 # dependancies
 #============================================================================
 
-libmain_dep_list = [
+nix_dep_list = [
     pthread_dep,
-    openssl_dep,
+    libdl_dep,
+    boost_dep,
+    editline_dep,
     libsodium_dep,
+    # There is a boemgc use in a static/inline method in libexpr. Sadly, meson
+    # don't have any propogated public dep mechanism.
+    gc_dep,
 ]
 
 
@@ -43,12 +43,14 @@ libmain_dep_list = [
 # Link args
 #============================================================================
 
-libmain_link_list = [
+nix_link_list = [
     libutil_lib,
     libstore_lib,
+    libmain_lib,
+    libexpr_lib
 ]
 
-libmain_link_args = []
+nix_link_args = []
 
 
 
@@ -56,7 +58,7 @@ libmain_link_args = []
 # compiler args
 #============================================================================
 
-libstore_cxx_args = []
+nix_cxx_args = []
 
 
 
@@ -70,20 +72,13 @@ libstore_cxx_args = []
 # build
 #============================================================================
 
-libmain_lib = library(
-    'nixmain',
-    install : get_option('default_library') != 'static',
+nix_bin = executable(
+    'nix-build',
+    install : true,
     install_mode : 'rwxr-xr-x',
-    install_dir : libdir,
+    install_dir : bindir,
     include_directories : src_inc,
-    link_with : libmain_link_list,
-    sources : libmain_src,
-    link_args : libmain_link_args,
-    dependencies : libmain_dep_list)
+    sources : nix_src,
+    link_with : nix_link_list,
+    dependencies : nix_dep_list)
 
-if not build_on_windows
-  install_headers(
-    libmain_headers,
-    install_dir : join_paths(includedir, 'nix'),
-  )
-endif

@@ -282,6 +282,12 @@ void Worker::run(const Goals & _topGoals)
     assert(!settings.keepGoing || children.empty());
 }
 
+#ifdef _WIN32
+typedef BOOL (WINAPI * TGetQueuedCompletionStatusEx)(HANDLE, LPOVERLAPPED_ENTRY, ULONG, PULONG, DWORD, BOOL);
+
+TGetQueuedCompletionStatusEx pGetQueuedCompletionStatusEx = (TGetQueuedCompletionStatusEx)(-1);
+#endif
+
 void Worker::waitForInput()
 {
     printMsg(lvlVomit, "waiting for children");
@@ -350,14 +356,42 @@ void Worker::waitForInput()
     }
 #else
 
+    if (pGetQueuedCompletionStatusEx == (TGetQueuedCompletionStatusEx)(-1)) {
+      pGetQueuedCompletionStatusEx = (TGetQueuedCompletionStatusEx) GetProcAddress(GetModuleHandle("kernel32"), "GetQueuedCompletionStatusEx");
+//    pGetQueuedCompletionStatusEx = 0; // <- for testing
+      assert(pGetQueuedCompletionStatusEx != (TGetQueuedCompletionStatusEx)(-1));
+    }
 
     OVERLAPPED_ENTRY oentries[0x20] = {0};
     ULONG removed;
-    if (!GetQueuedCompletionStatusEx(ioport.get(), oentries, sizeof(oentries)/sizeof(*oentries), &removed, useTimeout ? (timeout.tv_sec*1000) : INFINITE, FALSE)) {
-        WinError winError("GetQueuedCompletionStatusEx");
-        if (winError.lastError != WAIT_TIMEOUT)
-            throw winError;
+    bool gotEOF = false;
+
+    if (pGetQueuedCompletionStatusEx != 0) {
+        // we are on at least Windows Vista / Server 2008 and can get many (countof(oentries)) statuses in one API call
+        if (!pGetQueuedCompletionStatusEx(ioport.get(), oentries, sizeof(oentries)/sizeof(*oentries), &removed, useTimeout ? (timeout.tv_sec*1000) : INFINITE, FALSE)) {
+            WinError winError("GetQueuedCompletionStatusEx");
+            if (winError.lastError != WAIT_TIMEOUT)
+                throw winError;
+            assert(removed == 0);
+        } else {
+            assert(0 < removed && removed <= sizeof(oentries)/sizeof(*oentries));
+        }
+    } else {
+        // we are on legacy Windows and can get only one status in one API call
+        if (!GetQueuedCompletionStatus(ioport.get(), &oentries[0].dwNumberOfBytesTransferred, &oentries[0].lpCompletionKey, &oentries[0].lpOverlapped, useTimeout ? (timeout.tv_sec*1000) : INFINITE)) {
+            WinError winError("GetQueuedCompletionStatus");
+            if (winError.lastError == ERROR_BROKEN_PIPE) {
+                gotEOF = true;
+                removed = 1;
+            } else if (winError.lastError != WAIT_TIMEOUT)
+                throw winError;
+            removed = 0;
+        } else {
+            removed = 1;
+        }
     }
+
+
 /*
     std::cerr << "XXX removed       " << removed        << std::endl;
     for (ULONG i = 0; i<removed; i++ ) {
@@ -429,24 +463,31 @@ std::cerr << "bytesRead     " << bytesRead                 << std::endl;
             decltype(p) nextp = p+1;
             for (ULONG i = 0; i<removed; i++) {
                 if (oentries[i].lpCompletionKey == ((ULONG_PTR)((*p)->hRead.get()) ^ 0x5555)) {
-                    if (oentries[i].dwNumberOfBytesTransferred > 0) {
-                        printMsg(lvlVomit, format("%1%: read %2% bytes") % goal->getName() % oentries[i].dwNumberOfBytesTransferred);
-                        string data((char *) (*p)->buffer.data(), oentries[i].dwNumberOfBytesTransferred);
-                        j->lastOutput = after;
-                        goal->handleChildOutput((*p)->hRead.get(), data);
-                    }
-
-                    BOOL rc = ReadFile((*p)->hRead.get(), (*p)->buffer.data(), (*p)->buffer.size(), &(*p)->got, &(*p)->overlapped);
-                    if (rc) {
-                       // here is possible (but not obligatory) to call `goal->handleChildOutput` and repeat ReadFile immediately
+                    if (gotEOF) {
+                        debug(format("%1%: got EOF") % goal->getName());
+                        goal->handleEOF((*p)->hRead.get());
+                        nextp = j->pipes.erase(p); // no need to maintain `j->pipes` ?
                     } else {
-                        WinError winError("ReadFile(%1%, ..)", (*p)->hRead.get());
-                        if (winError.lastError == ERROR_BROKEN_PIPE) {
-                            debug(format("%1%: got EOF") % goal->getName());
-                            goal->handleEOF((*p)->hRead.get());
-                            nextp = j->pipes.erase(p); // no need to maintain `j->pipes` ?
-                        } else if (winError.lastError != ERROR_IO_PENDING)
-                            throw winError;
+                        if (oentries[i].dwNumberOfBytesTransferred > 0) {
+                            printMsg(lvlVomit, format("%1%: read %2% bytes") % goal->getName() % oentries[i].dwNumberOfBytesTransferred);
+                            string data((char *) (*p)->buffer.data(), oentries[i].dwNumberOfBytesTransferred);
+                          //std::cerr << "read  [" << data << "]" << std::endl;
+                            j->lastOutput = after;
+                            goal->handleChildOutput((*p)->hRead.get(), data);
+                        }
+
+                        BOOL rc = ReadFile((*p)->hRead.get(), (*p)->buffer.data(), (*p)->buffer.size(), &(*p)->got, &(*p)->overlapped);
+                        if (rc) {
+                           // here is possible (but not obligatory) to call `goal->handleChildOutput` and repeat ReadFile immediately
+                        } else {
+                            WinError winError("ReadFile(%1%, ..)", (*p)->hRead.get());
+                            if (winError.lastError == ERROR_BROKEN_PIPE) {
+                                debug(format("%1%: got EOF") % goal->getName());
+                                goal->handleEOF((*p)->hRead.get());
+                                nextp = j->pipes.erase(p); // no need to maintain `j->pipes` ?
+                            } else if (winError.lastError != ERROR_IO_PENDING)
+                                throw winError;
+                        }
                     }
                     break;
                 }

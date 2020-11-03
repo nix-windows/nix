@@ -9,6 +9,14 @@
 
 #include <sys/types.h>
 
+#ifdef _WIN32
+  #ifdef _WIN64
+    #define SYSTEM "x86_64-windows"
+  #else
+    #define SYSTEM "i686-windows"
+  #endif
+#endif
+
 namespace nix {
 
 typedef enum { smEnabled, smRelaxed, smDisabled } SandboxMode;

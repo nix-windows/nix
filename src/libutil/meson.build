@@ -109,7 +109,7 @@ libutil_cxx_args = []
 
 libutil_lib = library(
     'nixutil',
-    install : true,
+    install : get_option('default_library') != 'static',
     install_mode : 'rwxr-xr-x',
     install_dir : libdir,
     include_directories : src_inc,
@@ -117,6 +117,8 @@ libutil_lib = library(
     link_args : libutil_link_args,
     dependencies : libutil_dep_list)
 
-install_headers(
+if not build_on_windows
+  install_headers(
     libutil_headers,
     install_dir : join_paths(includedir, 'nix'))
+endif

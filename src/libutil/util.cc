@@ -37,10 +37,10 @@
 #ifdef _WIN32
 #  include <sdkddkver.h>
 #  include <fileapi.h>
-#  ifdef _MSC_VER
-#    define BOOST_STACKTRACE_USE_BACKTRACE
-#  endif
-#  include <boost/stacktrace.hpp>
+//#  ifdef _MSC_VER && (_WIN32_WINNT >= 0x0502)
+//#    define BOOST_STACKTRACE_USE_BACKTRACE
+//#    include <boost/stacktrace.hpp>
+//#  endif
 #  include <boost/algorithm/string/predicate.hpp>
 #  include <codecvt>
 #  define random() rand()
@@ -91,7 +91,7 @@ std::wstring pathW(const Path & path) {
     return *sw;
 }
 
-
+#if _WIN32_WINNT >= 0x0600
 std::wstring handleToFileName(HANDLE handle) {
     std::vector<wchar_t> buf(0x100);
     DWORD dw = GetFinalPathNameByHandleW(handle, buf.data(), buf.size(), FILE_NAME_OPENED);
@@ -113,6 +113,7 @@ std::wstring handleToFileName(HANDLE handle) {
 Path handleToPath(HANDLE handle) {
     return to_bytes(handleToFileName(handle));
 }
+#endif
 
 #endif
 
@@ -1332,8 +1333,18 @@ void createSymlink(const Path & target, const Path & link,
     }
 }
 #else
+
+typedef BOOLEAN (APIENTRY * TCreateSymbolicLinkW)(LPCWSTR, LPCWSTR, DWORD);
+static TCreateSymbolicLinkW pCreateSymbolicLinkW = (TCreateSymbolicLinkW)(-1);
+
 SymlinkType createSymlink(const Path & target, const Path & link)
 {
+    if (pCreateSymbolicLinkW == (TCreateSymbolicLinkW)(-1)) {
+      pCreateSymbolicLinkW = (TCreateSymbolicLinkW)GetProcAddress(GetModuleHandle("kernel32"), "CreateSymbolicLinkW");
+      assert(pCreateSymbolicLinkW != (TCreateSymbolicLinkW)(-1));
+    }
+
+    if (pCreateSymbolicLinkW != 0) { // we are at least on Windows Vista / Server 2008
     assert(!target.empty() && !link.empty());
     assert(target[0] != '/' && link[0] != '/');
     BOOLEAN rc;
@@ -1344,7 +1355,7 @@ SymlinkType createSymlink(const Path & target, const Path & link)
         std::cerr << "path not absolute (" << target  << "), so make a dangling symlink" << std::endl;
         std::wstring danglingTarget = from_bytes(target);
         std::replace(danglingTarget.begin(), danglingTarget.end(), '/', '\\');
-        rc = CreateSymbolicLinkW(wlink.c_str(), danglingTarget.c_str(), 0);
+            rc = pCreateSymbolicLinkW(wlink.c_str(), danglingTarget.c_str(), 0);
         st = SymlinkTypeDangling;
     } else {
         while (wtarget->size() >= 2 && (*wtarget)[wtarget->size()-2] == '\\' && (*wtarget)[wtarget->size()-1] == '.') { // links to "c:\blablabla\." do not work well
@@ -1355,13 +1366,13 @@ SymlinkType createSymlink(const Path & target, const Path & link)
             std::cerr << "GetFileAttributesW(" << to_bytes(*wtarget)  << ") failed with "<<GetLastError()<<", so make a dangling symlink" << std::endl;
             std::wstring danglingTarget = from_bytes(target);
             std::replace(danglingTarget.begin(), danglingTarget.end(), '/', '\\');
-            rc = CreateSymbolicLinkW(wlink.c_str(), danglingTarget.c_str(), 0);
+                rc = pCreateSymbolicLinkW(wlink.c_str(), danglingTarget.c_str(), 0);
             st = SymlinkTypeDangling;
         } else if (dw & FILE_ATTRIBUTE_DIRECTORY) {
-            rc = CreateSymbolicLinkW(wlink.c_str(), wtarget->c_str(), SYMBOLIC_LINK_FLAG_DIRECTORY);
+                rc = pCreateSymbolicLinkW(wlink.c_str(), wtarget->c_str(), /*SYMBOLIC_LINK_FLAG_DIRECTORY*/0x1);
             st = SymlinkTypeDirectory;
         } else {
-            rc = CreateSymbolicLinkW(wlink.c_str(), wtarget->c_str(), 0);
+                rc = pCreateSymbolicLinkW(wlink.c_str(), wtarget->c_str(), 0);
             st = SymlinkTypeFile;
         }
     }
@@ -1375,6 +1386,17 @@ SymlinkType createSymlink(const Path & target, const Path & link)
         throw winError;
     }
     return st;
+    } else {
+        // we are on legacy Windows with no symlinks
+        // actually, we are able to create symlinks and read them back, but they do not behave like symlinks
+        // what can be done here?
+        // 1. for directories there are junctions
+        // 2. for files there are hard links
+        // is it enough?
+        SymlinkType st;
+        assert(!"FIXME: no symlink api");
+        return st;
+    }
 }
 #endif
 
@@ -1483,10 +1505,16 @@ void writeFull(HANDLE handle, const unsigned char * buf, size_t count, bool allo
     while (count) {
         if (allowInterrupts) checkInterrupt();
         DWORD res;
+#if _WIN32_WINNT >= 0x0600
         auto path = handleToPath(handle); // debug; do it before becuase handleToPath changes lasterror
         if (!WriteFile(handle, (char *) buf, count, &res, NULL)) {
             throw WinError("writing to file %1%:%2%", handle, path);
         }
+#else
+        if (!WriteFile(handle, (char *) buf, count, &res, NULL)) {
+            throw WinError("writing to file %1%", handle);
+        }
+#endif
         if (res > 0) {
             count -= res;
             buf += res;

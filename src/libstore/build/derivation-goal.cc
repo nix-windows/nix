@@ -4006,16 +4006,18 @@ void DerivationGoal::handleChildOutput(int fd, const string & data)
             return;
         }
 
-        for (auto c : data)
-            if (c == '\r')
-                currentLogLinePos = 0;
-            else if (c == '\n')
+        int lastc = -1;
+        for (auto c : data) {
+            if (c == '\r' || c == '\n') {
+                if (lastc != '\r')
                 flushLine();
-            else {
+            } else {
                 if (currentLogLinePos >= currentLogLine.size())
                     currentLogLine.resize(currentLogLinePos + 1);
                 currentLogLine[currentLogLinePos++] = c;
             }
+            lastc = c;
+        }
 
         if (logSink) (*logSink)(data);
     }

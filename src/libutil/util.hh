@@ -695,8 +695,11 @@ struct no_case_compare {
 };
 std::map<std::wstring, std::wstring, no_case_compare> getEntireEnvW();
 
+#if _WIN32_WINNT >= 0x0600
 Path handleToPath(HANDLE handle);
 std::wstring handleToFileName(HANDLE handle);
+#endif
+
 std::wstring pathW(const Path & path);
 inline bool isslash(int c) { return c == '/' || c == '\\'; }
 #else
