@@ -210,14 +210,12 @@ if not build_on_windows
   )
 endif
 
-# Requires newer Meson
-#
-# if build_on_windows
-#   foreach dep : [ boost_dep, libcurl_dep, libbz2_dep, liblzma_dep, openssl_dep, sqlite3_dep ]
-#     foreach dll : dep.get_variable(internal: 'dlls', default_value: '').split(';')
-#       if dll != ''
-#         install_data(dll, install_dir : bindir)
-#       endif
-#     endforeach
-#   endforeach
-# endif
+if build_on_windows
+  foreach dep : [ boost_dep, libcurl_dep, libbz2_dep, liblzma_dep, openssl_dep, sqlite3_dep ]
+    foreach dll : dep.get_variable(internal: 'dlls', default_value: '').split(';')
+      if dll != ''
+        install_data(dll, install_dir : bindir)
+      endif
+    endforeach
+  endforeach
+endif
