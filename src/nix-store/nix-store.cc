@@ -520,7 +520,7 @@ static void registerValidity(bool reregister, bool hashGiven, bool canonicalise)
                 info->narHash = hash.first;
                 info->narSize = hash.second;
             }
-            infos.push_back(std::move(*info));
+            infos.insert_or_assign(info->path, *info);
         }
     }
 

@@ -11,6 +11,7 @@
 #include "finally.hh"
 #include "logging.hh"
 #include "callback.hh"
+#include "filetransfer.hh"
 
 namespace nix {
 
@@ -171,7 +172,8 @@ void RemoteStore::setOptions(Connection & conn)
 
     if (GET_PROTOCOL_MINOR(conn.daemonVersion) >= 12) {
         std::map<std::string, Config::SettingInfo> overrides;
-        globalConfig.getSettings(overrides, true);
+        settings.getSettings(overrides, true); // libstore settings
+        fileTransferSettings.getSettings(overrides, true);
         overrides.erase(settings.keepFailed.name);
         overrides.erase(settings.keepGoing.name);
         overrides.erase(settings.tryFallback.name);
@@ -471,9 +473,14 @@ ref<const ValidPathInfo> RemoteStore::addCAToStore(
         worker_proto::write(*this, conn->to, references);
         conn->to << repair;
 
-        conn.withFramedSink([&](Sink & sink) {
-            dump.drainInto(sink);
-        });
+        // The dump source may invoke the store, so we need to make some room.
+        connections->incCapacity();
+        {
+            Finally cleanup([&]() { connections->decCapacity(); });
+            conn.withFramedSink([&](Sink & sink) {
+                dump.drainInto(sink);
+            });
+        }
 
         auto path = parseStorePath(readString(conn->from));
         return readValidPathInfo(conn, path);
