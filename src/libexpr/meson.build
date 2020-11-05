@@ -61,6 +61,7 @@ libexpr_headers = files(
 #============================================================================
 
 libexpr_dep_list = [
+    boost_dep,
     libdl_dep,
     libsodium_dep,
     gc_dep,
