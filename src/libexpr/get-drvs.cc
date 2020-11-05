@@ -1,7 +1,7 @@
 #include "get-drvs.hh"
 #include "util.hh"
 #include "eval-inline.hh"
-#include "derivations.hh"
+#include "store-api.hh"
 
 #include <cstring>
 #include <regex>
@@ -19,27 +19,30 @@ DrvInfo::DrvInfo(EvalState & state, const string & attrPath, Bindings * attrs)
 DrvInfo::DrvInfo(EvalState & state, ref<Store> store, const std::string & drvPathWithOutputs)
     : state(&state), attrs(nullptr), attrPath("")
 {
-    auto spec = parseDrvPathWithOutputs(drvPathWithOutputs);
+    auto [drvPath, selectedOutputs] = store->parsePathWithOutputs(drvPathWithOutputs);
 
-    drvPath = spec.first;
+    this->drvPath = store->printStorePath(drvPath);
 
     auto drv = store->derivationFromPath(drvPath);
 
-    name = storePathToName(drvPath);
+    name = drvPath.name();
 
-    if (spec.second.size() > 1)
+    if (selectedOutputs.size() > 1)
         throw Error("building more than one derivation output is not supported, in '%s'", drvPathWithOutputs);
 
     outputName =
-        spec.second.empty()
-        ? get(drv.env, "outputName", "out")
-        : *spec.second.begin();
+        selectedOutputs.empty()
+        ? get(drv.env, "outputName").value_or("out")
+        : *selectedOutputs.begin();
 
     auto i = drv.outputs.find(outputName);
     if (i == drv.outputs.end())
-        throw Error("derivation '%s' does not have output '%s'", drvPath, outputName);
+        throw Error("derivation '%s' does not have output '%s'", store->printStorePath(drvPath), outputName);
+    auto & [outputName, output] = *i;
 
-    outPath = i->second.path;
+    auto optStorePath = output.path(*store, drv.name, outputName);
+    if (optStorePath)
+        outPath = store->printStorePath(*optStorePath);
 }
 
 
@@ -77,12 +80,15 @@ string DrvInfo::queryDrvPath() const
 
 string DrvInfo::queryOutPath() const
 {
-    if (outPath == "" && attrs) {
+    if (!outPath && attrs) {
         Bindings::iterator i = attrs->find(state->sOutPath);
         PathSet context;
-        outPath = i != attrs->end() ? state->coerceToPath(*i->pos, *i->value, context) : "";
+        if (i != attrs->end())
+            outPath = state->coerceToPath(*i->pos, *i->value, context);
     }
-    return outPath;
+    if (!outPath)
+        throw UnimplementedError("CA derivations are not yet supported");
+    return *outPath;
 }
 
 
@@ -348,7 +354,7 @@ static void getDerivations(EvalState & state, Value & vIn,
                    should we recurse into it?  => Only if it has a
                    `recurseForDerivations = true' attribute. */
                 if (i->value->type == tAttrs) {
-                    Bindings::iterator j = i->value->attrs->find(state.symbols.create("recurseForDerivations"));
+                    Bindings::iterator j = i->value->attrs->find(state.sRecurseForDerivations);
                     if (j != i->value->attrs->end() && state.forceBool(*j->value, *j->pos))
                         getDerivations(state, *i->value, pathPrefix2, autoArgs, drvs, done, ignoreAssertionFailures);
                 }

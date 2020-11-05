@@ -1,14 +1,15 @@
 #include "hash.hh"
 #include "shared.hh"
-#include "download.hh"
+#include "filetransfer.hh"
 #include "store-api.hh"
 #include "eval.hh"
 #include "eval-inline.hh"
 #include "common-eval-args.hh"
 #include "attr-path.hh"
-#include "legacy.hh"
 #include "finally.hh"
+#include "../nix/legacy.hh"
 #include "progress-bar.hh"
+#include "tarfile.hh"
 
 #include <iostream>
 
@@ -36,26 +37,27 @@ string resolveMirrorUri(EvalState & state, string uri)
 
     auto mirrorList = vMirrors.attrs->find(state.symbols.create(mirrorName));
     if (mirrorList == vMirrors.attrs->end())
-        throw Error(format("unknown mirror name '%1%'") % mirrorName);
+        throw Error("unknown mirror name '%1%'", mirrorName);
     state.forceList(*mirrorList->value);
 
     if (mirrorList->value->listSize() < 1)
-        throw Error(format("mirror URI '%1%' did not expand to anything") % uri);
+        throw Error("mirror URI '%1%' did not expand to anything", uri);
 
     string mirror = state.forceString(*mirrorList->value->listElems()[0]);
     return mirror + (hasSuffix(mirror, "/") ? "" : "/") + string(s, p + 1);
 }
 
 
-static int _main(int argc, char * * argv)
+static int main_nix_prefetch_url(int argc, char * * argv)
 {
     {
         HashType ht = htSHA256;
         std::vector<string> args;
-        bool printPath = getEnv("PRINT_PATH") != "";
+        bool printPath = getEnv("PRINT_PATH") == "1";
         bool fromExpr = false;
         string attrPath;
         bool unpack = false;
+        bool executable = false;
         string name;
 
         struct MyArgs : LegacyArgs, MixEvalArgs
@@ -63,7 +65,7 @@ static int _main(int argc, char * * argv)
             using LegacyArgs::LegacyArgs;
         };
 
-        MyArgs myArgs(baseNameOf(argv[0]), [&](Strings::iterator & arg, const Strings::iterator & end) {
+        MyArgs myArgs(std::string(baseNameOf(argv[0])), [&](Strings::iterator & arg, const Strings::iterator & end) {
             if (*arg == "--help")
                 showManPage("nix-prefetch-url");
             else if (*arg == "--version")
@@ -71,8 +73,6 @@ static int _main(int argc, char * * argv)
             else if (*arg == "--type") {
                 string s = getArg(*arg, arg, end);
                 ht = parseHashType(s);
-                if (ht == htUnknown)
-                    throw UsageError(format("unknown hash type '%1%'") % s);
             }
             else if (*arg == "--print-path")
                 printPath = true;
@@ -82,6 +82,8 @@ static int _main(int argc, char * * argv)
             }
             else if (*arg == "--unpack")
                 unpack = true;
+            else if (*arg == "--executable")
+                executable = true;
             else if (*arg == "--name")
                 name = getArg(*arg, arg, end);
             else if (*arg != "" && arg->at(0) == '-')
@@ -100,8 +102,10 @@ static int _main(int argc, char * * argv)
 
         Finally f([]() { stopProgressBar(); });
 
+#ifndef _WIN32
         if (isatty(STDERR_FILENO))
-          startProgressBar();
+            startProgressBar();
+#endif
 
         auto store = openStore();
         auto state = std::make_unique<EvalState>(myArgs.searchPath, store);
@@ -119,7 +123,7 @@ static int _main(int argc, char * * argv)
             Path path = resolveExprPath(lookupFileArg(*state, args.empty() ? "." : args[0]));
             Value vRoot;
             state->evalFile(path, vRoot);
-            Value & v(*findAlongAttrPath(*state, attrPath, autoArgs, vRoot));
+            Value & v(*findAlongAttrPath(*state, attrPath, autoArgs, vRoot).first);
             state->forceAttrs(v);
 
             /* Extract the URI. */
@@ -150,22 +154,24 @@ static int _main(int argc, char * * argv)
         if (name.empty())
             name = baseNameOf(uri);
         if (name.empty())
-            throw Error(format("cannot figure out file name for '%1%'") % uri);
+            throw Error("cannot figure out file name for '%1%'", uri);
 
         /* If an expected hash is given, the file may already exist in
            the store. */
-        Hash hash, expectedHash(ht);
-        Path storePath;
+        std::optional<Hash> expectedHash;
+        Hash hash(ht);
+        std::optional<StorePath> storePath;
         if (args.size() == 2) {
-            expectedHash = Hash(args[1], ht);
-            storePath = store->makeFixedOutputPath(unpack, expectedHash, name);
-            if (store->isValidPath(storePath))
-                hash = expectedHash;
+            expectedHash = Hash::parseAny(args[1], ht);
+            const auto recursive = unpack ? FileIngestionMethod::Recursive : FileIngestionMethod::Flat;
+            storePath = store->makeFixedOutputPath(recursive, *expectedHash, name);
+            if (store->isValidPath(*storePath))
+                hash = *expectedHash;
             else
-                storePath.clear();
+                storePath.reset();
         }
 
-        if (storePath.empty()) {
+        if (!storePath) {
 
             auto actualUri = resolveMirrorUri(*state, uri);
 
@@ -175,7 +181,11 @@ static int _main(int argc, char * * argv)
             /* Download the file. */
             {
 #ifndef _WIN32
-                AutoCloseFD fd = open(tmpFile.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0600);
+                auto mode = 0600;
+                if (executable)
+                    mode = 0700;
+
+                AutoCloseFD fd = open(tmpFile.c_str(), O_WRONLY | O_CREAT | O_EXCL, mode);
                 if (!fd) throw PosixError("creating temporary file '%s'", tmpFile);
 #else
                 AutoCloseWindowsHandle fd = CreateFileW(pathW(tmpFile).c_str(), GENERIC_WRITE, 0, NULL, CREATE_NEW,
@@ -186,9 +196,9 @@ static int _main(int argc, char * * argv)
 
                 FdSink sink(fd.get());
 
-                DownloadRequest req(actualUri);
+                FileTransferRequest req(actualUri);
                 req.decompress = false;
-                getDownloader()->download(std::move(req), sink);
+                getFileTransfer()->download(std::move(req), sink);
             }
 
             /* Optionally unpack the file. */
@@ -196,11 +206,7 @@ static int _main(int argc, char * * argv)
                 printInfo("unpacking...");
                 Path unpacked = (Path) tmpDir + "/unpacked";
                 createDirs(unpacked);
-                if (hasSuffix(baseNameOf(uri), ".zip"))
-                    runProgramGetStdout("unzip", true, {"-qq", tmpFile, "-d", unpacked});
-                else
-                    // FIXME: this requires GNU tar for decompression.
-                    runProgramGetStdout("tar", true, {"xf", tmpFile, "-C", unpacked});
+                unpackTarfile(tmpFile, unpacked);
 
                 /* If the archive unpacks to a single file/directory, then use
                    that as the top-level. */
@@ -211,33 +217,25 @@ static int _main(int argc, char * * argv)
                     tmpFile = unpacked;
             }
 
-            /* FIXME: inefficient; addToStore() will also hash
-               this. */
-            hash = unpack ? hashPath(ht, tmpFile).first : hashFile(ht, tmpFile);
+            const auto method = unpack || executable ? FileIngestionMethod::Recursive : FileIngestionMethod::Flat;
 
-            if (expectedHash != Hash(ht) && expectedHash != hash)
-                throw Error(format("hash mismatch for '%1%'") % uri);
-
-            /* Copy the file to the Nix store. FIXME: if RemoteStore
-               implemented addToStoreFromDump() and downloadFile()
-               supported a sink, we could stream the download directly
-               into the Nix store. */
-            storePath = store->addToStore(name, tmpFile, unpack, ht);
-
-            assert(storePath == store->makeFixedOutputPath(unpack, hash, name));
+            auto info = store->addToStoreSlow(name, tmpFile, method, ht, expectedHash);
+            storePath = info.path;
+            assert(info.ca);
+            hash = getContentAddressHash(*info.ca);
         }
 
         stopProgressBar();
 
         if (!printPath)
-            printInfo(format("path is '%1%'") % storePath);
+            printInfo("path is '%s'", store->printStorePath(*storePath));
 
         std::cout << printHash16or32(hash) << std::endl;
         if (printPath)
-            std::cout << storePath << std::endl;
+            std::cout << store->printStorePath(*storePath) << std::endl;
 
         return 0;
     }
 }
 
-static RegisterLegacyCommand s1("nix-prefetch-url", _main);
+static RegisterLegacyCommand r_nix_prefetch_url("nix-prefetch-url", main_nix_prefetch_url);

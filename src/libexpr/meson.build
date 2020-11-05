@@ -10,51 +10,60 @@
 src_inc += include_directories('.', 'primops')
 
 libexpr_src_files = [
-    join_paths(meson.source_root(), 'src/libexpr/primops/fetchGit.cc'),
-    join_paths(meson.source_root(), 'src/libexpr/primops/fetchMercurial.cc'),
-    join_paths(meson.source_root(), 'src/libexpr/primops/fromTOML.cc'),
+    'flake/flake.cc',
+    'flake/flakeref.cc',
+    'flake/lockfile.cc',
 
-    join_paths(meson.source_root(), 'src/libexpr/attr-path.cc'),
-    join_paths(meson.source_root(), 'src/libexpr/attr-set.cc'),
-    join_paths(meson.source_root(), 'src/libexpr/common-eval-args.cc'),
-    join_paths(meson.source_root(), 'src/libexpr/eval.cc'),
-    join_paths(meson.source_root(), 'src/libexpr/get-drvs.cc'),
-    join_paths(meson.source_root(), 'src/libexpr/json-to-value.cc'),
-    join_paths(meson.source_root(), 'src/libexpr/names.cc'),
-    join_paths(meson.source_root(), 'src/libexpr/nixexpr.cc'),
-    join_paths(meson.source_root(), 'src/libexpr/primops.cc'),
-    join_paths(meson.source_root(), 'src/libexpr/value-to-json.cc'),
-    join_paths(meson.source_root(), 'src/libexpr/value-to-xml.cc'),
+    'primops/fetchMercurial.cc',
+    'primops/fetchTree.cc',
+    'primops/fromTOML.cc',
+
+    'attr-path.cc',
+    'attr-set.cc',
+    'common-eval-args.cc',
+    'eval-cache.cc',
+    'eval.cc',
+    'function-trace.cc',
+    'get-drvs.cc',
+    'json-to-value.cc',
+    'nixexpr.cc',
+    'primops.cc',
+    'value-to-json.cc',
+    'value-to-xml.cc',
 ]
 if not build_on_windows
   libexpr_src_files += [
-    join_paths(meson.source_root(), 'src/libexpr/primops/context.cc'),
+    'primops/context.cc',
   ]
 endif
 libexpr_src = files(libexpr_src_files)
 
-libexpr_header_files = [
-    join_paths(meson.source_root(), 'src/libexpr/attr-path.hh'),
-    join_paths(meson.source_root(), 'src/libexpr/attr-set.hh'),
-    join_paths(meson.source_root(), 'src/libexpr/common-eval-args.hh'),
-    join_paths(meson.source_root(), 'src/libexpr/eval.hh'),
-    join_paths(meson.source_root(), 'src/libexpr/eval-inline.hh'),
-    join_paths(meson.source_root(), 'src/libexpr/get-drvs.hh'),
-    join_paths(meson.source_root(), 'src/libexpr/json-to-value.hh'),
-    join_paths(meson.source_root(), 'src/libexpr/names.hh'),
-    join_paths(meson.source_root(), 'src/libexpr/nixexpr.hh'),
-    join_paths(meson.source_root(), 'src/libexpr/primops.hh'),
-    join_paths(meson.source_root(), 'src/libexpr/symbol-table.hh'),
-    join_paths(meson.source_root(), 'src/libexpr/value.hh'),
-    join_paths(meson.source_root(), 'src/libexpr/value-to-json.hh'),
-    join_paths(meson.source_root(), 'src/libexpr/value-to-xml.hh'),
+libexpr_headers_files = [
+    'flake/flake.hh',
+    'flake/flakeref.hh',
+    'flake/lockfile.hh',
+
+    'attr-path.hh',
+    'attr-set.hh',
+    'common-eval-args.hh',
+    'eval-cache.hh',
+    'eval.hh',
+    'eval-inline.hh',
+    'get-drvs.hh',
+    'json-to-value.hh',
+    'nixexpr.hh',
+    'primops.hh',
+    'symbol-table.hh',
+    'value.hh',
+    'value-to-json.hh',
+    'value-to-xml.hh',
 ]
 if not build_on_windows
-  libexpr_header_files += [
-    join_paths(meson.source_root(), 'src/libexpr/function-trace.hh'),
+  libexpr_headers_files += [
+    'function-trace.hh',
   ]
 endif
-libexpr_headers = files(libexpr_header_files)
+libexpr_headers = files(libexpr_headers_files)
 
 
 
@@ -62,10 +71,10 @@ libexpr_headers = files(libexpr_header_files)
 #============================================================================
 
 libexpr_dep_list = [
-    gc_dep,
+    boost_dep,
     libdl_dep,
     libsodium_dep,
-    boost_dep,
+    gc_dep,
 ]
 
 if sys_name == 'freebsd'
@@ -81,7 +90,9 @@ endif
 libexpr_link_list = [
     libutil_lib,
     libstore_lib,
-    libmain_lib]
+    libfetchers_lib,
+    libmain_lib,
+]
 
 libexpr_link_args = []
 
@@ -99,11 +110,26 @@ libexpr_cxx_args = []
 # targets
 #============================================================================
 
+subdir('primops')
+subdir('flake')
+
+embeddded_files = [
+  'imported-drv-to-derivation.nix',
+]
+
+foreach file : embeddded_files
+  libexpr_src += custom_target(
+    (file + '.gen.hh'),
+    output : (file + '.gen.hh'),
+    input : file,
+    command : [bash, '-c', gen_header, 'sh', '@OUTPUT@'],
+  )
+endforeach
+
+
 libexpr_src += custom_target(
     'parser_tab.[cchh]',
-    output : [
-        'parser-tab.cc',
-        'parser-tab.hh'],
+    output : ['parser-tab.cc', 'parser-tab.hh'],
     input : 'parser.y',
     command : [
         bison,

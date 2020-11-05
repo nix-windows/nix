@@ -4,6 +4,7 @@
 src_dirs = [
   'libutil',
   'libstore',
+  'libfetchers',
   'libmain',
   'libexpr',
   'nix',

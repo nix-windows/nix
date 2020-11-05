@@ -1,4 +1,4 @@
-#include "builtins.hh"
+#include "buildenv.hh"
 
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -7,17 +7,15 @@
 
 namespace nix {
 
-typedef std::map<Path,int> Priorities;
-
-// FIXME: change into local variables.
-
-static Priorities priorities;
-
-static unsigned long symlinks;
+struct State
+{
+    std::map<Path, int> priorities;
+    unsigned long symlinks = 0;
+};
 
 /* For each activated package, create symlinks */
 // TODO: make Windows native version
-static void createLinks(const Path & srcDir, const Path & dstDir, int priority)
+static void createLinks(State & state, const Path & srcDir, const Path & dstDir, int priority)
 {
     DirEntries srcFiles;
 
@@ -25,7 +23,10 @@ static void createLinks(const Path & srcDir, const Path & dstDir, int priority)
         srcFiles = readDirectory(srcDir);
     } catch (PosixError & e) {
         if (e.errNo == ENOTDIR) {
-            printError("warning: not including '%s' in the user environment because it's not a directory", srcDir);
+            logWarning({
+                .name = "Create links - directory",
+                .hint = hintfmt("not including '%s' in the user environment because it's not a directory", srcDir)
+            });
             return;
         }
         throw;
@@ -49,7 +50,10 @@ static void createLinks(const Path & srcDir, const Path & dstDir, int priority)
                 throw PosixError("getting status-4 of '%1%'", srcFile);
         } catch (PosixError & e) {
             if (e.errNo == ENOENT || e.errNo == ENOTDIR) {
-                printError("warning: skipping dangling symlink '%s'", dstFile);
+                logWarning({
+                    .name = "Create links - skipping symlink",
+                    .hint = hintfmt("skipping dangling symlink '%s'", dstFile)
+                });
                 continue;
             }
             throw;
@@ -88,7 +92,7 @@ static void createLinks(const Path & srcDir, const Path & dstDir, int priority)
 
             if (dt != DT_UNKNOWN) {
                 if (dt == DT_DIR) {
-                    createLinks(srcFile, dstFile, priority);
+                    createLinks(state, srcFile, dstFile, priority);
                     continue;
                 } else if (dt == DT_LNK) {
                     auto target = canonPath(dstFile, true);
@@ -96,28 +100,28 @@ static void createLinks(const Path & srcDir, const Path & dstDir, int priority)
                         throw Error("collision between '%1%' and non-directory '%2%'", srcFile, target);
 #ifndef _WIN32
                     if (unlink(dstFile.c_str()) == -1)
-                        throw PosixError(format("unlinking '%1%'") % dstFile);
+                        throw PosixError("unlinking '%1%'", dstFile);
                     if (mkdir(dstFile.c_str(), 0755) == -1)
-                        throw PosixError(format("creating directory '%1%'"));
+                        throw PosixError("creating directory '%1%'", dstFile);
 #else
                     if (!DeleteFileW(pathW(dstFile).c_str()))
                         throw WinError("DeleteFileW when createLinks '%1%'", dstFile);
                     if (!CreateDirectoryW(pathW(dstFile).c_str(), NULL))
                         throw WinError("CreateDirectoryW when createLinks '%1%'", dstFile);
 #endif
-                    createLinks(target, dstFile, priorities[dstFile]);
-                    createLinks(srcFile, dstFile, priority);
+                    createLinks(state, target, dstFile, state.priorities[dstFile]);
+                    createLinks(state, srcFile, dstFile, priority);
                     continue;
                 }
             } //else if (errno != ENOENT)
-                //throw PosixError(format("getting status-5 of '%1%'") % dstFile);
+                //throw PosixError("getting status-5 of '%1%'", dstFile);
         }
 
         else {
             unsigned char dt = getFileType(dstFile);
             if (dt != DT_UNKNOWN) {
                 if (dt == DT_LNK) {
-                    auto prevPriority = priorities[dstFile];
+                    auto prevPriority = state.priorities[dstFile];
                     if (prevPriority == priority)
                         throw Error(
                                 "packages '%1%' and '%2%' have the same priority %3%; "
@@ -129,7 +133,7 @@ static void createLinks(const Path & srcDir, const Path & dstDir, int priority)
                         continue;
 #ifndef _WIN32
                     if (unlink(dstFile.c_str()) == -1)
-                        throw PosixError(format("unlinking '%1%'") % dstFile);
+                        throw PosixError("unlinking '%1%'", dstFile);
 #else
                     if (!DeleteFileW(pathW(dstFile).c_str()))
                         throw WinError("DeleteFileW when createLinks '%1%'", dstFile);
@@ -138,75 +142,38 @@ static void createLinks(const Path & srcDir, const Path & dstDir, int priority)
                 if (dt == DT_DIR)
                     throw Error("collision between non-directory '%1%' and directory '%2%'", srcFile, dstFile);
             } //else if (errno != ENOENT)
-                //throw PosixError(format("getting status-6 of '%1%'") % dstFile);
+                //throw PosixError("getting status-6 of '%1%'", dstFile);
         }
 
         createSymlink(srcFile, dstFile);
-        priorities[dstFile] = priority;
-        symlinks++;
+        state.priorities[dstFile] = priority;
+        state.symlinks++;
     }
 }
 
-typedef std::set<Path> FileProp;
-
-static FileProp done;
-static FileProp postponed = FileProp{};
-
-static Path out;
-
-static void addPkg(const Path & pkgDir, int priority)
+void buildProfile(const Path & out, Packages && pkgs)
 {
-    if (!done.insert(pkgDir).second) return;
-    createLinks(pkgDir, out, priority);
+    State state;
 
-    try {
-        for (const auto & p : tokenizeString<std::vector<string>>(
-                readFile(pkgDir + "/nix-support/propagated-user-env-packages"), " \n"))
-            if (!done.count(p))
-                postponed.insert(p);
-    } catch (PosixError & e) {
-        if (e.errNo != ENOENT && e.errNo != ENOTDIR) throw;
+    std::set<Path> done, postponed;
+
+    auto addPkg = [&](const Path & pkgDir, int priority) {
+        if (!done.insert(pkgDir).second) return;
+        createLinks(state, pkgDir, out, priority);
+
+        try {
+            for (const auto & p : tokenizeString<std::vector<string>>(
+                    readFile(pkgDir + "/nix-support/propagated-user-env-packages"), " \n"))
+                if (!done.count(p))
+                    postponed.insert(p);
+        } catch (PosixError & e) {
+            if (e.errNo != ENOENT && e.errNo != ENOTDIR) throw;
 #ifdef _WIN32
-    } catch (WinError & e) {
-        throw e; // TODO
+        } catch (WinError & e) {
+            throw e; // TODO
 #endif
-    }
-}
-
-struct Package {
-    Path path;
-    bool active;
-    int priority;
-    Package(Path path, bool active, int priority) : path{path}, active{active}, priority{priority} {}
-};
-
-typedef std::vector<Package> Packages;
-
-void builtinBuildenv(const BasicDerivation & drv)
-{
-    auto getAttr = [&](const string & name) {
-        auto i = drv.env.find(name);
-        if (i == drv.env.end()) throw Error("attribute '%s' missing", name);
-        return i->second;
-    };
-
-    out = getAttr("out");
-    createDirs(out);
-
-    /* Convert the stuff we get from the environment back into a
-     * coherent data type. */
-    Packages pkgs;
-    auto derivations = tokenizeString<Strings>(getAttr("derivations"));
-    while (!derivations.empty()) {
-        /* !!! We're trusting the caller to structure derivations env var correctly */
-        auto active = derivations.front(); derivations.pop_front();
-        auto priority = stoi(derivations.front()); derivations.pop_front();
-        auto outputs = stoi(derivations.front()); derivations.pop_front();
-        for (auto n = 0; n < outputs; n++) {
-            auto path = derivations.front(); derivations.pop_front();
-            pkgs.emplace_back(path, active != "false", priority);
         }
-    }
+    };
 
     /* Symlink to the packages that have been installed explicitly by the
      * user. Process in priority order to reduce unnecessary
@@ -226,13 +193,42 @@ void builtinBuildenv(const BasicDerivation & drv)
      */
     auto priorityCounter = 1000;
     while (!postponed.empty()) {
-        auto pkgDirs = postponed;
-        postponed = FileProp{};
+        std::set<Path> pkgDirs;
+        postponed.swap(pkgDirs);
         for (const auto & pkgDir : pkgDirs)
             addPkg(pkgDir, priorityCounter++);
     }
 
-    printError("created %d symlinks in user environment", symlinks);
+    debug("created %d symlinks in user environment", state.symlinks);
+}
+
+void builtinBuildenv(const BasicDerivation & drv)
+{
+    auto getAttr = [&](const string & name) {
+        auto i = drv.env.find(name);
+        if (i == drv.env.end()) throw Error("attribute '%s' missing", name);
+        return i->second;
+    };
+
+    Path out = getAttr("out");
+    createDirs(out);
+
+    /* Convert the stuff we get from the environment back into a
+     * coherent data type. */
+    Packages pkgs;
+    auto derivations = tokenizeString<Strings>(getAttr("derivations"));
+    while (!derivations.empty()) {
+        /* !!! We're trusting the caller to structure derivations env var correctly */
+        auto active = derivations.front(); derivations.pop_front();
+        auto priority = stoi(derivations.front()); derivations.pop_front();
+        auto outputs = stoi(derivations.front()); derivations.pop_front();
+        for (auto n = 0; n < outputs; n++) {
+            auto path = derivations.front(); derivations.pop_front();
+            pkgs.emplace_back(path, active != "false", priority);
+        }
+    }
+
+    buildProfile(out, std::move(pkgs));
 
     createSymlink(getAttr("manifest"), out + "/manifest.nix");
 }

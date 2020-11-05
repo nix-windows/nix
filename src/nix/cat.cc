@@ -19,9 +19,9 @@ struct MixCat : virtual Args
     {
         auto st = accessor->stat1(path);
         if (st.type == FSAccessor::Type::tMissing)
-            throw Error(format("path '%1%' does not exist") % path);
+            throw Error("path '%1%' does not exist", path);
         if (st.type != FSAccessor::Type::tRegular)
-            throw Error(format("path '%1%' is not a regular file") % path);
+            throw Error("path '%1%' is not a regular file", path);
 
         std::cout << accessor->readFile(path);
     }
@@ -31,18 +31,19 @@ struct CmdCatStore : StoreCommand, MixCat
 {
     CmdCatStore()
     {
-        expectArg("path", &path);
-    }
-
-    std::string name() override
-    {
-        return "cat-store";
+        expectArgs({
+            .label = "path",
+            .handler = {&path},
+            .completer = completePath
+        });
     }
 
     std::string description() override
     {
-        return "print the contents of a store file on stdout";
+        return "print the contents of a file in the Nix store on stdout";
     }
+
+    Category category() override { return catUtility; }
 
     void run(ref<Store> store) override
     {
@@ -56,19 +57,20 @@ struct CmdCatNar : StoreCommand, MixCat
 
     CmdCatNar()
     {
-        expectArg("nar", &narPath);
+        expectArgs({
+            .label = "nar",
+            .handler = {&narPath},
+            .completer = completePath
+        });
         expectArg("path", &path);
-    }
-
-    std::string name() override
-    {
-        return "cat-nar";
     }
 
     std::string description() override
     {
-        return "print the contents of a file inside a NAR file";
+        return "print the contents of a file inside a NAR file on stdout";
     }
+
+    Category category() override { return catUtility; }
 
     void run(ref<Store> store) override
     {
@@ -76,8 +78,8 @@ struct CmdCatNar : StoreCommand, MixCat
     }
 };
 
-static RegisterCommand r1(make_ref<CmdCatStore>());
-static RegisterCommand r2(make_ref<CmdCatNar>());
+static auto rCmdCatStore = registerCommand<CmdCatStore>("cat-store");
+static auto rCmdCatNar = registerCommand<CmdCatNar>("cat-nar");
 
 
 struct CmdLn : Command
@@ -88,11 +90,6 @@ struct CmdLn : Command
     {
         expectArg("target", &target);
         expectArg("link", &link);
-    }
-
-    std::string name() override
-    {
-        return "ln";
     }
 
     std::string description() override
@@ -106,7 +103,7 @@ struct CmdLn : Command
     }
 };
 
-static RegisterCommand r3(make_ref<CmdLn>());
+static auto rCmdLn = registerCommand<CmdLn>("ln");
 
 
 #ifdef _WIN32
@@ -118,11 +115,6 @@ struct CmdBuiltinFetchurl : Command
     CmdBuiltinFetchurl()
     {
         expectArg("drvenv", &drvenv);
-    }
-
-    std::string name() override
-    {
-        return "builtin-fetchurl";
     }
 
     std::string description() override
@@ -146,5 +138,6 @@ struct CmdBuiltinFetchurl : Command
     }
 };
 
+static auto rCmdBuiltinFetchurl = registerCommand<CmdBuiltinFetchurl>("builtin-fetchurl");
 static RegisterCommand r4(make_ref<CmdBuiltinFetchurl>());
 #endif

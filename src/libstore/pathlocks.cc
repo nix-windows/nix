@@ -23,7 +23,7 @@ AutoCloseFD openLockFile(const Path & path, bool create)
 
     fd = open(path.c_str(), O_CLOEXEC | O_RDWR | (create ? O_CREAT : 0), 0600);
     if (!fd && (create || errno != ENOENT))
-        throw PosixError(format("opening lock file '%1%'") % path);
+        throw PosixError("opening lock file '%1%'", path);
 
     return fd;
 }
@@ -86,7 +86,7 @@ bool lockFile(int fd, LockType lockType, bool wait)
         while (flock(fd, type) != 0) {
             checkInterrupt();
             if (errno != EINTR)
-                throw PosixError(format("acquiring/releasing lock"));
+                throw PosixError("acquiring/releasing lock");
             else
                 return false;
         }
@@ -95,7 +95,7 @@ bool lockFile(int fd, LockType lockType, bool wait)
             checkInterrupt();
             if (errno == EWOULDBLOCK) return false;
             if (errno != EINTR)
-                throw PosixError(format("acquiring/releasing lock"));
+                throw PosixError("acquiring/releasing lock");
         }
     }
 
@@ -239,7 +239,7 @@ bool PathLocks::lockPaths(const PathSet & paths,
                    hasn't been unlinked). */
                 struct stat st;
                 if (fstat(fd.get(), &st) == -1)
-                    throw PosixError(format("statting lock file '%1%'") % lockPath);
+                    throw PosixError("statting lock file '%1%'", lockPath);
                 if (st.st_size != 0)
                     /* This lock file has been unlinked, so we're holding
                        a lock on a deleted file.  This means that other
@@ -258,7 +258,7 @@ bool PathLocks::lockPaths(const PathSet & paths,
                hasn't been unlinked). */
             struct stat st;
             if (fstat(fd.get(), &st) == -1)
-                throw PosixError(format("statting lock file '%1%'") % lockPath);
+                throw PosixError("statting lock file '%1%'", lockPath);
             if (st.st_size != 0)
                 /* This lock file has been unlinked, so we're holding
                    a lock on a deleted file.  This means that other
@@ -297,7 +297,8 @@ void PathLocks::unlock()
 
         if (close(i.first) == -1)
             printError(
-                format("error (ignored): cannot close lock file on '%1%'") % i.second);
+                "error (ignored): cannot close lock file on '%1%'",
+                i.second);
 #else
         if (!CloseHandle(i.first))
             printError(

@@ -13,27 +13,32 @@ set -o pipefail
 # however tracking which bits came from which would be impossible.
 
 readonly ESC='\033[0m'
-readonly BOLD='\033[38;1m'
-readonly BLUE='\033[38;34m'
-readonly BLUE_UL='\033[38;4;34m'
-readonly GREEN='\033[38;32m'
-readonly GREEN_UL='\033[38;4;32m'
-readonly RED='\033[38;31m'
+readonly BOLD='\033[1m'
+readonly BLUE='\033[34m'
+readonly BLUE_UL='\033[4;34m'
+readonly GREEN='\033[32m'
+readonly GREEN_UL='\033[4;32m'
+readonly RED='\033[31m'
 
-readonly NIX_USER_COUNT="32"
+# installer allows overriding build user count to speed up installation
+# as creating each user takes non-trivial amount of time on macos
+readonly NIX_USER_COUNT=${NIX_USER_COUNT:-32}
 readonly NIX_BUILD_GROUP_ID="30000"
 readonly NIX_BUILD_GROUP_NAME="nixbld"
 readonly NIX_FIRST_BUILD_UID="30001"
 # Please don't change this. We don't support it, because the
 # default shell profile that comes with Nix doesn't support it.
 readonly NIX_ROOT="/nix"
+readonly NIX_EXTRA_CONF=${NIX_EXTRA_CONF:-}
 
-readonly PROFILE_TARGETS=("/etc/bashrc" "/etc/profile.d/nix.sh" "/etc/zshrc")
+readonly PROFILE_TARGETS=("/etc/bashrc" "/etc/profile.d/nix.sh" "/etc/zshenv")
 readonly PROFILE_BACKUP_SUFFIX=".backup-before-nix"
 readonly PROFILE_NIX_FILE="$NIX_ROOT/var/nix/profiles/default/etc/profile.d/nix-daemon.sh"
 
 readonly NIX_INSTALLED_NIX="@nix@"
 readonly NIX_INSTALLED_CACERT="@cacert@"
+#readonly NIX_INSTALLED_NIX="/nix/store/j8dbv5w6jl34caywh2ygdy88knx1mdf7-nix-2.3.6"
+#readonly NIX_INSTALLED_CACERT="/nix/store/7dxhzymvy330i28ii676fl1pqwcahv2f-nss-cacert-3.49.2"
 readonly EXTRACTED_NIX_PATH="$(dirname "$0")"
 
 readonly ROOT_HOME=$(echo ~root)
@@ -247,20 +252,22 @@ function finish_success {
         echo "But fetching the nixpkgs channel failed. (Are you offline?)"
         echo "To try again later, run \"sudo -i nix-channel --update nixpkgs\"."
     fi
+
     cat <<EOF
 
 Before Nix will work in your existing shells, you'll need to close
 them and open them again. Other than that, you should be ready to go.
 
 Try it! Open a new terminal, and type:
-
+$(poly_extra_try_me_commands)
   $ nix-shell -p nix-info --run "nix-info -m"
-
+$(poly_extra_setup_instructions)
 Thank you for using this installer. If you have any feedback, don't
 hesitate:
 
 $(contactme)
 EOF
+
 }
 
 
@@ -450,9 +457,11 @@ create_directories() {
 }
 
 place_channel_configuration() {
-    echo "https://nixos.org/channels/nixpkgs-unstable nixpkgs" > "$SCRATCH/.nix-channels"
-    _sudo "to set up the default system channel (part 1)" \
-          install -m 0664 "$SCRATCH/.nix-channels" "$ROOT_HOME/.nix-channels"
+    if [ -z "${NIX_INSTALLER_NO_CHANNEL_ADD:-}" ]; then
+        echo "https://nixos.org/channels/nixpkgs-unstable nixpkgs" > "$SCRATCH/.nix-channels"
+        _sudo "to set up the default system channel (part 1)" \
+            install -m 0664 "$SCRATCH/.nix-channels" "$ROOT_HOME/.nix-channels"
+    fi
 }
 
 welcome_to_nix() {
@@ -521,7 +530,7 @@ This script is going to call sudo a lot. Normally, it would show you
 exactly what commands it is running and why. However, the script is
 run in a headless fashion, like this:
 
-  $ curl https://nixos.org/nix/install | sh
+  $ curl -L https://nixos.org/nix/install | sh
 
 or maybe in a CI pipeline. Because of that, we're going to skip the
 verbose output in the interest of brevity.
@@ -529,7 +538,7 @@ verbose output in the interest of brevity.
 If you would like to
 see the output, try like this:
 
-  $ curl -o install-nix https://nixos.org/nix/install
+  $ curl -L -o install-nix https://nixos.org/nix/install
   $ sh ./install-nix
 
 EOF
@@ -567,7 +576,7 @@ install_from_extracted_nix() {
         cd "$EXTRACTED_NIX_PATH"
 
         _sudo "to copy the basic Nix files to the new store at $NIX_ROOT/store" \
-              rsync -rlpt ./store/* "$NIX_ROOT/store/"
+              rsync -rlpt --chmod=-w ./store/* "$NIX_ROOT/store/"
 
         if [ -d "$NIX_INSTALLED_NIX" ]; then
             echo "      Alright! We have our first nix at $NIX_INSTALLED_NIX"
@@ -599,24 +608,20 @@ EOF
 }
 
 configure_shell_profile() {
-    # If there is an /etc/profile.d directory, we want to ensure there
-    # is a nix.sh within it, so we can use the following loop to add
-    # the source lines to it. Note that I'm _not_ adding the source
-    # lines here, because we want to be using the regular machinery.
-    #
-    # If we go around that machinery, it becomes more complicated and
-    # adds complications to the uninstall instruction generator and
-    # old instruction sniffer as well.
-    if [ -d /etc/profile.d ]; then
-        _sudo "create a stub /etc/profile.d/nix.sh which will be updated" \
-              touch /etc/profile.d/nix.sh
-    fi
-
     for profile_target in "${PROFILE_TARGETS[@]}"; do
         if [ -e "$profile_target" ]; then
             _sudo "to back up your current $profile_target to $profile_target$PROFILE_BACKUP_SUFFIX" \
                   cp "$profile_target" "$profile_target$PROFILE_BACKUP_SUFFIX"
+        else
+            # try to create the file if its directory exists
+            target_dir="$(dirname "$profile_target")"
+            if [ -d "$target_dir" ]; then
+                _sudo "to create a stub $profile_target which will be updated" \
+                    touch "$profile_target"
+            fi
+        fi
 
+        if [ -e "$profile_target" ]; then
             shell_source_lines \
                 | _sudo "extend your $profile_target with nix-daemon settings" \
                         tee -a "$profile_target"
@@ -634,18 +639,20 @@ setup_default_profile() {
         export NIX_SSL_CERT_FILE=/nix/var/nix/profiles/default/etc/ssl/certs/ca-bundle.crt
     fi
 
-    # Have to explicitly pass NIX_SSL_CERT_FILE as part of the sudo call,
-    # otherwise it will be lost in environments where sudo doesn't pass
-    # all the environment variables by default.
-    _sudo "to update the default channel in the default profile" \
-          HOME="$ROOT_HOME" NIX_SSL_CERT_FILE="$NIX_SSL_CERT_FILE" "$NIX_INSTALLED_NIX/bin/nix-channel" --update nixpkgs \
-          || channel_update_failed=1
-
+    if [ -z "${NIX_INSTALLER_NO_CHANNEL_ADD:-}" ]; then
+        # Have to explicitly pass NIX_SSL_CERT_FILE as part of the sudo call,
+        # otherwise it will be lost in environments where sudo doesn't pass
+        # all the environment variables by default.
+        _sudo "to update the default channel in the default profile" \
+            HOME="$ROOT_HOME" NIX_SSL_CERT_FILE="$NIX_SSL_CERT_FILE" "$NIX_INSTALLED_NIX/bin/nix-channel" --update nixpkgs \
+            || channel_update_failed=1
+    fi
 }
 
 
 place_nix_configuration() {
     cat <<EOF > "$SCRATCH/nix.conf"
+$NIX_EXTRA_CONF
 build-users-group = $NIX_BUILD_GROUP_NAME
 EOF
     _sudo "to place the default nix daemon configuration (part 2)" \
@@ -657,12 +664,8 @@ main() {
         # shellcheck source=./install-darwin-multi-user.sh
         . "$EXTRACTED_NIX_PATH/install-darwin-multi-user.sh"
     elif [ "$(uname -s)" = "Linux" ]; then
-        if [ -e /run/systemd/system ]; then
-            # shellcheck source=./install-systemd-multi-user.sh
-            . "$EXTRACTED_NIX_PATH/install-systemd-multi-user.sh"
-        else
-            failure "Sorry, the multi-user installation requires systemd on Linux (detected using /run/systemd/system)"
-        fi
+        # shellcheck source=./install-systemd-multi-user.sh
+        . "$EXTRACTED_NIX_PATH/install-systemd-multi-user.sh" # most of this works on non-systemd distros also
     else
         failure "Sorry, I don't know what to do on $(uname)"
     fi
@@ -695,6 +698,7 @@ main() {
 
     setup_default_profile
     place_nix_configuration
+
     poly_configure_nix_daemon_service
 
     trap finish_success EXIT

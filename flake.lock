@@ -1,0 +1,44 @@
+{
+  "nodes": {
+    "lowdown-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1598695561,
+        "narHash": "sha256-gyH/5j+h/nWw0W8AcR2WKvNBUsiQ7QuxqSJNXAwV+8E=",
+        "owner": "kristapsdz",
+        "repo": "lowdown",
+        "rev": "1705b4a26fbf065d9574dce47a94e8c7c79e052f",
+        "type": "github"
+      },
+      "original": {
+        "owner": "kristapsdz",
+        "repo": "lowdown",
+        "type": "github"
+      }
+    },
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1603932967,
+        "narHash": "sha256-j+0QT5rW8iz6J/nhD2zrWAz7IkCm+EnTP2aRekQPM3A=",
+        "owner": "nix-windows",
+        "repo": "nixpkgs",
+        "rev": "52d0a80dc584f1283d6f1a535d1f3c901b697e52",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-windows",
+        "ref": "libarchive-windows-29.09",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "lowdown-src": "lowdown-src",
+        "nixpkgs": "nixpkgs"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}

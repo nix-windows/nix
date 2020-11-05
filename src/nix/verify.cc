@@ -20,19 +20,14 @@ struct CmdVerify : StorePathsCommand
     {
         mkFlag(0, "no-contents", "do not verify the contents of each store path", &noContents);
         mkFlag(0, "no-trust", "do not verify whether each store path is trusted", &noTrust);
-        mkFlag()
-            .longName("substituter")
-            .shortName('s')
-            .labels({"store-uri"})
-            .description("use signatures from specified store")
-            .arity(1)
-            .handler([&](std::vector<std::string> ss) { substituterUris.push_back(ss[0]); });
+        addFlag({
+            .longName = "substituter",
+            .shortName = 's',
+            .description = "use signatures from specified store",
+            .labels = {"store-uri"},
+            .handler = {[&](std::string s) { substituterUris.push_back(s); }}
+        });
         mkIntFlag('n', "sigs-needed", "require that each path has at least N valid signatures", &sigsNeeded);
-    }
-
-    std::string name() override
-    {
-        return "verify";
     }
 
     std::string description() override
@@ -54,7 +49,9 @@ struct CmdVerify : StorePathsCommand
         };
     }
 
-    void run(ref<Store> store, Paths storePaths) override
+    Category category() override { return catSecondary; }
+
+    void run(ref<Store> store, StorePaths storePaths) override
     {
         std::vector<ref<Store>> substituters;
         for (auto & s : substituterUris)
@@ -80,20 +77,23 @@ struct CmdVerify : StorePathsCommand
             try {
                 checkInterrupt();
 
-                Activity act2(*logger, lvlInfo, actUnknown, fmt("checking '%s'", storePath));
-
                 MaintainCount<std::atomic<size_t>> mcActive(active);
                 update();
 
-                auto info = store->queryPathInfo(storePath);
+                auto info = store->queryPathInfo(store->parseStorePath(storePath));
+
+                // Note: info->path can be different from storePath
+                // for binary cache stores when using --all (since we
+                // can't enumerate names efficiently).
+                Activity act2(*logger, lvlInfo, actUnknown, fmt("checking '%s'", store->printStorePath(info->path)));
 
                 if (!noContents) {
 
                     std::unique_ptr<AbstractHashSink> hashSink;
-                    if (info->ca == "")
+                    if (!info->ca)
                         hashSink = std::make_unique<HashSink>(info->narHash.type);
                     else
-                        hashSink = std::make_unique<HashModuloSink>(info->narHash.type, storePathToHash(info->path));
+                        hashSink = std::make_unique<HashModuloSink>(info->narHash.type, std::string(info->path.hashPart()));
 
                     store->narFromPath(info->path, *hashSink);
 
@@ -101,12 +101,16 @@ struct CmdVerify : StorePathsCommand
 
                     if (hash.first != info->narHash) {
                         corrupted++;
-                        act2.result(resCorruptedPath, info->path);
-                        printError(
-                            format("path '%s' was modified! expected hash '%s', got '%s'")
-                            % info->path % info->narHash.to_string() % hash.first.to_string());
+                        act2.result(resCorruptedPath, store->printStorePath(info->path));
+                        logError({
+                            .name = "Hash error - path modified",
+                            .hint = hintfmt(
+                                "path '%s' was modified! expected hash '%s', got '%s'",
+                                store->printStorePath(info->path),
+                                info->narHash.to_string(Base32, true),
+                                hash.first.to_string(Base32, true))
+                        });
                     }
-
                 }
 
                 if (!noTrust) {
@@ -125,7 +129,7 @@ struct CmdVerify : StorePathsCommand
                         auto doSigs = [&](StringSet sigs) {
                             for (auto sig : sigs) {
                                 if (!sigsSeen.insert(sig).second) continue;
-                                if (validSigs < ValidPathInfo::maxSigs && info->checkSignature(publicKeys, sig))
+                                if (validSigs < ValidPathInfo::maxSigs && info->checkSignature(*store, publicKeys, sig))
                                     validSigs++;
                             }
                         };
@@ -142,7 +146,7 @@ struct CmdVerify : StorePathsCommand
                                 doSigs(info2->sigs);
                             } catch (InvalidPath &) {
                             } catch (Error & e) {
-                                printError(format(ANSI_RED "error:" ANSI_NORMAL " %s") % e.what());
+                                logError(e.info());
                             }
                         }
 
@@ -152,8 +156,13 @@ struct CmdVerify : StorePathsCommand
 
                     if (!good) {
                         untrusted++;
-                        act2.result(resUntrustedPath, info->path);
-                        printError(format("path '%s' is untrusted") % info->path);
+                        act2.result(resUntrustedPath, store->printStorePath(info->path));
+                        logError({
+                            .name = "Untrusted path",
+                            .hint = hintfmt("path '%s' is untrusted",
+                                store->printStorePath(info->path))
+                        });
+
                     }
 
                 }
@@ -161,7 +170,7 @@ struct CmdVerify : StorePathsCommand
                 done++;
 
             } catch (Error & e) {
-                printError(format(ANSI_RED "error:" ANSI_NORMAL " %s") % e.what());
+                logError(e.info());
                 failed++;
             }
 
@@ -169,7 +178,7 @@ struct CmdVerify : StorePathsCommand
         };
 
         for (auto & storePath : storePaths)
-            pool.enqueue(std::bind(doPath, storePath));
+            pool.enqueue(std::bind(doPath, store->printStorePath(storePath)));
 
         pool.process();
 
@@ -180,4 +189,4 @@ struct CmdVerify : StorePathsCommand
     }
 };
 
-static RegisterCommand r1(make_ref<CmdVerify>());
+static auto rCmdVerify = registerCommand<CmdVerify>("verify");

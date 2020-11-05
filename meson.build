@@ -174,7 +174,6 @@ if not build_on_windows
   bash = find_program('bash', required : true)
   echo = find_program('echo', required : true)
   patch = find_program('patch', required : true)
-  xmllint = find_program('xmllint', required : true)
   sed = find_program('sed', required : true)
   tar = find_program('tar', required : true)
   bzip2 = find_program('bzip2', required : true)
@@ -188,7 +187,7 @@ if not build_on_windows
 
   # Check whether the store optimiser can optimise symlinks.
   #-------------------------------------------------
-  gen_header = '''
+  symlink_test = '''
   ln -s bla tmp_link
   if ln tmp_link tmp_link2 2> /dev/null; then
     echo 1
@@ -198,7 +197,7 @@ if not build_on_windows
   '''
 
   run_command('sh', '-c', 'rm tmp_link*')
-  can_link_symlink = run_command('sh', '-c', gen_header).stdout().strip()
+  can_link_symlink = run_command('sh', '-c', symlink_test).stdout().strip()
   if can_link_symlink.to_int() == 1
     run_command('sh', '-c', 'rm tmp_link*')
   endif
@@ -210,6 +209,7 @@ endif
 
 # Look for boost, a required dependency.
 #--------------------------------------------------
+
 if (get_option('with_boost') != '' and is_msvc)
   boost_dep = declare_dependency(
     include_directories : [get_option('with_boost') + '/include'],
@@ -220,19 +220,28 @@ elif (get_option('with_boost') != '')
     include_directories : [get_option('with_boost') + '/include'],
     link_args : ['-L' + get_option('with_boost') + '/lib', '-lboost_context-mt' ])
 else
+  #if sys_name.contains('windows')
+  #  mt = '-mt'
+  #else
+    mt = ''
+  #endif
+
   boost_dep = declare_dependency(
     dependencies : [
-      cpp.find_library('boost_system'),
-      cpp.find_library('boost_context'),
-      cpp.find_library('boost_thread')
+      cpp.find_library('boost_system' + mt),
+      cpp.find_library('boost_context' + mt),
+      cpp.find_library('boost_thread' + mt),
     ],
-    link_args :  get_option('boost_link_args')
+    link_args : get_option('boost_link_args'),
   )
 endif
 
 if (boost_dep.found())
     config_h.set('HAVE_BOOST', 1, description : 'Define if the Boost library is available.')
 endif
+
+
+libarchive_dep = dependency('libarchive')
 
 
 # Look for liblzma, a required dependency.
@@ -263,8 +272,14 @@ else
   libbrotli_dep = declare_dependency(
     dependencies: [
         dependency('libbrotlienc'),
-        dependency('libbrotlidec')],
-    link_args :  get_option('brotli_link_args'))
+        dependency('libbrotlidec'),
+    ],
+    link_args :  get_option('brotli_link_args'),
+  )
+endif
+
+if (libbrotli_dep.found())
+  config_h.set('HAVE_BROTLI', 1, description : 'Define if the Brotli compression library is available.')
 endif
 
 # Look for OpenSSL, a required dependency.
@@ -361,9 +376,25 @@ else
 endif
 
 
+# Look for zlib, a required dependency.
+#--------------------------------------------------
+zlib_dep = declare_dependency(
+    dependencies : dependency('zlib'),
+    link_args :  get_option('zlib_link_args'))
+
+
+# Look for lowdown, an optional dependency.
+#--------------------------------------------------
+lowdown_dep =  dependency('lowdown', required : false)
+if lowdown_dep.found()
+    config_h.set(
+        'HAVE_LOWDOWN', 1,
+        description : 'Whether to use the lowdown library to output markdown at run time.')
+endif
+
+
 # Look for libdl, a required dependency on Unix.
 #--------------------------------------------------
-
 libdl_needed = not sys_name.contains('windows')
 
 libdl_lib = cpp.find_library('dl', required : libdl_needed)
@@ -409,25 +440,24 @@ if (libsodium_lib.found())
         link_args :  get_option('sodium_link_args'))
     config_h.set('HAVE_SODIUM', 1, description : 'Whether to use libsodium for cryptography.')
 else
-    libsodium_dep = dependency('', required: false)
+    libsodium_dep = dependency('', required: get_option('with_libsodium'))
 endif
 
 
 # Look for Boehm garbage collector, an optional dependency.
 #--------------------------------------------------
 
-gc_c_lib = dependency(
-    'bdw-gc',
-    required : get_option('with_gc'),
-    disabler : true,
-)
-gc_cpp_lib = cpp.find_library(
+gc_c_dep = dependency('bdw-gc', required: get_option('with_gc'))
+
+gc_cpp_dep = cpp.find_library(
     'gccpp',
     required : get_option('with_gc'),
 )
-if (gc_cpp_lib.found())
+
+if (gc_c_dep.found())
+    assert(gc_cpp_dep.found(), 'bdw-gc c++ is missing when C was found')
     gc_dep = declare_dependency(
-        dependencies : [gc_cpp_lib, gc_c_lib],
+        dependencies : [gc_cpp_dep, gc_c_dep],
         link_args : get_option('gc_link_args'),
     )
     config_h.set(
@@ -438,21 +468,14 @@ else
 endif
 
 
+
 # Look for aws-cpp-sdk-s3.
 #--------------------------------------------------
-if (get_option('with_s3'))
-  enable_s3 = meson.get_compiler('cpp').check_header('aws/s3/S3Client.h')
-
-  aws_version = meson.get_compiler('cpp').get_define(
-    'AWS_SDK_VERSION_STRING',
-    prefix : '#include <aws/core/VersionConfig.h>'
-  ).strip('"').split('.')
-
-  conf_data.set('ENABLE_S3', 1, description : 'Whether to enable S3 support via aws-sdk-cpp.')
-  conf_data.set('AWS_VERSION_MAJOR', aws_version[0], description : 'Major version of aws-sdk-cpp.')
-  conf_data.set('AWS_VERSION_MINOR', aws_version[1], description : 'Minor version of aws-sdk-cpp.')
-endif
-
+s3_dep = [
+  dependency('aws-cpp-sdk-transfer', required: get_option('with_s3')),
+  dependency('aws-cpp-sdk-s3', required: get_option('with_s3')),
+  dependency('aws-cpp-sdk-core', required: get_option('with_s3')),
+]
 
 # Look for editline, a dependency required just by nix-repl.
 #--------------------------------------------------
@@ -728,6 +751,16 @@ else
 endif
 src_inc = [include_directories('.', 'src')]
 
+# FIXME: there is just no `sh`
+if not build_on_windows
+  # Needed by multiple libraries
+  gen_header = '''
+    echo 'R"foo(' >> "$1"
+    cat @INPUT@ >> "$1"
+    echo ')foo"' >> "$1"
+  '''
+endif
+
 if not build_on_windows
   project_dirs = [
     'src',
@@ -735,7 +768,7 @@ if not build_on_windows
     'corepkgs',
     'misc',
     'doc',
-    'tests'
+    'tests',
   ]
 else
   project_dirs = [

@@ -17,7 +17,7 @@
 #include "store-api.hh"
 #include "derivations.hh"
 #include "local-store.hh"
-#include "legacy.hh"
+#include "../nix/legacy.hh"
 
 using namespace nix;
 using std::cin;
@@ -34,21 +34,21 @@ std::string escapeUri(std::string uri)
 static string currentLoad;
 
 #ifndef _WIN32
-static AutoCloseFD openSlotLock(const Machine & m, unsigned long long slot)
+static AutoCloseFD openSlotLock(const Machine & m, uint64_t slot)
 #else
-static AutoCloseWindowsHandle openSlotLock(const Machine & m, unsigned long long slot)
+static AutoCloseWindowsHandle openSlotLock(const Machine & m, uint64_t slot)
 #endif
 {
     return openLockFile(fmt("%s/%s-%d", currentLoad, escapeUri(m.storeUri), slot), true);
 }
 
-static bool allSupportedLocally(const std::set<std::string>& requiredFeatures) {
+static bool allSupportedLocally(Store & store, const std::set<std::string>& requiredFeatures) {
     for (auto & feature : requiredFeatures)
-        if (!settings.systemFeatures.get().count(feature)) return false;
+        if (!store.systemFeatures.get().count(feature)) return false;
     return true;
 }
 
-static int _main(int argc, char * * argv)
+static int main_build_remote(int argc, char * * argv)
 {
     {
         logger = makeJSONLogger(*logger);
@@ -99,7 +99,7 @@ static int _main(int argc, char * * argv)
             return 0;
         }
 
-        string drvPath;
+        std::optional<StorePath> drvPath;
         string storeUri;
 
         while (true) {
@@ -111,13 +111,13 @@ static int _main(int argc, char * * argv)
 
             auto amWilling = readInt(source);
             auto neededSystem = readString(source);
-            source >> drvPath;
+            drvPath = store->parseStorePath(readString(source));
             auto requiredFeatures = readStrings<std::set<std::string>>(source);
 
-             auto canBuildLocally = amWilling
+            auto canBuildLocally = amWilling
                  &&  (  neededSystem == settings.thisSystem
                      || settings.extraPlatforms.get().count(neededSystem) > 0)
-                 &&  allSupportedLocally(requiredFeatures);
+                 &&  allSupportedLocally(*store, requiredFeatures);
 
             /* Error ignored here, will be caught later */
             mkdir(currentLoad.c_str()
@@ -139,7 +139,7 @@ static int _main(int argc, char * * argv)
                 bool rightType = false;
 
                 Machine * bestMachine = nullptr;
-                unsigned long long bestLoad = 0;
+                uint64_t bestLoad = 0;
                 for (auto & m : machines) {
                     debug("considering building on remote machine '%s'", m.storeUri);
 
@@ -154,8 +154,8 @@ static int _main(int argc, char * * argv)
 #else
                         AutoCloseWindowsHandle free;
 #endif
-                        unsigned long long load = 0;
-                        for (unsigned long long slot = 0; slot < m.maxJobs; ++slot) {
+                        uint64_t load = 0;
+                        for (uint64_t slot = 0; slot < m.maxJobs; ++slot) {
                             auto slotLock = openSlotLock(m, slot);
                             if (lockFile(slotLock.get(), ltWrite, false)) {
                                 if (!free) {
@@ -194,7 +194,45 @@ static int _main(int argc, char * * argv)
                     if (rightType && !canBuildLocally)
                         std::cerr << "# postpone\n";
                     else
+                    {
+                        // build the hint template.
+                        string hintstring =  "derivation: %s\nrequired (system, features): (%s, %s)";
+                        hintstring += "\n%s available machines:";
+                        hintstring += "\n(systems, maxjobs, supportedFeatures, mandatoryFeatures)";
+
+                        for (unsigned int i = 0; i < machines.size(); ++i) {
+                          hintstring += "\n(%s, %s, %s, %s)";
+                        }
+
+                        // add the template values.
+                        string drvstr;
+                        if (drvPath.has_value())
+                            drvstr = drvPath->to_string();
+                        else
+                            drvstr = "<unknown>";
+
+                        auto hint = hintformat(hintstring);
+                        hint
+                          % drvstr
+                          % neededSystem
+                          % concatStringsSep<StringSet>(", ", requiredFeatures)
+                          % machines.size();
+
+                        for (auto & m : machines) {
+                          hint % concatStringsSep<vector<string>>(", ", m.systemTypes)
+                            % m.maxJobs
+                            % concatStringsSep<StringSet>(", ", m.supportedFeatures)
+                            % concatStringsSep<StringSet>(", ", m.mandatoryFeatures);
+                        }
+
+                        logErrorInfo(lvlInfo, {
+                              .name = "Remote build",
+                              .description = "Failed to find a machine for remote build!",
+                              .hint = hint
+                        });
+
                         std::cerr << "# decline\n";
+                    }
                     break;
                 }
 
@@ -216,27 +254,22 @@ static int _main(int argc, char * * argv)
 
                     Activity act(*logger, lvlTalkative, actUnknown, fmt("connecting to '%s'", bestMachine->storeUri));
 
-                    Store::Params storeParams;
-                    if (hasPrefix(bestMachine->storeUri, "ssh://")) {
-                        storeParams["max-connections"] ="1";
-                        storeParams["log-fd"] = "4";
-                        if (bestMachine->sshKey != "")
-                            storeParams["ssh-key"] = bestMachine->sshKey;
-                    }
-
-                    sshStore = openStore(bestMachine->storeUri, storeParams);
+                    sshStore = bestMachine->openStore();
                     sshStore->connect();
                     storeUri = bestMachine->storeUri;
 
                 } catch (std::exception & e) {
 #ifndef _WIN32
                     auto msg = chomp(drainFD(5, false));
-                    printError("cannot build on '%s': %s%s",
-                        bestMachine->storeUri, e.what(),
-                        (msg.empty() ? "" : ": " + msg));
+                    logError({
+                        .name = "Remote build",
+                        .hint = hintfmt("cannot build on '%s': %s%s",
+                            bestMachine->storeUri, e.what(),
+                            (msg.empty() ? "" : ": " + msg))
+                    });
 #else
-fprintf(stderr, "todo abort %s:%d\n", __FILE__, __LINE__);fflush(stderr);
-_exit(101);
+                    fprintf(stderr, "todo abort %s:%d\n", __FILE__, __LINE__);fflush(stderr);
+                    _exit(101);
 #endif
                     bestMachine->enabled = false;
                     continue;
@@ -276,7 +309,7 @@ connected:
 
         {
             Activity act(*logger, lvlTalkative, actUnknown, fmt("copying dependencies to '%s'", storeUri));
-            copyPaths(store, ref<Store>(sshStore), inputs, NoRepair, NoCheckSigs, substitute);
+            copyPaths(store, ref<Store>(sshStore), store->parseStorePathSet(inputs), NoRepair, NoCheckSigs, substitute);
         }
 
 #ifndef _WIN32
@@ -285,21 +318,22 @@ connected:
         uploadLock = INVALID_HANDLE_VALUE;
 #endif
 
-        BasicDerivation drv(readDerivation(store->realStoreDir + "/" + baseNameOf(drvPath)));
-        drv.inputSrcs = inputs;
+        auto drv = store->readDerivation(*drvPath);
+        drv.inputSrcs = store->parseStorePathSet(inputs);
 
-        auto result = sshStore->buildDerivation(drvPath, drv);
+        auto result = sshStore->buildDerivation(*drvPath, drv);
 
         if (!result.success())
-            throw Error("build of '%s' on '%s' failed: %s", drvPath, storeUri, result.errorMsg);
+            throw Error("build of '%s' on '%s' failed: %s", store->printStorePath(*drvPath), storeUri, result.errorMsg);
 
-        PathSet missing;
+        StorePathSet missing;
         for (auto & path : outputs)
-            if (!store->isValidPath(path)) missing.insert(path);
+            if (!store->isValidPath(store->parseStorePath(path))) missing.insert(store->parseStorePath(path));
 
         if (!missing.empty()) {
             Activity act(*logger, lvlTalkative, actUnknown, fmt("copying outputs from '%s'", storeUri));
-            store->locksHeld.insert(missing.begin(), missing.end()); /* FIXME: ugly */
+            for (auto & i : missing)
+                store->locksHeld.insert(store->printStorePath(i)); /* FIXME: ugly */
             copyPaths(ref<Store>(sshStore), store, missing, NoRepair, NoCheckSigs, NoSubstitute);
         }
 
@@ -307,4 +341,4 @@ connected:
     }
 }
 
-static RegisterLegacyCommand s1("build-remote", _main);
+static RegisterLegacyCommand r_build_remote("build-remote", main_build_remote);

@@ -36,11 +36,14 @@ struct ArchiveSettings : Config
         "use-case-hack",
         "Whether to enable a Darwin-specific hack for dealing with file name collisions."};
 #endif
+
+    Setting<bool> preallocateContents{this, true, "preallocate-contents",
+        "Whether to preallocate files when writing objects with known size."};
 };
 
 static ArchiveSettings archiveSettings;
 
-static GlobalConfig::Register r1(&archiveSettings);
+static GlobalConfig::Register rArchiveSettings(&archiveSettings);
 
 const std::string narVersionMagic1 = "nix-archive-1";
 
@@ -55,7 +58,7 @@ static void dumpContents(const Path & path, size_t size,
     sink << "contents" << size;
 #ifndef _WIN32
     AutoCloseFD fd = open(path.c_str(), O_RDONLY | O_CLOEXEC);
-    if (!fd) throw PosixError(format("opening file '%1%'") % path);
+    if (!fd) throw PosixError("opening file '%1%'", path);
 #else
 //std::cerr << "dumpContents(" << path << "," << size << ")" << std::endl;
     AutoCloseWindowsHandle fd = CreateFileW(pathW(path).c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -81,9 +84,8 @@ static void dump(const Path & path, Sink & sink, PathFilter & filter)
 {
     checkInterrupt();
 
-    struct stat st;
-    if (lstat(path.c_str(), &st))
-        throw PosixError(format("getting attributes of path '%1%'") % path);
+    auto st = lstatPath(path);
+
     sink << "(";
 
     if (S_ISREG(st.st_mode)) {
@@ -108,8 +110,9 @@ static void dump(const Path & path, Sink & sink, PathFilter & filter)
                     name.erase(pos);
                 }
                 if (unhacked.find(name) != unhacked.end())
-                    throw Error(format("file name collision in between '%1%' and '%2%'")
-                        % (path + "/" + unhacked[name]) % (path + "/" + i.name()));
+                    throw Error("file name collision in between '%1%' and '%2%'",
+                       (path + "/" + unhacked[name]),
+                       (path + "/" + i.name()));
                 unhacked[name] = i.name();
             } else
                 unhacked[i.name()] = i.name();
@@ -125,7 +128,7 @@ static void dump(const Path & path, Sink & sink, PathFilter & filter)
     else if (S_ISLNK(st.st_mode))
         sink << "type" << "symlink" << "target" << readLink(path);
 
-    else throw Error(format("file '%1%' has an unsupported type") % path);
+    else throw Error("file '%1%' has an unsupported type", path);
 
     sink << ")";
 }
@@ -236,17 +239,17 @@ static void skipGeneric(Source & source)
 
 static void parseContents(ParseSink & sink, Source & source, const Path & path)
 {
-    unsigned long long size = readLongLong(source);
+    uint64_t size = readLongLong(source);
 
     sink.preallocateContents(size);
 
-    unsigned long long left = size;
+    uint64_t left = size;
     std::vector<unsigned char> buf(65536);
 
     while (left) {
         checkInterrupt();
         auto n = buf.size();
-        if ((unsigned long long)n > left) n = left;
+        if ((uint64_t)n > left) n = left;
         source(buf.data(), n);
         sink.receiveContents(buf.data(), n);
         left -= n;
@@ -338,7 +341,7 @@ static void parse(ParseSink & sink, Source & source, const Path & path)
                 } else if (s == "name") {
                     name = readString(source);
                     if (name.empty() || name == "." || name == ".." || name.find('/') != string::npos || name.find((char) 0) != string::npos)
-                        throw Error(format("NAR contains invalid file name '%1%'") % name);
+                        throw Error("NAR contains invalid file name '%1%'", name);
                     if (name <= prevName)
                         throw Error("NAR directory is not sorted");
                     prevName = name;
@@ -354,7 +357,7 @@ static void parse(ParseSink & sink, Source & source, const Path & path)
                     }
 #endif
                 } else if (s == "node") {
-                    if (s.empty()) throw badArchive("entry name missing");
+                    if (name.empty()) throw badArchive("entry name missing");
                     parse(sink, source, path + "/" + name);
                 } else
                     throw badArchive("unknown field " + s);
@@ -401,7 +404,7 @@ struct RestoreSink : ParseSink
         Path p = dstPath + path;
 #ifndef _WIN32
         if (mkdir(p.c_str(), 0777) == -1)
-            throw PosixError(format("creating directory '%1%'") % p);
+            throw PosixError("creating directory '%1%'", p);
 #else
         if (!CreateDirectoryW(pathW(p).c_str(), NULL))
             throw WinError("CreateDirectoryW when RestoreSink '%1%'", p);
@@ -413,7 +416,7 @@ struct RestoreSink : ParseSink
         Path p = dstPath + path;
 #ifndef _WIN32
         fd = open(p.c_str(), O_CREAT | O_EXCL | O_WRONLY | O_CLOEXEC, 0666);
-        if (!fd) throw PosixError(format("creating file '%1%'") % p);
+        if (!fd) throw PosixError("creating file '%1%'", p);
 #else
         fd = CreateFileW(pathW(p).c_str(), GENERIC_WRITE, 0, NULL, CREATE_NEW,
                          FILE_ATTRIBUTE_NORMAL | FILE_FLAG_POSIX_SEMANTICS, NULL);
@@ -434,8 +437,11 @@ struct RestoreSink : ParseSink
     }
 #endif
 
-    void preallocateContents(unsigned long long len)
+    void preallocateContents(uint64_t len)
     {
+        if (!archiveSettings.preallocateContents)
+            return;
+
 #if HAVE_POSIX_FALLOCATE
         if (len) {
             errno = posix_fallocate(fd.get(), 0, len);
@@ -444,12 +450,12 @@ struct RestoreSink : ParseSink
                OpenSolaris).  Since preallocation is just an
                optimisation, ignore it. */
             if (errno && errno != EINVAL && errno != EOPNOTSUPP && errno != ENOSYS)
-                throw PosixError(format("preallocating file of %1% bytes") % len);
+                throw PosixError("preallocating file of %1% bytes", len);
         }
 #endif
     }
 
-    void receiveContents(unsigned char * data, unsigned int len)
+    void receiveContents(unsigned char * data, size_t len)
     {
         writeFull(fd.get(), data, len);
     }
@@ -477,11 +483,7 @@ void copyNAR(Source & source, Sink & sink)
 
     ParseSink parseSink; /* null sink; just parse the NAR */
 
-    LambdaSource wrapper([&](unsigned char * data, size_t len) {
-        auto n = source.read(data, len);
-        sink(data, n);
-        return n;
-    });
+    TeeSource wrapper { source, sink };
 
     parseDump(parseSink, wrapper);
 }

@@ -5,13 +5,13 @@ clearStore
 max=500
 
 if [[ "$(uname)" =~ ^MINGW|^MSYS ]]; then
-    reference=$(cygpath -m "$NIX_STORE_DIR/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+    reference=$(cygpath -m "$NIX_STORE_DIR/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bla")
 else
-    reference=$NIX_STORE_DIR/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    reference=$NIX_STORE_DIR/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bla
 fi
 
 touch $reference
-(echo $reference && echo && echo 0) | nix-store --register-validity 
+(echo $reference && echo && echo 0) | nix-store --register-validity
 
 echo "making registration..."
 

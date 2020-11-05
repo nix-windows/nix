@@ -1,11 +1,12 @@
 #ifndef _WIN32
 #include "shared.hh"
 #include "globals.hh"
-#include "download.hh"
+#include "filetransfer.hh"
 #include "store-api.hh"
 #endif
 
-#include "legacy.hh"
+#include "../nix/legacy.hh"
+#include "fetchers.hh"
 
 #ifndef _WIN32
 #include <fcntl.h>
@@ -35,7 +36,7 @@ static void readChannels()
             continue;
         auto split = tokenizeString<std::vector<string>>(line, " ");
         auto url = std::regex_replace(split[0], std::regex("/*$"), "");
-        auto name = split.size() > 1 ? split[1] : baseNameOf(url);
+        auto name = split.size() > 1 ? split[1] : std::string(baseNameOf(url));
         channels[name] = url;
     }
 }
@@ -45,7 +46,7 @@ static void writeChannels()
 {
     auto channelsFD = AutoCloseFD{open(channelsList.c_str(), O_WRONLY | O_CLOEXEC | O_CREAT | O_TRUNC, 0644)};
     if (!channelsFD)
-        throw PosixError(format("opening '%1%' for writing") % channelsList);
+        throw PosixError("opening '%1%' for writing", channelsList);
     for (const auto & channel : channels)
         writeFull(channelsFD.get(), channel.second + " " + channel.first + "\n");
 }
@@ -54,9 +55,9 @@ static void writeChannels()
 static void addChannel(const string & url, const string & name)
 {
     if (!regex_search(url, std::regex("^(file|http|https)://")))
-        throw Error(format("invalid channel URL '%1%'") % url);
+        throw Error("invalid channel URL '%1%'", url);
     if (!regex_search(name, std::regex("^[a-zA-Z0-9_][a-zA-Z0-9_\\.-]*$")))
-        throw Error(format("invalid channel identifier '%1%'") % name);
+        throw Error("invalid channel identifier '%1%'", name);
     readChannels();
     channels[name] = url;
     writeChannels();
@@ -83,6 +84,13 @@ static void update(const StringSet & channelNames)
 
     auto store = openStore();
 
+    auto [fd, unpackChannelPath] = createTempFile();
+    writeFull(fd.get(),
+        #include "unpack-channel.nix.gen.hh"
+        );
+    fd = -1;
+    AutoDelete del(unpackChannelPath, false);
+
     // Download each channel.
     Strings exprs;
     for (const auto & channel : channels) {
@@ -94,28 +102,24 @@ static void update(const StringSet & channelNames)
         // We want to download the url to a file to see if it's a tarball while also checking if we
         // got redirected in the process, so that we can grab the various parts of a nix channel
         // definition from a consistent location if the redirect changes mid-download.
-        CachedDownloadRequest request(url);
-        request.ttl = 0;
-        auto dl = getDownloader();
-        auto result = dl->downloadCached(store, request);
-        auto filename = result.path;
-        url = chomp(result.effectiveUri);
+        auto result = fetchers::downloadFile(store, url, std::string(baseNameOf(url)), false);
+        auto filename = store->toRealPath(result.storePath);
+        url = result.effectiveUrl;
 
         // If the URL contains a version number, append it to the name
         // attribute (so that "nix-env -q" on the channels profile
         // shows something useful).
         auto cname = name;
         std::smatch match;
-        auto urlBase = baseNameOf(url);
-        if (std::regex_search(urlBase, match, std::regex("(-\\d.*)$"))) {
+        auto urlBase = std::string(baseNameOf(url));
+        if (std::regex_search(urlBase, match, std::regex("(-\\d.*)$")))
             cname = cname + (string) match[1];
-        }
 
         std::string extraAttrs;
 
         bool unpacked = false;
         if (std::regex_search(filename, std::regex("\\.tar\\.(gz|bz2|xz)$"))) {
-            runProgram(settings.nixBinDir + "/nix-build", false, { "--no-out-link", "--expr", "import <nix/unpack-channel.nix> "
+            runProgram(settings.nixBinDir + "/nix-build", false, { "--no-out-link", "--expr", "import " + unpackChannelPath +
                         "{ name = \"" + cname + "\"; channelName = \"" + name + "\"; src = builtins.storePath \"" + filename + "\"; }" });
             unpacked = true;
         }
@@ -123,11 +127,10 @@ static void update(const StringSet & channelNames)
         if (!unpacked) {
             // Download the channel tarball.
             try {
-                filename = dl->downloadCached(store, CachedDownloadRequest(url + "/nixexprs.tar.xz")).path;
-            } catch (DownloadError & e) {
-                filename = dl->downloadCached(store, CachedDownloadRequest(url + "/nixexprs.tar.bz2")).path;
+                filename = store->toRealPath(fetchers::downloadFile(store, url + "/nixexprs.tar.xz", "nixexprs.tar.xz", false).storePath);
+            } catch (FileTransferError & e) {
+                filename = store->toRealPath(fetchers::downloadFile(store, url + "/nixexprs.tar.bz2", "nixexprs.tar.bz2", false).storePath);
             }
-            chomp(filename);
         }
 
         // Regardless of where it came from, add the expression representing this channel to accumulated expression
@@ -137,7 +140,7 @@ static void update(const StringSet & channelNames)
     // Unpack the channel tarballs into the Nix store and install them
     // into the channels profile.
     std::cerr << "unpacking channels...\n";
-    Strings envArgs{ "--profile", profile, "--file", "<nix/unpack-channel.nix>", "--install", "--from-expression" };
+    Strings envArgs{ "--profile", profile, "--file", unpackChannelPath, "--install", "--from-expression" };
     for (auto & expr : exprs)
         envArgs.push_back(std::move(expr));
     envArgs.push_back("--quiet");
@@ -149,9 +152,9 @@ static void update(const StringSet & channelNames)
         if (S_ISLNK(st.st_mode))
             // old-skool ~/.nix-defexpr
             if (unlink(nixDefExpr.c_str()) == -1)
-                throw PosixError(format("unlinking %1%") % nixDefExpr);
+                throw PosixError("unlinking %1%", nixDefExpr);
     } else if (errno != ENOENT) {
-        throw PosixError(format("getting status of %1%") % nixDefExpr);
+        throw PosixError("getting status of %1%", nixDefExpr);
     }
     createDirs(nixDefExpr);
     auto channelLink = nixDefExpr + "/channels";
@@ -159,7 +162,7 @@ static void update(const StringSet & channelNames)
 }
 #endif
 
-static int _main(int argc, char ** argv)
+static int main_nix_channel(int argc, char ** argv)
 {
 #ifndef _WIN32
     {
@@ -196,6 +199,8 @@ static int _main(int argc, char ** argv)
             } else if (*arg == "--rollback") {
                 cmd = cRollback;
             } else {
+                if (hasPrefix(*arg, "-"))
+                    throw UsageError("unsupported argument '%s'", *arg);
                 args.push_back(std::move(*arg));
             }
             return true;
@@ -262,4 +267,4 @@ static int _main(int argc, char ** argv)
 #endif
 }
 
-static RegisterLegacyCommand s1("nix-channel", _main);
+static RegisterLegacyCommand r_nix_channel("nix-channel", main_nix_channel);
