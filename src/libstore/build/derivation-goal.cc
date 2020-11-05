@@ -1332,13 +1332,9 @@ void DerivationGoal::startBuilder()
 
         /* Allow a user-configurable set of directories from the
            host file system. */
-        PathSet dirs = settings.sandboxPaths;
-        PathSet dirs2 = settings.extraSandboxPaths;
-        dirs.insert(dirs2.begin(), dirs2.end());
-
         dirsInChroot.clear();
 
-        for (auto i : dirs) {
+        for (auto i : settings.sandboxPaths.get()) {
             if (i.empty()) continue;
             bool optional = false;
             if (i[i.size() - 1] == '?') {
@@ -2074,6 +2070,14 @@ struct RestrictedStore : public LocalFSStore, public virtual RestrictedStoreConf
         const StorePathSet & references, RepairFlag repair = NoRepair) override
     {
         auto path = next->addTextToStore(name, s, references, repair);
+        goal.addDependency(path);
+        return path;
+    }
+
+    StorePath addToStoreFromDump(Source & dump, const string & name,
+        FileIngestionMethod method = FileIngestionMethod::Recursive, HashType hashAlgo = htSHA256, RepairFlag repair = NoRepair) override
+    {
+        auto path = next->addToStoreFromDump(dump, name, method, hashAlgo, repair);
         goal.addDependency(path);
         return path;
     }
@@ -3157,7 +3161,7 @@ void DerivationGoal::registerOutputs()
                        valid. */
                     worker.hashMismatch = true;
                     delayedException = std::make_exception_ptr(
-                        BuildError("hash mismatch in fixed-output derivation '%s':\n  wanted: %s\n  got:    %s",
+                        BuildError("hash mismatch in fixed-output derivation '%s':\n  specified: %s\n     got:    %s",
                             worker.store.printStorePath(drvPath),
                             wanted.to_string(SRI, true),
                             got.to_string(SRI, true)));
@@ -3241,7 +3245,7 @@ void DerivationGoal::registerOutputs()
             if (!oldInfo.ultimate) {
                 oldInfo.ultimate = true;
                 worker.store.signPathInfo(oldInfo);
-                worker.store.registerValidPaths({ std::move(oldInfo) });
+                worker.store.registerValidPaths({{oldInfo.path, oldInfo}});
             }
 
             continue;
@@ -3271,7 +3275,7 @@ void DerivationGoal::registerOutputs()
            isn't statically known so that we can safely unlock the path before
            the next iteration */
         if (newInfo.ca)
-            worker.store.registerValidPaths({newInfo});
+            worker.store.registerValidPaths({{newInfo.path, newInfo}});
 
         infos.emplace(outputName, std::move(newInfo));
     }
@@ -3346,7 +3350,7 @@ void DerivationGoal::registerOutputs()
     {
         ValidPathInfos infos2;
         for (auto & [outputName, newInfo] : infos) {
-            infos2.push_back(newInfo);
+            infos2.insert_or_assign(newInfo.path, newInfo);
         }
         worker.store.registerValidPaths(infos2);
     }

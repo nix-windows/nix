@@ -90,7 +90,7 @@ private:
         std::unique_ptr<PublicKeys> publicKeys;
     };
 
-    Sync<State, std::recursive_mutex> _state;
+    Sync<State> _state;
 
 public:
 
