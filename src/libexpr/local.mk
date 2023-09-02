@@ -11,8 +11,18 @@ libexpr_SOURCES := \
   $(wildcard $(d)/flake/*.cc) \
   $(d)/lexer-tab.cc \
   $(d)/parser-tab.cc
+ifdef HOST_UNIX
+  libexpr_SOURCES += $(wildcard $(d)/unix/*.cc)
+endif
 
-libexpr_CXXFLAGS += -I src/libutil -I src/libstore -I src/libfetchers -I src/libmain -I src/libexpr
+# Not just for this library itself, but also for downstream libraries using this library
+
+INCLUDE_libexpr := -I $(d)
+ifdef HOST_UNIX
+  INCLUDE_libexpr += -I $(d)/unix
+endif
+
+libexpr_CXXFLAGS += $(INCLUDE_libutil) $(INCLUDE_libstore) $(INCLUDE_libfetchers) -I src/libmain $(INCLUDE_libexpr)
 
 libexpr_LIBS = libutil libstore libfetchers
 
