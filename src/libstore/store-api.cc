@@ -12,12 +12,15 @@
 #include "references.hh"
 #include "archive.hh"
 #include "callback.hh"
-#include "remote-store.hh"
 // FIXME this should not be here, see TODO below on
 // `addMultipleToStore`.
 #include "worker-protocol.hh"
 #include "signals.hh"
 #include "users.hh"
+
+#ifndef _WIN32
+# include "remote-store.hh"
+#endif
 
 #include <nlohmann/json.hpp>
 #include <regex>
@@ -1248,9 +1251,10 @@ Derivation Store::readInvalidDerivation(const StorePath & drvPath)
 
 }
 
-
-#include "local-store.hh"
-#include "uds-remote-store.hh"
+#ifndef _WIN32
+# include "local-store.hh"
+# include "uds-remote-store.hh"
+#endif
 
 
 namespace nix {
@@ -1268,6 +1272,7 @@ std::pair<std::string, Store::Params> splitUriAndParams(const std::string & uri_
     return {uri, params};
 }
 
+#ifndef _WIN32
 static bool isNonUriPath(const std::string & spec)
 {
     return
@@ -1277,9 +1282,11 @@ static bool isNonUriPath(const std::string & spec)
         // might be special like "auto"
         && spec.find("/") != std::string::npos;
 }
+#endif
 
 std::shared_ptr<Store> openFromNonUri(const std::string & uri, const Store::Params & params)
 {
+    #ifndef _WIN32
     if (uri == "" || uri == "auto") {
         auto stateDir = getOr(params, "state", settings.nixStateDir);
         if (access(stateDir.c_str(), R_OK | W_OK) == 0)
@@ -1324,6 +1331,9 @@ std::shared_ptr<Store> openFromNonUri(const std::string & uri, const Store::Para
     } else {
         return nullptr;
     }
+    #else
+    return nullptr;
+    #endif
 }
 
 // The `parseURL` function supports both IPv6 URIs as defined in

@@ -1,8 +1,11 @@
 #include "util.hh"
 #include "types.hh"
 #include "file-system.hh"
-#include "processes.hh"
 #include "terminal.hh"
+
+#ifndef _WIN32
+# include "processes.hh"
+#endif
 
 #include <limits.h>
 #include <gtest/gtest.h>
@@ -411,6 +414,7 @@ namespace nix {
         ASSERT_EQ(string2Int<int>("-100"), -100);
     }
 
+#ifndef _WIN32
     /* ----------------------------------------------------------------------------
      * statusOk
      * --------------------------------------------------------------------------*/
@@ -419,6 +423,7 @@ namespace nix {
         ASSERT_EQ(statusOk(0), true);
         ASSERT_EQ(statusOk(1), false);
     }
+#endif
 
 
     /* ----------------------------------------------------------------------------
