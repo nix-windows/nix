@@ -155,8 +155,10 @@ bool createUserEnv(EvalState & state, PackageInfos & elems,
     auto store2 = state.store.dynamic_pointer_cast<LocalFSStore>();
 
     if (store2) {
+#ifndef _WIN32 // TODO Implement path locks on Windows.
         PathLocks lock;
         lockProfile(lock, profile);
+#endif
 
         Path lockTokenCur = optimisticLockProfile(profile);
         if (lockToken != lockTokenCur) {

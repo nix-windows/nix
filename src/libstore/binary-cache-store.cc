@@ -126,7 +126,11 @@ void BinaryCacheStore::writeNarInfo(ref<NarInfo> narInfo)
 
 AutoCloseFD openFile(const Path & path)
 {
-    auto fd = open(path.c_str(), O_RDONLY | O_CLOEXEC);
+    auto fd = toDesc(open(path.c_str(), O_RDONLY
+    #ifndef _WIN32
+        | O_CLOEXEC
+    #endif
+        ));
     if (!fd)
         throw SysError("opening file '%1%'", path);
     return fd;

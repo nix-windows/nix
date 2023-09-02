@@ -257,12 +257,17 @@ struct curlFileTransfer : public FileTransfer
 
         int progressCallback(double dltotal, double dlnow)
         {
+            #ifndef _WIN32 // TODO need graceful async exit support on Windows
             try {
-              act.progress(dlnow, dltotal);
+                act.progress(dlnow, dltotal);
             } catch (nix::Interrupted &) {
-              assert(_isInterrupted);
+                assert(_isInterrupted);
             }
             return _isInterrupted;
+            #else
+            act.progress(dlnow, dltotal);
+            return false;
+            #endif
         }
 
         static int progressCallbackWrapper(void * userp, double dltotal, double dlnow, double ultotal, double ulnow)
@@ -466,7 +471,11 @@ struct curlFileTransfer : public FileTransfer
                 if (errorSink)
                     response = std::move(errorSink->s);
                 auto exc =
+                #ifndef _WIN32 // TODO need graceful async exit support on Windows?
                     code == CURLE_ABORTED_BY_CALLBACK && _isInterrupted
+                #else
+                    false
+                #endif
                     ? FileTransferError(Interrupted, std::move(response), "%s of '%s' was interrupted", request.verb(), request.uri)
                     : httpStatus != 0
                     ? FileTransferError(err,
@@ -516,10 +525,12 @@ struct curlFileTransfer : public FileTransfer
 
     Sync<State> state_;
 
+    #ifndef _WIN32 // TODO need graceful async exit support on Windows?
     /* We can't use a std::condition_variable to wake up the curl
        thread, because it only monitors file descriptors. So use a
        pipe instead. */
     Pipe wakeupPipe;
+    #endif
 
     std::thread workerThread;
 
@@ -539,8 +550,10 @@ struct curlFileTransfer : public FileTransfer
             fileTransferSettings.httpConnections.get());
         #endif
 
+        #ifndef _WIN32 // TODO need graceful async exit support on Windows?
         wakeupPipe.create();
         fcntl(wakeupPipe.readSide.get(), F_SETFL, O_NONBLOCK);
+        #endif
 
         workerThread = std::thread([&]() { workerThreadEntry(); });
     }
@@ -561,15 +574,19 @@ struct curlFileTransfer : public FileTransfer
             auto state(state_.lock());
             state->quit = true;
         }
+        #ifndef _WIN32 // TODO need graceful async exit support on Windows?
         writeFull(wakeupPipe.writeSide.get(), " ", false);
+        #endif
     }
 
     void workerThreadMain()
     {
         /* Cause this thread to be notified on SIGINT. */
+        #ifndef _WIN32 // TODO need graceful async exit support on Windows?
         auto callback = createInterruptCallback([&]() {
             stopWorkerThread();
         });
+        #endif
 
         #if __linux__
         unshareFilesystem();
@@ -607,9 +624,11 @@ struct curlFileTransfer : public FileTransfer
             /* Wait for activity, including wakeup events. */
             int numfds = 0;
             struct curl_waitfd extraFDs[1];
+            #ifndef _WIN32 // TODO need graceful async exit support on Windows?
             extraFDs[0].fd = wakeupPipe.readSide.get();
             extraFDs[0].events = CURL_WAIT_POLLIN;
             extraFDs[0].revents = 0;
+            #endif
             long maxSleepTimeMs = items.empty() ? 10000 : 100;
             auto sleepTimeMs =
                 nextWakeup != std::chrono::steady_clock::time_point()
@@ -668,7 +687,9 @@ struct curlFileTransfer : public FileTransfer
     {
         try {
             workerThreadMain();
+        #ifndef _WIN32 // TODO need graceful async exit support on Windows?
         } catch (nix::Interrupted & e) {
+        #endif
         } catch (std::exception & e) {
             printError("unexpected error in download thread: %s", e.what());
         }
@@ -693,7 +714,9 @@ struct curlFileTransfer : public FileTransfer
                 throw nix::Error("cannot enqueue download request because the download thread is shutting down");
             state->incoming.push(item);
         }
+        #ifndef _WIN32 // TODO need graceful async exit support on Windows?
         writeFull(wakeupPipe.writeSide.get(), " ");
+        #endif
     }
 
 #if ENABLE_S3

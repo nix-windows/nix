@@ -65,8 +65,10 @@ Strings EvalSettings::getDefaultNixPath()
 
     if (!evalSettings.restrictEval && !evalSettings.pureEval) {
         add(getNixDefExpr() + "/channels");
+        #ifndef _WIN32
         add(rootChannelsDir() + "/nixpkgs", "nixpkgs");
         add(rootChannelsDir());
+        #endif
     }
 
     return res;

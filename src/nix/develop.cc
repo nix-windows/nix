@@ -7,7 +7,10 @@
 #include "outputs-spec.hh"
 #include "derivations.hh"
 #include "progress-bar.hh"
-#include "run.hh"
+
+#ifndef _WIN32
+# include "run.hh"
+#endif
 
 #include <iterator>
 #include <memory>
@@ -603,7 +606,9 @@ struct CmdDevelop : Common, MixEnvironment
 
         setEnviron();
         // prevent garbage collection until shell exits
+#ifndef _WIN32 // TODO implement on Windows
         setenv("NIX_GCROOT", gcroot.c_str(), 1);
+#endif
 
         Path shell = "bash";
 
@@ -648,6 +653,10 @@ struct CmdDevelop : Common, MixEnvironment
 
         // Override SHELL with the one chosen for this environment.
         // This is to make sure the system shell doesn't leak into the build environment.
+#ifdef _WIN32
+        // TODO re-enable on Windows
+        throw UnimplementedError("Cannot yet spawn processes on Windows");
+#else
         setenv("SHELL", shell.c_str(), 1);
 
         // If running a phase or single command, don't want an interactive shell running after
@@ -670,6 +679,7 @@ struct CmdDevelop : Common, MixEnvironment
         }
 
         runProgramInStore(store, UseSearchPath::Use, shell, args, buildEnvironment.getSystem());
+#endif
     }
 };
 

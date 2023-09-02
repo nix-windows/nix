@@ -913,11 +913,13 @@ struct CmdFlakeInitCommon : virtual Args, EvalCommand
 
         copyDir(templateDir, flakeDir);
 
+#ifndef _WIN32 // TODO re-enable on Windows, once we can start processes.
         if (!changedFiles.empty() && pathExists(flakeDir + "/.git")) {
             Strings args = { "-C", flakeDir, "add", "--intent-to-add", "--force", "--" };
             for (auto & s : changedFiles) args.push_back(s);
             runProgram("git", true, args);
         }
+#endif
         auto welcomeText = cursor->maybeGetAttr("welcomeText");
         if (welcomeText) {
             notice("\n");

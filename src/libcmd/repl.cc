@@ -138,12 +138,14 @@ void runNix(Path program, const Strings & args,
     auto subprocessEnv = getEnv();
     subprocessEnv["NIX_CONFIG"] = globalConfig.toKeyValue();
 
+#ifndef _WIN32
     runProgram2(RunOptions {
         .program = settings.nixBinDir+ "/" + program,
         .args = args,
         .environment = subprocessEnv,
         .input = input,
     });
+#endif
 
     return;
 }
@@ -228,8 +230,10 @@ ReplExitStatus NixRepl::mainLoop()
             printMsg(lvlError, e.msg());
         } catch (Error & e) {
             printMsg(lvlError, e.msg());
+#ifndef _WIN32
         } catch (Interrupted & e) {
             printMsg(lvlError, e.msg());
+#endif
         }
 
         // We handled the current input fully, so we should clear it
@@ -357,7 +361,9 @@ ProcessLineResult NixRepl::processLine(std::string line)
     if (line.empty())
         return ProcessLineResult::PromptAgain;
 
+#ifndef _WIN32
     _isInterrupted = false;
+#endif
 
     std::string command, arg;
 
@@ -480,6 +486,7 @@ ProcessLineResult NixRepl::processLine(std::string line)
         reloadFiles();
     }
 
+#ifndef _WIN32
     else if (command == ":e" || command == ":edit") {
         Value v;
         evalString(arg, v);
@@ -514,6 +521,7 @@ ProcessLineResult NixRepl::processLine(std::string line)
         state->resetFileCache();
         reloadFiles();
     }
+#endif
 
     else if (command == ":t") {
         Value v;

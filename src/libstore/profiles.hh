@@ -6,8 +6,12 @@
  */
 
 #include "types.hh"
-#include "pathlocks.hh"
 
+#ifndef _WIN32
+# include "pathlocks.hh"
+#endif
+
+#include <optional>
 #include <time.h>
 
 
@@ -187,11 +191,13 @@ void switchGeneration(
     std::optional<GenerationNumber> dstGen,
     bool dryRun);
 
+#ifndef _WIN32 // TODO implement path locks on Windows.
 /**
  * Ensure exclusive access to a profile.  Any command that modifies
  * the profile first acquires this lock.
  */
 void lockProfile(PathLocks & lock, const Path & profile);
+#endif
 
 /**
  * Optimistic locking is used by long-running operations like `nix-env

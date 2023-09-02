@@ -1,5 +1,4 @@
 #include "daemon.hh"
-#include "monitor-fd.hh"
 #include "worker-protocol.hh"
 #include "worker-protocol-impl.hh"
 #include "build-result.hh"
@@ -14,6 +13,10 @@
 #include "derivations.hh"
 #include "args.hh"
 #include "git.hh"
+
+#ifndef _WIN32
+# include "monitor-fd.hh"
+#endif
 
 namespace nix::daemon {
 
@@ -1017,7 +1020,9 @@ void processConnection(
     TrustedFlag trusted,
     RecursiveFlag recursive)
 {
+#ifndef _WIN32 // TODO need graceful async exit support on Windows?
     auto monitor = !recursive ? std::make_unique<MonitorFdHup>(from.fd) : nullptr;
+#endif
 
     /* Exchange the greeting. */
     unsigned int magic = readInt(from);
@@ -1038,7 +1043,9 @@ void processConnection(
     unsigned int opCount = 0;
 
     Finally finally([&]() {
+#ifndef _WIN32 // TODO need graceful async exit support on Windows?
         _isInterrupted = false;
+#endif
         printMsgUsing(prevLogger, lvlDebug, "%d operations", opCount);
     });
 
@@ -1079,8 +1086,10 @@ void processConnection(
             WorkerProto::Op op;
             try {
                 op = (enum WorkerProto::Op) readInt(from);
+#ifndef _WIN32 // TODO need graceful async exit support on Windows?
             } catch (Interrupted & e) {
                 break;
+#endif
             } catch (EndOfFile & e) {
                 break;
             }

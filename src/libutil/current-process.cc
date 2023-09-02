@@ -5,8 +5,11 @@
 #include "util.hh"
 #include "finally.hh"
 #include "file-system.hh"
-#include "processes.hh"
 #include "signals.hh"
+
+#ifndef _WIN32
+# include "processes.hh"
+#endif
 
 #ifdef __APPLE__
 # include <mach-o/dyld.h>
@@ -19,7 +22,9 @@
 # include "namespaces.hh"
 #endif
 
-#include <sys/mount.h>
+#ifndef _WIN32
+# include <sys/mount.h>
+#endif
 
 namespace nix {
 
@@ -57,6 +62,7 @@ unsigned int getMaxCPU()
 //////////////////////////////////////////////////////////////////////
 
 
+#ifndef _WIN32
 rlim_t savedStackSize = 0;
 
 void setStackSize(rlim_t stackSize)
@@ -79,16 +85,20 @@ void setStackSize(rlim_t stackSize)
         }
     }
 }
+#endif
 
 void restoreProcessContext(bool restoreMounts)
 {
+    #ifndef _WIN32
     restoreSignals();
+    #endif
     if (restoreMounts) {
         #if __linux__
         restoreMountNamespace();
         #endif
     }
 
+    #ifndef _WIN32
     if (savedStackSize) {
         struct rlimit limit;
         if (getrlimit(RLIMIT_STACK, &limit) == 0) {
@@ -96,6 +106,7 @@ void restoreProcessContext(bool restoreMounts)
             setrlimit(RLIMIT_STACK, &limit);
         }
     }
+    #endif
 }
 
 

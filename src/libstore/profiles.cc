@@ -144,8 +144,10 @@ static void deleteGeneration2(const Path & profile, GenerationNumber gen, bool d
 
 void deleteGenerations(const Path & profile, const std::set<GenerationNumber> & gensToDelete, bool dryRun)
 {
+#ifndef _WIN32 // TODO implement path locks on Windows.
     PathLocks lock;
     lockProfile(lock, profile);
+#endif
 
     auto [gens, curGen] = findGenerations(profile);
 
@@ -171,8 +173,10 @@ void deleteGenerationsGreaterThan(const Path & profile, GenerationNumber max, bo
     if (max == 0)
         throw Error("Must keep at least one generation, otherwise the current one would be deleted");
 
+#ifndef _WIN32 // TODO implement path locks on Windows.
     PathLocks lock;
     lockProfile(lock, profile);
+#endif
 
     auto [gens, _curGen] = findGenerations(profile);
     auto curGen = _curGen;
@@ -192,8 +196,10 @@ void deleteGenerationsGreaterThan(const Path & profile, GenerationNumber max, bo
 
 void deleteOldGenerations(const Path & profile, bool dryRun)
 {
+#ifndef _WIN32 // TODO implement path locks on Windows.
     PathLocks lock;
     lockProfile(lock, profile);
+#endif
 
     auto [gens, curGen] = findGenerations(profile);
 
@@ -205,8 +211,10 @@ void deleteOldGenerations(const Path & profile, bool dryRun)
 
 void deleteGenerationsOlderThan(const Path & profile, time_t t, bool dryRun)
 {
+#ifndef _WIN32 // TODO implement path locks on Windows.
     PathLocks lock;
     lockProfile(lock, profile);
+#endif
 
     auto [gens, curGen] = findGenerations(profile);
 
@@ -266,8 +274,10 @@ void switchGeneration(
     std::optional<GenerationNumber> dstGen,
     bool dryRun)
 {
+#ifndef _WIN32 // TODO implement path locks on Windows.
     PathLocks lock;
     lockProfile(lock, profile);
+#endif
 
     auto [gens, curGen] = findGenerations(profile);
 
@@ -292,11 +302,13 @@ void switchGeneration(
 }
 
 
+#ifndef _WIN32 // TODO implement path locks on Windows.
 void lockProfile(PathLocks & lock, const Path & profile)
 {
     lock.lockPaths({profile}, fmt("waiting for lock on profile '%1%'", profile));
     lock.setDeletion(true);
 }
+#endif
 
 
 std::string optimisticLockProfile(const Path & profile)

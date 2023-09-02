@@ -328,8 +328,10 @@ void MixEnvironment::setEnviron() {
         if (!keep.empty())
             throw UsageError("--keep does not make sense without --ignore-environment");
 
+#ifndef _WIN32
         for (const auto & var : unset)
             unsetenv(var.c_str());
+#endif
     }
 }
 

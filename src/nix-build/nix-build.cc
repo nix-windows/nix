@@ -287,8 +287,10 @@ static void main_nix_build(int argc, char * * argv)
             left = {"default.nix"};
     }
 
+#ifndef _WIN32 // TODO set environment variables on Windows
     if (runEnv)
         setenv("IN_NIX_SHELL", pure ? "pure" : "impure", 1);
+#endif
 
     PackageInfos drvs;
 
