@@ -881,6 +881,7 @@ struct CmdFlakeInitCommon : virtual Args, EvalCommand
                     } else
                         writeFile(to2, contents);
                 }
+#ifndef __WIN32
                 else if (S_ISLNK(st.st_mode)) {
                     auto target = readLink(from2);
                     if (pathExists(to2)) {
@@ -894,6 +895,7 @@ struct CmdFlakeInitCommon : virtual Args, EvalCommand
                     } else
                           createSymlink(target, to2);
                 }
+#endif
                 else
                     throw Error("file '%s' has unsupported type", from2);
                 changedFiles.push_back(to2);
@@ -903,11 +905,13 @@ struct CmdFlakeInitCommon : virtual Args, EvalCommand
 
         copyDir(templateDir, flakeDir);
 
+#ifndef __WIN32
         if (!changedFiles.empty() && pathExists(flakeDir + "/.git")) {
             Strings args = { "-C", flakeDir, "add", "--intent-to-add", "--force", "--" };
             for (auto & s : changedFiles) args.push_back(s);
             runProgram("git", true, args);
         }
+#endif
         auto welcomeText = cursor->maybeGetAttr("welcomeText");
         if (welcomeText) {
             notice("\n");

@@ -1,3 +1,5 @@
+#ifndef __WIN32
+
 #include "command.hh"
 #include "installable-flake.hh"
 #include "common-args.hh"
@@ -892,3 +894,5 @@ struct CmdProfile : NixMultiCommand
 };
 
 static auto rCmdProfile = registerCommand<CmdProfile>("profile");
+
+#endif

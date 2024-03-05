@@ -13,6 +13,9 @@ ifeq ($(ENABLE_BUILD), yes)
 makefiles = \
   mk/precompiled-headers.mk \
   local.mk \
+  src/libmain/local.mk \
+  src/libcmd/local.mk \
+  src/nix/local.mk \
   src/libutil/local.mk \
   src/libstore/local.mk \
   src/libfetchers/local.mk \
@@ -20,9 +23,6 @@ makefiles = \
 
 ifdef HOST_UNIX
 makefiles += \
-  src/libmain/local.mk \
-  src/libcmd/local.mk \
-  src/nix/local.mk \
   src/resolve-system-dependencies/local.mk \
   scripts/local.mk \
   misc/bash/local.mk \
