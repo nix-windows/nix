@@ -78,9 +78,6 @@ Path canonPath(PathView path, bool resolveSymlinks)
     if (!isAbsolute(path))
         throw Error("not an absolute path: '%1%'", path);
 
-    // For Windows
-    auto rootName = fs::path { path }.root_name();
-
     /* This just exists because we cannot set the target of `remaining`
        (the callback parameter) directly to a newly-constructed string,
        since it is `std::string_view`. */
@@ -112,8 +109,6 @@ Path canonPath(PathView path, bool resolveSymlinks)
             }
         });
 
-    if (!rootName.empty())
-        ret = rootName.string() + std::move(ret);
     return ret;
 }
 

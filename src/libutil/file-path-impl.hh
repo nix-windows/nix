@@ -129,7 +129,6 @@ typename PathDict::String canonPathInner(
     result.reserve(256);
 
     while (true) {
-
         /* Skip slashes. */
         while (!remaining.empty() && PathDict::isPathSep(remaining[0]))
             remaining.remove_prefix(1);
@@ -154,12 +153,19 @@ typename PathDict::String canonPathInner(
 
         /* Normal component; copy it. */
         else {
-            result += PathDict::preferredSep;
             if (const auto slash = PathDict::findPathSep(remaining); slash == result.npos) {
+                result += PathDict::preferredSep;
                 result += remaining;
                 remaining = {};
             } else {
-                result += remaining.substr(0, slash);
+                auto component = remaining.substr(0, slash);
+                if (component.ends_with(":"))
+                {
+                    result.erase();
+                } else {
+                    result += PathDict::preferredSep;
+                }
+                result += component;
                 remaining = remaining.substr(slash);
             }
 
