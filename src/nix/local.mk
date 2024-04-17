@@ -11,7 +11,6 @@ nix_SOURCES := \
 
 ifdef HOST_UNIX
 nix_SOURCES += \
-  $(wildcard $(d)/unix/*.cc) \
   $(wildcard src/build-remote/*.cc) \
   $(wildcard src/nix-channel/*.cc) \
   $(wildcard src/nix-collect-garbage/*.cc) \
@@ -20,15 +19,15 @@ nix_SOURCES += \
 endif
 
 INCLUDE_nix := -I $(d)
-ifdef HOST_UNIX
-  INCLUDE_nix += -I $(d)/unix
-endif
 
 nix_CXXFLAGS += $(INCLUDE_libutil) $(INCLUDE_libstore) $(INCLUDE_libfetchers) $(INCLUDE_libexpr) $(INCLUDE_libmain) -I src/libcmd -I doc/manual $(INCLUDE_nix)
 
 nix_LIBS = libexpr libmain libfetchers libstore libutil libcmd
 
 nix_LDFLAGS = $(THREAD_LDFLAGS) $(SODIUM_LIBS) $(EDITLINE_LIBS) $(BOOST_LDFLAGS) $(LOWDOWN_LIBS)
+ifdef HOST_WINDOWS
+  nix_LDFLAGS += -lws2_32
+endif
 
 $(foreach name, \
   nix-build nix-channel nix-collect-garbage nix-copy-closure nix-daemon nix-env nix-hash nix-instantiate nix-prefetch-url nix-shell nix-store, \

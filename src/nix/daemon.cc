@@ -4,7 +4,7 @@
 #include "unix-domain-socket.hh"
 #include "command.hh"
 #include "shared.hh"
-#include "local-store.hh"
+#include "local-fs-store.hh"
 #include "remote-store.hh"
 #include "remote-store-connection.hh"
 #include "serialise.hh"
@@ -22,22 +22,31 @@
 #include <unistd.h>
 #include <signal.h>
 #include <sys/types.h>
-#include <sys/wait.h>
 #include <sys/stat.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <sys/select.h>
 #include <errno.h>
-#include <pwd.h>
-#include <grp.h>
 #include <fcntl.h>
 
+#ifdef _WIN32
+# include <winsock2.h>
+# include <afunix.h>
+# include <ws2tcpip.h>
+#else
+# include <sys/wait.h>
+# include <sys/socket.h>
+# include <sys/un.h>
+# include <sys/select.h>
+# include <pwd.h>
+# include <grp.h>
+#endif
+
 #if __APPLE__ || __FreeBSD__
-#include <sys/ucred.h>
+# include <sys/ucred.h>
 #endif
 
 using namespace nix;
 using namespace nix::daemon;
+
+#ifndef _WIN32
 
 /**
  * Settings related to authenticating clients for the Nix daemon.
@@ -94,7 +103,7 @@ static GlobalConfig::Register rSettings(&authorizationSettings);
 
 #ifndef __linux__
 #define SPLICE_F_MOVE 0
-static ssize_t splice(int fd_in, void *off_in, int fd_out, void *off_out, size_t len, unsigned int flags)
+static ssize_t splice(Descriptor fd_in, void *off_in, Descriptor fd_out, void *off_out, size_t len, unsigned int flags)
 {
     // We ignore most parameters, we just have them for conformance with the linux syscall
     std::vector<char> buf(8192);
@@ -111,7 +120,6 @@ static ssize_t splice(int fd_in, void *off_in, int fd_out, void *off_out, size_t
     return read_count;
 }
 #endif
-
 
 static void sigChldHandler(int sigNo)
 {
@@ -226,20 +234,6 @@ static PeerInfo getPeerInfo(int remote)
 }
 
 
-#define SD_LISTEN_FDS_START 3
-
-
-/**
- * Open a store without a path info cache.
- */
-static ref<Store> openUncachedStore()
-{
-    Store::Params params; // FIXME: get params from somewhere
-    // Disable caching since the client already does that.
-    params["path-info-cache-size"] = "0";
-    return openStore(settings.storeUri, params);
-}
-
 /**
  * Authenticate a potential client
  *
@@ -273,6 +267,22 @@ static std::pair<TrustedFlag, std::string> authPeer(const PeerInfo & peer)
     return { trusted, std::move(user) };
 }
 
+#define SD_LISTEN_FDS_START 3
+
+#endif
+
+
+/**
+ * Open a store without a path info cache.
+ */
+static ref<Store> openUncachedStore()
+{
+    Store::Params params; // FIXME: get params from somewhere
+    // Disable caching since the client already does that.
+    params["path-info-cache-size"] = "0";
+    return openStore(settings.storeUri, params);
+}
+
 
 /**
  * Run a server. The loop opens a socket and accepts new connections from that
@@ -289,6 +299,9 @@ static void daemonLoop(std::optional<TrustedFlag> forceTrustClientOpt)
 
     AutoCloseFD fdSocket;
 
+#ifdef _WIN32
+    if (false) { }
+#else
     //  Handle socket-based activation by systemd.
     auto listenFds = getEnv("LISTEN_FDS");
     if (listenFds) {
@@ -297,6 +310,7 @@ static void daemonLoop(std::optional<TrustedFlag> forceTrustClientOpt)
         fdSocket = SD_LISTEN_FDS_START;
         closeOnExec(fdSocket.get());
     }
+#endif
 
     //  Otherwise, create and bind to a Unix domain socket.
     else {
@@ -304,8 +318,10 @@ static void daemonLoop(std::optional<TrustedFlag> forceTrustClientOpt)
         fdSocket = createUnixDomainSocket(settings.nixDaemonSocketFile, 0666);
     }
 
+#ifndef _WIN32
     //  Get rid of children automatically; don't let them become zombies.
     setSigChldAction(true);
+#endif
 
     //  Loop accepting connections.
     while (1) {
@@ -315,16 +331,21 @@ static void daemonLoop(std::optional<TrustedFlag> forceTrustClientOpt)
             struct sockaddr_un remoteAddr;
             socklen_t remoteAddrLen = sizeof(remoteAddr);
 
-            AutoCloseFD remote = accept(fdSocket.get(),
-                (struct sockaddr *) &remoteAddr, &remoteAddrLen);
+            AutoCloseFD remote = toDescriptor(accept(
+                toSocket(fdSocket.get()),
+                (struct sockaddr *) &remoteAddr,
+                &remoteAddrLen));
             checkInterrupt();
             if (!remote) {
                 if (errno == EINTR) continue;
                 throw SysError("accepting connection");
             }
 
+#ifndef _WIN32
             closeOnExec(remote.get());
+#endif
 
+#ifndef _WIN32
             PeerInfo peer { .pidKnown = false };
             TrustedFlag trusted;
             std::string user;
@@ -341,6 +362,7 @@ static void daemonLoop(std::optional<TrustedFlag> forceTrustClientOpt)
             printInfo((std::string) "accepted connection from pid %1%, user %2%" + (trusted ? " (trusted)" : ""),
                 peer.pidKnown ? std::to_string(peer.pid) : "<unknown>",
                 peer.uidKnown ? user : "<unknown>");
+#endif
 
             //  Fork a child to handle the connection.
             ProcessOptions options;
@@ -348,8 +370,11 @@ static void daemonLoop(std::optional<TrustedFlag> forceTrustClientOpt)
             options.dieWithParent = false;
             options.runExitHandlers = true;
             options.allowVfork = false;
+#ifdef _WIN32
+            throw UnimplementedError("Fork threads instead of proccesses for daemon on Windows");
+#else
             startProcess([&]() {
-                fdSocket = -1;
+                fdSocket = INVALID_DESCRIPTOR;
 
                 //  Background the daemon.
                 if (setsid() == -1)
@@ -371,6 +396,7 @@ static void daemonLoop(std::optional<TrustedFlag> forceTrustClientOpt)
 
                 exit(0);
             }, options);
+#endif
 
         } catch (Interrupted & e) {
             return;
@@ -382,6 +408,8 @@ static void daemonLoop(std::optional<TrustedFlag> forceTrustClientOpt)
         }
     }
 }
+
+#ifndef _WIN32
 
 /**
  * Forward a standard IO connection to the given remote store.
@@ -405,7 +433,7 @@ static void forwardStdioConnection(RemoteStore & store) {
         if (select(nfds, &fds, nullptr, nullptr, nullptr) == -1)
             throw SysError("waiting for data from client or server");
         if (FD_ISSET(from, &fds)) {
-            auto res = splice(from, nullptr, STDOUT_FILENO, nullptr, SSIZE_MAX, SPLICE_F_MOVE);
+            auto res = splice(from, nullptr, getStandardOut(), nullptr, SSIZE_MAX, SPLICE_F_MOVE);
             if (res == -1)
                 throw SysError("splicing data from daemon socket to stdout");
             else if (res == 0)
@@ -421,6 +449,8 @@ static void forwardStdioConnection(RemoteStore & store) {
     }
 }
 
+#endif
+
 /**
  * Process a client connecting to us via standard input/output
  *
@@ -433,7 +463,7 @@ static void forwardStdioConnection(RemoteStore & store) {
 static void processStdioConnection(ref<Store> store, TrustedFlag trustClient)
 {
     FdSource from(STDIN_FILENO);
-    FdSink to(STDOUT_FILENO);
+    FdSink to(getStandardOut());
     processConnection(store, from, to, trustClient, NotRecursive);
 }
 
@@ -459,9 +489,11 @@ static void runDaemon(bool stdio, std::optional<TrustedFlag> forceTrustClientOpt
         // force untrusting the client.
         processOps |= !forceTrustClientOpt || *forceTrustClientOpt != NotTrusted;
 
+#ifndef _WIN32
         if (!processOps && (remoteStore = store.dynamic_pointer_cast<RemoteStore>()))
             forwardStdioConnection(*remoteStore);
         else
+#endif
             // `Trusted` is passed in the auto (no override case) because we
             // cannot see who is on the other side of a plain pipe. Limiting
             // access to those is explicitly not `nix-daemon`'s responsibility.
