@@ -8,7 +8,11 @@
 
 namespace nix {
 
-HookInstance::HookInstance()
+HookInstance::HookInstance(
+#ifdef _WIN32
+    HANDLE ioport
+#endif
+    )
 {
     debug("starting build hook '%s'", concatStringsSep(" ", settings.buildHook.get()));
 
@@ -36,14 +40,23 @@ HookInstance::HookInstance()
     args.push_back(std::to_string(verbosity));
 
     /* Create a pipe to get the output of the child. */
+#ifndef _WIN32
     fromHook.create();
+#else
+    fromHook.createAsyncPipe(ioport);
+#endif
 
     /* Create the communication pipes. */
     toHook.create();
 
     /* Create a pipe to get the output of the builder. */
+#ifndef _WIN32
     builderOut.create();
+#else
+    builderOut.createAsyncPipe(ioport);
+#endif
 
+#ifndef _WIN32
     /* Fork the hook. */
     pid = startProcess([&]() {
 
@@ -73,8 +86,11 @@ HookInstance::HookInstance()
     });
 
     pid.setSeparatePG(true);
-    fromHook.writeSide = -1;
-    toHook.readSide = -1;
+#else
+    throw UnimplementedError("build remote hook not yet implemented on Windows.");
+#endif
+    fromHook.writeSide.close();
+    toHook.readSide.close();
 
     sink = FdSink(toHook.writeSide.get());
     std::map<std::string, Config::SettingInfo> settings;
@@ -88,7 +104,7 @@ HookInstance::HookInstance()
 HookInstance::~HookInstance()
 {
     try {
-        toHook.writeSide = -1;
+        toHook.writeSide.close();
         if (pid != -1) pid.kill();
     } catch (...) {
         ignoreExceptionInDestructor();

@@ -11,6 +11,7 @@ void commonChildInit()
 {
     logger = makeSimpleLogger();
 
+#ifndef _WIN32
     const static std::string pathNullDevice = "/dev/null";
     restoreProcessContext(false);
 
@@ -32,6 +33,7 @@ void commonChildInit()
     if (dup2(fdDevNull, STDIN_FILENO) == -1)
         throw SysError("cannot dup null device into stdin");
     close(fdDevNull);
+#endif
 }
 
 }

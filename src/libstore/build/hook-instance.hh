@@ -5,6 +5,10 @@
 #include "serialise.hh"
 #include "processes.hh"
 
+#ifdef _WIN32
+#  include "windows-async-pipe.hh"
+#endif
+
 namespace nix {
 
 struct HookInstance
@@ -17,12 +21,22 @@ struct HookInstance
     /**
      * Pipe for the hook's standard output/error.
      */
-    Pipe fromHook;
+#ifndef _WIN32
+    Pipe
+#else
+    windows::AsyncPipe
+#endif
+        fromHook;
 
     /**
      * Pipe for the builder's standard output/error.
      */
-    Pipe builderOut;
+#ifndef _WIN32
+    Pipe
+#else
+    windows::AsyncPipe
+#endif
+        builderOut;
 
     /**
      * The process ID of the hook.
@@ -33,7 +47,11 @@ struct HookInstance
 
     std::map<ActivityId, Activity> activities;
 
-    HookInstance();
+    HookInstance(
+#ifdef _WIN32
+        HANDLE ioport
+#endif
+        );
 
     ~HookInstance();
 };

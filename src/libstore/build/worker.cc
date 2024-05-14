@@ -6,8 +6,8 @@
 #include "derivation-goal.hh"
 #ifndef _WIN32 // TODO Enable building on Windows
 #  include "local-derivation-goal.hh"
-#  include "hook-instance.hh"
 #endif
+#include "hook-instance.hh"
 #include "signals.hh"
 
 namespace nix {

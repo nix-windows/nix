@@ -14,9 +14,7 @@ namespace nix {
 
 using std::map;
 
-#ifndef _WIN32 // TODO enable build hook on Windows
 struct HookInstance;
-#endif
 
 typedef enum {rpAccept, rpDecline, rpPostpone} HookReply;
 
@@ -182,12 +180,10 @@ struct DerivationGoal : public Goal
 
     std::string currentHookLine;
 
-#ifndef _WIN32 // TODO enable build hook on Windows
     /**
      * The build hook.
      */
     std::unique_ptr<HookInstance> hook;
-#endif
 
     /**
      * The sort of derivation we are building.
