@@ -3,6 +3,8 @@
 #include "nar-accessor.hh"
 #include "progress-bar.hh"
 
+namespace nix::fs { using namespace std::filesystem; }
+
 using namespace nix;
 
 struct MixCat : virtual Args
@@ -51,7 +53,7 @@ struct CmdCatStore : StoreCommand, MixCat
 
 struct CmdCatNar : StoreCommand, MixCat
 {
-    Path narPath;
+    fs::path narPath;
 
     CmdCatNar()
     {

@@ -9,13 +9,15 @@
 
 #include <nlohmann/json.hpp>
 
+namespace nix::fs { using namespace std::filesystem; }
+
 using namespace nix;
 
 struct CmdEval : MixJSON, InstallableValueCommand, MixReadOnlyOption
 {
     bool raw = false;
     std::optional<std::string> apply;
-    std::optional<Path> writeTo;
+    std::optional<fs::path> writeTo;
 
     CmdEval() : InstallableValueCommand()
     {
@@ -75,7 +77,7 @@ struct CmdEval : MixJSON, InstallableValueCommand, MixReadOnlyOption
         if (writeTo) {
             stopProgressBar();
 
-            if (pathExists(*writeTo))
+            if (fs::symlink_exists(*writeTo))
                 throw Error("path '%s' already exists", *writeTo);
 
             std::function<void(Value & v, const PosIdx pos, const std::filesystem::path & path)> recurse;
@@ -85,7 +87,7 @@ struct CmdEval : MixJSON, InstallableValueCommand, MixReadOnlyOption
                 state->forceValue(v, pos);
                 if (v.type() == nString)
                     // FIXME: disallow strings with contexts?
-                    writeFile(path.string(), v.string_view());
+                    writeFile(path, v.string_view());
                 else if (v.type() == nAttrs) {
                     // TODO abstract mkdir perms for Windows
                     createDir(path.string(), 0777);

@@ -11,11 +11,13 @@
 #include "executable-path.hh"
 #include "self-exe.hh"
 
+namespace nix::fs { using namespace std::filesystem; }
+
 using namespace nix;
 
 struct CmdUpgradeNix : MixDryRun, StoreCommand
 {
-    Path profileDir;
+    fs::path profileDir;
 
     CmdUpgradeNix()
     {
@@ -95,14 +97,14 @@ struct CmdUpgradeNix : MixDryRun, StoreCommand
             Activity act(*logger, lvlInfo, actUnknown,
                 fmt("installing '%s' into profile '%s'...", store->printStorePath(storePath), profileDir));
             runProgram(getNixBin("nix-env").string(), false,
-                {"--profile", profileDir, "-i", store->printStorePath(storePath), "--no-sandbox"});
+                {"--profile", profileDir.string(), "-i", store->printStorePath(storePath), "--no-sandbox"});
         }
 
         printInfo(ANSI_GREEN "upgrade to version %s done" ANSI_NORMAL, version);
     }
 
     /* Return the profile in which Nix is installed. */
-    Path getProfileDir(ref<Store> store)
+    fs::path getProfileDir(ref<Store> store)
     {
         auto whereOpt = ExecutablePath::load().findName(OS_STR("nix-env"));
         if (!whereOpt)
@@ -114,21 +116,25 @@ struct CmdUpgradeNix : MixDryRun, StoreCommand
         if (hasPrefix(where.string(), "/run/current-system"))
             throw Error("Nix on NixOS must be upgraded via 'nixos-rebuild'");
 
-        Path profileDir = where.parent_path().string();
+        fs::path profileDir = where.parent_path().string();
 
         // Resolve profile to /nix/var/nix/profiles/<name> link.
-        while (canonPath(profileDir).find("/profiles/") == std::string::npos && std::filesystem::is_symlink(profileDir))
-            profileDir = readLink(profileDir);
+        while ([&]{
+                auto normalized = profileDir.lexically_normal();
+                return std::find(normalized.begin(), normalized.end(), "profiles") == normalized.end()
+                    && std::filesystem::is_symlink(profileDir);
+            }())
+            profileDir = fs::read_symlink(profileDir);
 
         printInfo("found profile '%s'", profileDir);
 
-        Path userEnv = canonPath(profileDir, true);
+        fs::path userEnv = fs::weakly_canonical(profileDir);
 
         if (where.filename() != "bin" ||
-            !hasSuffix(userEnv, "user-environment"))
+            !hasSuffix(userEnv.string(), "user-environment"))
             throw Error("directory '%s' does not appear to be part of a Nix profile", where);
 
-        if (!store->isValidPath(store->parseStorePath(userEnv)))
+        if (!store->isValidPath(store->parseStorePath(userEnv.string())))
             throw Error("directory '%s' is not in the Nix store", userEnv);
 
         return profileDir;

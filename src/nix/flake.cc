@@ -849,7 +849,7 @@ static Strings defaultTemplateAttrPaths = {"templates.default", "defaultTemplate
 struct CmdFlakeInitCommon : virtual Args, EvalCommand
 {
     std::string templateUrl = "templates";
-    Path destDir;
+    fs::path destDir;
 
     const LockFlags lockFlags{ .writeLockFile = false };
 
@@ -875,7 +875,7 @@ struct CmdFlakeInitCommon : virtual Args, EvalCommand
 
     void run(nix::ref<nix::Store> store) override
     {
-        auto flakeDir = absPath(destDir);
+        auto flakeDir = fs::weakly_canonical(destDir);
 
         auto evalState = getEvalState();
 
@@ -952,7 +952,7 @@ struct CmdFlakeInitCommon : virtual Args, EvalCommand
         copyDir(templateDir, flakeDir);
 
         if (!changedFiles.empty() && fs::exists(std::filesystem::path{flakeDir} / ".git")) {
-            Strings args = { "-C", flakeDir, "add", "--intent-to-add", "--force", "--" };
+            Strings args = { "-C", flakeDir.string(), "add", "--intent-to-add", "--force", "--" };
             for (auto & s : changedFiles) args.emplace_back(s.string());
             runProgram("git", true, args);
         }
@@ -1013,7 +1013,7 @@ struct CmdFlakeNew : CmdFlakeInitCommon
 
 struct CmdFlakeClone : FlakeCommand
 {
-    Path destDir;
+    fs::path destDir;
 
     std::string description() override
     {
@@ -1043,7 +1043,7 @@ struct CmdFlakeClone : FlakeCommand
         if (destDir.empty())
             throw Error("missing flag '--dest'");
 
-        getFlakeRef().resolve(store).input.clone(destDir);
+        getFlakeRef().resolve(store).input.clone(destDir.string());
     }
 };
 

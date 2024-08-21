@@ -7,6 +7,8 @@
 
 #include <nlohmann/json.hpp>
 
+namespace nix::fs { using namespace std::filesystem; }
+
 using namespace nix;
 
 static nlohmann::json derivedPathsToJSON(const DerivedPaths & paths, Store & store)
@@ -43,7 +45,7 @@ static nlohmann::json builtPathsWithResultToJSON(const std::vector<BuiltPathWith
 }
 
 // TODO deduplicate with other code also setting such out links.
-static void createOutLinks(const std::filesystem::path& outLink, const std::vector<BuiltPathWithResult>& buildables, LocalFSStore& store2)
+static void createOutLinks(const std::filesystem::path & outLink, const std::vector<BuiltPathWithResult>& buildables, LocalFSStore& store2)
 {
     for (const auto & [_i, buildable] : enumerate(buildables)) {
         auto i = _i;
@@ -51,14 +53,14 @@ static void createOutLinks(const std::filesystem::path& outLink, const std::vect
             [&](const BuiltPath::Opaque & bo) {
                 auto symlink = outLink;
                 if (i) symlink += fmt("-%d", i);
-                store2.addPermRoot(bo.path, absPath(symlink.string()));
+                store2.addPermRoot(bo.path, absPath(symlink).string());
             },
             [&](const BuiltPath::Built & bfd) {
                 for (auto & output : bfd.outputs) {
                     auto symlink = outLink;
                     if (i) symlink += fmt("-%d", i);
                     if (output.first != "out") symlink += fmt("-%s", output.first);
-                    store2.addPermRoot(output.second, absPath(symlink.string()));
+                    store2.addPermRoot(output.second, absPath(symlink).string());
                 }
             },
         }, buildable.path.raw());
@@ -67,7 +69,7 @@ static void createOutLinks(const std::filesystem::path& outLink, const std::vect
 
 struct CmdBuild : InstallablesCommand, MixDryRun, MixJSON, MixProfile
 {
-    Path outLink = "result";
+    fs::path outLink = "result";
     bool printOutputPaths = false;
     BuildMode buildMode = bmNormal;
 
@@ -85,7 +87,7 @@ struct CmdBuild : InstallablesCommand, MixDryRun, MixJSON, MixProfile
         addFlag({
             .longName = "no-link",
             .description = "Do not create symlinks to the build results.",
-            .handler = {&outLink, Path("")},
+            .handler = {&outLink, fs::path{}},
         });
 
         addFlag({
@@ -138,7 +140,7 @@ struct CmdBuild : InstallablesCommand, MixDryRun, MixJSON, MixProfile
 
         if (json) logger->cout("%s", builtPathsWithResultToJSON(buildables, *store).dump());
 
-        if (outLink != "")
+        if (!outLink.empty())
             if (auto store2 = store.dynamic_pointer_cast<LocalFSStore>())
                 createOutLinks(outLink, buildables, *store2);
 

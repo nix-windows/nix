@@ -4,6 +4,8 @@
 #include "common-args.hh"
 #include <nlohmann/json.hpp>
 
+namespace nix::fs { using namespace std::filesystem; }
+
 using namespace nix;
 
 struct MixLs : virtual Args, MixJSON
@@ -126,7 +128,7 @@ struct CmdLsStore : StoreCommand, MixLs
 
 struct CmdLsNar : Command, MixLs
 {
-    Path narPath;
+    fs::path narPath;
 
     CmdLsNar()
     {
