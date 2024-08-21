@@ -7,6 +7,8 @@
 
 #include <nlohmann/json.hpp>
 
+namespace nix::fs { using namespace std::filesystem; }
+
 using namespace nix;
 
 static nlohmann::json derivedPathsToJSON(const DerivedPaths & paths, Store & store)
@@ -44,7 +46,7 @@ static nlohmann::json builtPathsWithResultToJSON(const std::vector<BuiltPathWith
 
 struct CmdBuild : InstallablesCommand, MixDryRun, MixJSON, MixProfile
 {
-    Path outLink = "result";
+    fs::path outLink = "result";
     bool printOutputPaths = false;
     BuildMode buildMode = bmNormal;
 
@@ -62,7 +64,7 @@ struct CmdBuild : InstallablesCommand, MixDryRun, MixJSON, MixProfile
         addFlag({
             .longName = "no-link",
             .description = "Do not create symlinks to the build results.",
-            .handler = {&outLink, Path("")},
+            .handler = {&outLink, fs::path{}},
         });
 
         addFlag({
@@ -115,7 +117,7 @@ struct CmdBuild : InstallablesCommand, MixDryRun, MixJSON, MixProfile
 
         if (json) logger->cout("%s", builtPathsWithResultToJSON(buildables, *store).dump());
 
-        if (outLink != "")
+        if (!outLink.empty())
             if (auto store2 = store.dynamic_pointer_cast<LocalFSStore>())
                 createOutLinks(outLink, toBuiltPaths(buildables), *store2);
 

@@ -28,6 +28,8 @@
 #include "network-proxy.hh"
 #include "compatibility-settings.hh"
 
+namespace nix::fs { using namespace std::filesystem; }
+
 using namespace nix;
 using namespace std::string_literals;
 
@@ -137,7 +139,7 @@ static void main_nix_build(int argc, char * * argv)
     auto myName = isNixShell ? "nix-shell" : "nix-build";
 
     auto inShebang = false;
-    std::string script;
+    fs::path script;
     std::vector<std::string> savedArgs;
 
     AutoDelete tmpDir(createTempDir("", myName));
@@ -183,8 +185,8 @@ static void main_nix_build(int argc, char * * argv)
     struct MyArgs : LegacyArgs, MixEvalArgs
     {
         using LegacyArgs::LegacyArgs;
-        void setBaseDir(Path baseDir) {
-            commandBaseDir = baseDir;
+        void setBaseDir(fs::path baseDir) {
+            commandBaseDir = baseDir.string();
         }
     };
 
@@ -260,9 +262,9 @@ static void main_nix_build(int argc, char * * argv)
                 // read the shebang to understand which packages to read from. Since
                 // this is handled via nix-shell -p, we wrap our ruby script execution
                 // in ruby -e 'load' which ignores the shebangs.
-                envCommand = fmt("exec %1% %2% -e 'load(ARGV.shift)' -- %3% %4%", execArgs, interpreter, shellEscape(script), toView(joined));
+                envCommand = fmt("exec %1% %2% -e 'load(ARGV.shift)' -- %3% %4%", execArgs, interpreter, shellEscape(script.string()), toView(joined));
             } else {
-                envCommand = fmt("exec %1% %2% %3% %4%", execArgs, interpreter, shellEscape(script), toView(joined));
+                envCommand = fmt("exec %1% %2% %3% %4%", execArgs, interpreter, shellEscape(script.string()), toView(joined));
             }
         }
 
@@ -294,7 +296,7 @@ static void main_nix_build(int argc, char * * argv)
     if (myArgs.repair) buildMode = bmRepair;
 
     if (inShebang && compatibilitySettings.nixShellShebangArgumentsRelativeToScript) {
-        myArgs.setBaseDir(absPath(dirOf(script)));
+        myArgs.setBaseDir(fs::absolute(script.parent_path()));
     }
     auto autoArgs = myArgs.getAutoArgs(*state);
 
@@ -315,7 +317,7 @@ static void main_nix_build(int argc, char * * argv)
         fromArgs = true;
         remainingArgs = {joined.str()};
     } else if (!fromArgs && remainingArgs.empty()) {
-        if (isNixShell && !compatibilitySettings.nixShellAlwaysLooksForShellNix && std::filesystem::exists("shell.nix")) {
+        if (isNixShell && !compatibilitySettings.nixShellAlwaysLooksForShellNix && fs::exists("shell.nix")) {
             // If we're in 2.3 compatibility mode, we need to look for shell.nix
             // now, because it won't be done later.
             remainingArgs = {"shell.nix"};
@@ -323,7 +325,7 @@ static void main_nix_build(int argc, char * * argv)
             remainingArgs = {"."};
 
             // Instead of letting it throw later, we throw here to give a more relevant error message
-            if (isNixShell && !std::filesystem::exists("shell.nix") && !std::filesystem::exists("default.nix"))
+            if (isNixShell && !fs::exists("shell.nix") && !fs::exists("default.nix"))
                 throw Error("no argument specified and no '%s' or '%s' file found in the working directory", "shell.nix", "default.nix");
         }
     }
@@ -341,29 +343,30 @@ static void main_nix_build(int argc, char * * argv)
     else
         for (auto i : remainingArgs) {
             if (fromArgs) {
-                auto shebangBaseDir = absPath(dirOf(script));
+                auto shebangBaseDir = fs::absolute(script.parent_path());
                 exprs.push_back(state->parseExprFromString(
                     std::move(i),
                     (inShebang && compatibilitySettings.nixShellShebangArgumentsRelativeToScript)
-                        ? lookupFileArg(*state, shebangBaseDir)
+                        ? lookupFileArg(*state, shebangBaseDir.string())
                         : state->rootPath(".")
                 ));
             }
             else {
-                auto absolute = i;
+                fs::path absolute = i;
                 try {
-                    absolute = canonPath(absPath(i), true);
-                } catch (Error & e) {};
-                auto [path, outputNames] = parsePathWithOutputs(absolute);
+                    absolute = fs::weakly_canonical(absolute);
+                } catch (fs::filesystem_error &) {};
+                auto [path, outputNames] = parsePathWithOutputs(absolute.string());
                 if (evalStore->isStorePath(path) && hasSuffix(path, ".drv"))
-                    drvs.push_back(PackageInfo(*state, evalStore, absolute));
+                    drvs.push_back(PackageInfo(*state, evalStore, absolute.string()));
                 else {
                     /* If we're in a #! script, interpret filenames
                        relative to the script. */
-                    auto baseDir = inShebang && !packages ? absPath(i, absPath(dirOf(script))) : i;
+                    auto baseDir = inShebang && !packages
+                        ? absPath(script.parent_path()) / (fs::path{i})
+                        : (fs::path{i});
 
-                    auto sourcePath = lookupFileArg(*state,
-                                    baseDir);
+                    auto sourcePath = lookupFileArg(*state, baseDir.string());
                     auto resolvedPath =
                         isNixShell ? resolveShellExprPath(sourcePath) : resolveExprPath(sourcePath);
 
@@ -549,7 +552,7 @@ static void main_nix_build(int argc, char * * argv)
         for (auto & var : drv.env)
             if (passAsFile.count(var.first)) {
                 auto fn = ".attr-" + std::to_string(fileNr++);
-                Path p = (tmpDir.path() / fn).string();
+                auto p = (tmpDir.path() / fn).string();
                 writeFile(p, var.second);
                 env[var.first + "Path"] = p;
             } else

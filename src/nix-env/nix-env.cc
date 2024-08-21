@@ -49,7 +49,7 @@ struct InstallSourceInfo
 {
     InstallSourceType type;
     std::shared_ptr<SourcePath> nixExprPath; /* for srcNixExprDrvs, srcNixExprs */
-    Path profile; /* for srcProfile */
+    fs::path profile; /* for srcProfile */
     std::string systemFilter; /* for srcNixExprDrvs */
     Bindings * autoArgs;
 };
@@ -58,7 +58,7 @@ struct InstallSourceInfo
 struct Globals
 {
     InstallSourceInfo instSource;
-    Path profile;
+    fs::path profile;
     std::shared_ptr<EvalState> state;
     bool dryRun;
     bool preserveInstalled;
@@ -513,7 +513,7 @@ static void setMetaFlag(EvalState & state, PackageInfo & drv,
 
 
 static void installDerivations(Globals & globals,
-    const Strings & args, const Path & profile, std::optional<int> priority)
+    const Strings & args, const fs::path & profile, std::optional<int> priority)
 {
     debug("installing derivations");
 
@@ -797,7 +797,7 @@ static void opSet(Globals & globals, Strings opFlags, Strings opArgs)
 
 
 static void uninstallDerivations(Globals & globals, Strings & selectors,
-    Path & profile)
+    const fs::path & profile)
 {
     while (true) {
         auto lockToken = optimisticLockProfile(profile);

@@ -2,6 +2,8 @@
 #include "store-api.hh"
 #include "archive.hh"
 
+namespace nix::fs { using namespace std::filesystem; }
+
 using namespace nix;
 
 struct CmdDumpPath : StorePathCommand
@@ -30,7 +32,7 @@ static auto rDumpPath = registerCommand2<CmdDumpPath>({"store", "dump-path"});
 
 struct CmdDumpPath2 : Command
 {
-    Path path;
+    fs::path path;
 
     CmdDumpPath2()
     {
@@ -56,7 +58,7 @@ struct CmdDumpPath2 : Command
     void run() override
     {
         FdSink sink(getStandardOutput());
-        dumpPath(path, sink);
+        dumpPath(path.string(), sink);
         sink.flush();
     }
 };

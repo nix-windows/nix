@@ -6,11 +6,13 @@
 #include "posix-source-accessor.hh"
 #include "misc-store-flags.hh"
 
+namespace nix::fs { using namespace std::filesystem; }
+
 using namespace nix;
 
 struct CmdAddToStore : MixDryRun, StoreCommand
 {
-    Path path;
+    fs::path path;
     std::optional<std::string> namePart;
     ContentAddressMethod caMethod = ContentAddressMethod::Raw::NixArchive;
     HashAlgorithm hashAlgo = HashAlgorithm::SHA256;
@@ -35,7 +37,7 @@ struct CmdAddToStore : MixDryRun, StoreCommand
 
     void run(ref<Store> store) override
     {
-        if (!namePart) namePart = baseNameOf(path);
+        if (!namePart) namePart = path.filename().filename().string();
 
         auto sourcePath = PosixSourceAccessor::createAtRoot(makeParentCanonical(path));
 

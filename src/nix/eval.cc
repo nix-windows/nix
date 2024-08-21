@@ -9,6 +9,8 @@
 
 #include <nlohmann/json.hpp>
 
+namespace nix::fs { using namespace std::filesystem; }
+
 using namespace nix;
 
 namespace nix::fs { using namespace std::filesystem; }
@@ -87,7 +89,7 @@ struct CmdEval : MixJSON, InstallableValueCommand, MixReadOnlyOption
                 state->forceValue(v, pos);
                 if (v.type() == nString)
                     // FIXME: disallow strings with contexts?
-                    writeFile(path.string(), v.string_view());
+                    writeFile(path, v.string_view());
                 else if (v.type() == nAttrs) {
                     [[maybe_unused]] bool directoryCreated = fs::create_directory(path);
                     // Directory should not already exist

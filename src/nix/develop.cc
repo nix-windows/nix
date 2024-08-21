@@ -325,7 +325,7 @@ struct Common : InstallableCommand, MixProfile
         "UID",
     };
 
-    std::vector<std::pair<std::string, std::string>> redirects;
+    std::vector<std::pair<std::string, fs::path>> redirects;
 
     Common()
     {
@@ -333,7 +333,7 @@ struct Common : InstallableCommand, MixProfile
             .longName = "redirect",
             .description = "Redirect a store path to a mutable location.",
             .labels = {"installable", "outputs-dir"},
-            .handler = {[&](std::string installable, std::string outputsDir) {
+            .handler = {[&](std::string installable, fs::path outputsDir) {
                 redirects.push_back({installable, outputsDir});
             }}
         });
@@ -400,7 +400,7 @@ struct Common : InstallableCommand, MixProfile
 
         /* Substitute redirects. */
         for (auto & [installable_, dir_] : redirects) {
-            auto dir = absPath(dir_);
+            auto dir = std::filesystem::absolute(dir_);
             auto installable = parseInstallable(store, installable_);
             auto builtPaths = Installable::toStorePathSet(
                 getEvalStore(), store, Realise::Nothing, OperateOn::Output, {installable});
@@ -409,8 +409,8 @@ struct Common : InstallableCommand, MixProfile
                 if (script.find(from) == std::string::npos)
                     warn("'%s' (path '%s') is not used by this build environment", installable->what(), from);
                 else {
-                    printInfo("redirecting '%s' to '%s'", from, dir);
-                    rewrites.insert({from, dir});
+                    printInfo("redirecting '%s' to '%s'", from, dir.string());
+                    rewrites.insert({from, dir.string()});
                 }
             }
         }
@@ -635,7 +635,7 @@ struct CmdDevelop : Common, MixEnvironment
         // prevent garbage collection until shell exits
         setEnv("NIX_GCROOT", gcroot.c_str());
 
-        Path shell = "bash";
+        fs::path shell = "bash";
 
         try {
             auto state = getEvalState();
@@ -678,15 +678,15 @@ struct CmdDevelop : Common, MixEnvironment
 
         // Override SHELL with the one chosen for this environment.
         // This is to make sure the system shell doesn't leak into the build environment.
-        setEnv("SHELL", shell.c_str());
+        setEnv("SHELL", shell.string().c_str());
 
 #ifdef _WIN32 // TODO re-enable on Windows
         throw UnimplementedError("Cannot yet spawn processes on Windows");
 #else
         // If running a phase or single command, don't want an interactive shell running after
         // Ctrl-C, so don't pass --rcfile
-        auto args = phase || !command.empty() ? Strings{std::string(baseNameOf(shell)), rcFilePath}
-            : Strings{std::string(baseNameOf(shell)), "--rcfile", rcFilePath};
+        auto args = phase || !command.empty() ? Strings{shell.filename().string(), rcFilePath}
+            : Strings{shell.filename().string(), "--rcfile", rcFilePath};
 
         // Need to chdir since phases assume in flake directory
         if (phase) {

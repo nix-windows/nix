@@ -7,6 +7,8 @@
 #include "fetchers.hh"
 #include "registry.hh"
 
+namespace nix::fs { using namespace std::filesystem; }
+
 using namespace nix;
 using namespace nix::flake;
 
@@ -40,7 +42,7 @@ public:
         return registry;
     }
 
-    Path getRegistryPath()
+    fs::path getRegistryPath()
     {
         if (registry_path.empty()) {
             return fetchers::getUserRegistryPath();
@@ -116,7 +118,7 @@ struct CmdRegistryAdd : MixEvalArgs, Command, RegistryCommand
         if (toRef.subdir != "") extraAttrs["dir"] = toRef.subdir;
         registry->remove(fromRef.input);
         registry->add(fromRef.input, toRef.input, extraAttrs);
-        registry->write(getRegistryPath());
+        registry->write(getRegistryPath().string());
     }
 };
 
@@ -145,7 +147,7 @@ struct CmdRegistryRemove : RegistryCommand, Command
     {
         auto registry = getRegistry();
         registry->remove(parseFlakeRef(fetchSettings, url).input);
-        registry->write(getRegistryPath());
+        registry->write(getRegistryPath().string());
     }
 };
 
@@ -194,7 +196,7 @@ struct CmdRegistryPin : RegistryCommand, EvalCommand
         fetchers::Attrs extraAttrs;
         if (ref.subdir != "") extraAttrs["dir"] = ref.subdir;
         registry->add(ref.input, resolved, extraAttrs);
-        registry->write(getRegistryPath());
+        registry->write(getRegistryPath().string());
     }
 };
 

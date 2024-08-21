@@ -13,6 +13,8 @@
 #include <regex>
 #include <pwd.h>
 
+namespace nix::fs { using namespace std::filesystem; }
+
 using namespace nix;
 
 typedef std::map<std::string, std::string> Channels;
@@ -59,7 +61,7 @@ static void addChannel(const std::string & url, const std::string & name)
     writeChannels();
 }
 
-static Path profile;
+static fs::path profile;
 
 // Remove a channel.
 static void removeChannel(const std::string & name)
@@ -71,7 +73,7 @@ static void removeChannel(const std::string & name)
     runProgram(getNixBin("nix-env").string(), true, { "--profile", profile, "--uninstall", name });
 }
 
-static Path nixDefExpr;
+static fs::path nixDefExpr;
 
 // Fetch Nix expressions and binary cache URLs from the subscribed channels.
 static void update(const StringSet & channelNames)
@@ -106,9 +108,9 @@ static void update(const StringSet & channelNames)
 
         if (!(channelNames.empty() || channelNames.count(name))) {
             // no need to update this channel, reuse the existing store path
-            Path symlink = profile + "/" + name;
-            Path storepath = dirOf(readLink(symlink));
-            exprs.push_back("f: rec { name = \"" + cname + "\"; type = \"derivation\"; outputs = [\"out\"]; system = \"builtin\"; outPath = builtins.storePath \"" + storepath + "\"; out = { inherit outPath; };}");
+            fs::path symlink = profile / name;
+            fs::path storepath = fs::read_symlink(symlink).parent_path();
+            exprs.push_back("f: rec { name = \"" + cname + "\"; type = \"derivation\"; outputs = [\"out\"]; system = \"builtin\"; outPath = builtins.storePath \"" + storepath.string() + "\"; out = { inherit outPath; };}");
         } else {
             // We want to download the url to a file to see if it's a tarball while also checking if we
             // got redirected in the process, so that we can grab the various parts of a nix channel
@@ -156,8 +158,8 @@ static void update(const StringSet & channelNames)
     } else if (errno != ENOENT) {
         throw SysError("getting status of %1%", nixDefExpr);
     }
-    createDirs(nixDefExpr);
-    auto channelLink = nixDefExpr + "/channels";
+    fs::create_directories(nixDefExpr);
+    auto channelLink = nixDefExpr / "channels";
     replaceSymlink(profile, channelLink);
 }
 
@@ -170,8 +172,8 @@ static int main_nix_channel(int argc, char ** argv)
         nixDefExpr = getNixDefExpr();
 
         // Figure out the name of the channels profile.
-        profile = profilesDir() +  "/channels";
-        createDirs(dirOf(profile));
+        profile = profilesDir() + "/channels";
+        createDirs(profile.parent_path());
 
         enum {
             cNone,

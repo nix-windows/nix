@@ -17,10 +17,11 @@
 #include <iostream>
 
 
+namespace nix::fs { using namespace std::filesystem; }
+
 using namespace nix;
 
-
-static Path gcRoot;
+fs::path gcRoot;
 static int rootNr = 0;
 
 
@@ -77,14 +78,14 @@ void processExpr(EvalState & state, const Strings & attrPaths,
                 if (outputName == "")
                     throw Error("derivation '%1%' lacks an 'outputName' attribute", drvPathS);
 
-                if (gcRoot == "")
+                if (gcRoot.empty())
                     printGCWarning();
                 else {
-                    Path rootName = absPath(gcRoot);
+                    auto rootName = fs::absolute(gcRoot);
                     if (++rootNr > 1) rootName += "-" + std::to_string(rootNr);
                     auto store2 = state.store.dynamic_pointer_cast<LocalFSStore>();
                     if (store2)
-                        drvPathS = store2->addPermRoot(drvPath, rootName);
+                        drvPathS = store2->addPermRoot(drvPath, rootName.string());
                 }
                 std::cout << fmt("%s%s\n", drvPathS, (outputName != "out" ? "!" + outputName : ""));
             }

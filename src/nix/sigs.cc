@@ -7,6 +7,8 @@
 
 #include <atomic>
 
+namespace nix::fs { using namespace std::filesystem; }
+
 using namespace nix;
 
 struct CmdCopySigs : StorePathsCommand
@@ -45,12 +47,12 @@ struct CmdCopySigs : StorePathsCommand
 
         //logger->setExpected(doneLabel, storePaths.size());
 
-        auto doPath = [&](const Path & storePathS) {
+        auto doPath = [&](const fs::path & storePathS) {
             //Activity act(*logger, lvlInfo, "getting signatures for '%s'", storePath);
 
             checkInterrupt();
 
-            auto storePath = store->parseStorePath(storePathS);
+            auto storePath = store->parseStorePath(storePathS.string());
 
             auto info = store->queryPathInfo(storePath);
 
@@ -95,7 +97,7 @@ static auto rCmdCopySigs = registerCommand2<CmdCopySigs>({"store", "copy-sigs"})
 
 struct CmdSign : StorePathsCommand
 {
-    Path secretKeyFile;
+    fs::path secretKeyFile;
 
     CmdSign()
     {
