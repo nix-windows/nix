@@ -540,7 +540,7 @@ std::string defaultTempDir() {
 static Path tempName(Path tmpRoot, const Path & prefix, bool includePid,
     std::atomic<unsigned int> & counter)
 {
-    tmpRoot = canonPath(tmpRoot.empty() ? defaultTempDir() : tmpRoot, true);
+    tmpRoot = fs::weakly_canonical(fs::path{tmpRoot.empty() ? defaultTempDir() : tmpRoot}).string();
     if (includePid)
         return fmt("%1%/%2%-%3%-%4%", tmpRoot, prefix, getpid(), counter++);
     else

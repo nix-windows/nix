@@ -11,6 +11,7 @@
 #include "file-descriptor.hh"
 #include "file-path.hh"
 
+#include <filesystem>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <dirent.h>

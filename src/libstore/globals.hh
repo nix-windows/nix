@@ -82,7 +82,7 @@ public:
     /**
      * A list of user configuration files to load.
      */
-    std::vector<Path> nixUserConfFiles;
+    std::vector<std::filesystem::path> nixUserConfFiles;
 
     /**
      * The directory where the man pages are stored.
@@ -1251,7 +1251,7 @@ extern Settings settings;
 void loadConfFile(AbstractConfig & config);
 
 // Used by the Settings constructor
-std::vector<Path> getUserConfigFiles();
+std::vector<std::filesystem::path> getUserConfigFiles();
 
 extern const std::string nixVersion;
 

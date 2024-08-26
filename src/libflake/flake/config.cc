@@ -5,20 +5,22 @@
 
 #include <nlohmann/json.hpp>
 
+namespace nix::fs { using namespace std::filesystem; }
+
 namespace nix::flake {
 
 // setting name -> setting value -> allow or ignore.
 typedef std::map<std::string, std::map<std::string, bool>> TrustedList;
 
-Path trustedListPath()
+static fs::path trustedListPath()
 {
-    return getDataDir() + "/trusted-settings.json";
+    return getDataDir() / "trusted-settings.json";
 }
 
 static TrustedList readTrustedList()
 {
     auto path = trustedListPath();
-    if (!pathExists(path)) return {};
+    if (!fs::symlink_exists(path)) return {};
     auto json = nlohmann::json::parse(readFile(path));
     return json;
 }
@@ -26,7 +28,7 @@ static TrustedList readTrustedList()
 static void writeTrustedList(const TrustedList & trustedList)
 {
     auto path = trustedListPath();
-    createDirs(dirOf(path));
+    fs::create_directories(path.parent_path());
     writeFile(path, nlohmann::json(trustedList).dump());
 }
 

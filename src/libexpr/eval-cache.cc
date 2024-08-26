@@ -7,6 +7,8 @@
 // Need specialization involving `SymbolStr` just in this one module.
 #include "strings-inline.hh"
 
+namespace nix::fs { using namespace std::filesystem; }
+
 namespace nix::eval_cache {
 
 CachedEvalError::CachedEvalError(ref<AttrCursor> cursor, Symbol attr)
@@ -69,12 +71,12 @@ struct AttrDb
     {
         auto state(_state->lock());
 
-        Path cacheDir = getCacheDir() + "/eval-cache-v5";
-        createDirs(cacheDir);
+        fs::path cacheDir = getCacheDir() / "eval-cache-v5";
+        fs::create_directories(cacheDir);
 
-        Path dbPath = cacheDir + "/" + fingerprint.to_string(HashFormat::Base16, false) + ".sqlite";
+        fs::path dbPath = cacheDir / (fingerprint.to_string(HashFormat::Base16, false) + ".sqlite");
 
-        state->db = SQLite(dbPath);
+        state->db = SQLite(dbPath.string());
         state->db.isCache();
         state->db.exec(schema);
 

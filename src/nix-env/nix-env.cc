@@ -1310,8 +1310,10 @@ static void opSwitchProfile(Globals & globals, Strings opFlags, Strings opArgs)
     if (opArgs.size() != 1)
         throw UsageError("exactly one argument expected");
 
-    Path profile = absPath(opArgs.front());
-    Path profileLink = settings.useXDGBaseDirectories ? createNixStateDir() + "/profile" : getHome() + "/.nix-profile";
+    auto profile = fs::absolute(fs::path{opArgs.front()});
+    auto profileLink = settings.useXDGBaseDirectories
+        ? createNixStateDir() / "profile"
+        : getHome() / ".nix-profile";
 
     switchLink(profileLink, profile);
 }

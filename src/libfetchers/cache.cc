@@ -36,10 +36,10 @@ struct CacheImpl : Cache
     {
         auto state(_state.lock());
 
-        auto dbPath = getCacheDir() + "/fetcher-cache-v3.sqlite";
-        createDirs(dirOf(dbPath));
+        auto dbPath = getCacheDir() / "fetcher-cache-v3.sqlite";
+        std::filesystem::create_directories(dbPath.parent_path());
 
-        state->db = SQLite(dbPath);
+        state->db = SQLite(dbPath.string());
         state->db.isCache();
         state->db.exec(schema);
 

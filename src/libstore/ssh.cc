@@ -58,7 +58,7 @@ void SSHMaster::addCommonSSHOpts(Strings & args)
         std::filesystem::path fileName = state->tmpDir->path() / "host-key";
         auto p = host.rfind("@");
         std::string thost = p != std::string::npos ? std::string(host, p + 1) : host;
-        writeFile(fileName.string(), thost + " " + sshPublicHostKey + "\n");
+        writeFile(fileName, thost + " " + sshPublicHostKey + "\n");
         args.insert(args.end(), {"-oUserKnownHostsFile=" + fileName.string()});
     }
     if (compress)

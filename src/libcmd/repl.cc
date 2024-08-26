@@ -128,7 +128,7 @@ NixRepl::NixRepl(const LookupPath & lookupPath, nix::ref<Store> store, ref<EvalS
     , getValues(getValues)
     , staticEnv(new StaticEnv(nullptr, state->staticBaseEnv.get()))
     , runNixPtr{runNix}
-    , interacter(make_unique<ReadlineLikeInteracter>(getDataDir() + "/repl-history"))
+    , interacter(make_unique<ReadlineLikeInteracter>((getDataDir() / "repl-history").string()))
 {
 }
 
