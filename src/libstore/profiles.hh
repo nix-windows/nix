@@ -5,11 +5,12 @@
  * See the manual for additional information.
  */
 
-#include "types.hh"
-#include "pathlocks.hh"
-
+#include <filesystem>
 #include <optional>
 #include <time.h>
+
+#include "types.hh"
+#include "pathlocks.hh"
 
 
 namespace nix {
@@ -47,9 +48,9 @@ struct Generation
      * distinct contents to avoid bloat, but nothing stops two
      * non-adjacent generations from having the same contents.
      *
-     * @todo Use `StorePath` instead of `Path`?
+     * @todo Use `StorePath` instead of `std::filesystem::path`?
      */
-    Path path;
+    std::filesystem::path path;
 
     /**
      * When the generation was created. This is extra metadata about the
@@ -82,7 +83,7 @@ typedef std::list<Generation> Generations;
  *
  * Note that the current/active generation need not be the latest one.
  */
-std::pair<Generations, std::optional<GenerationNumber>> findGenerations(Path profile);
+std::pair<Generations, std::optional<GenerationNumber>> findGenerations(std::filesystem::path profile);
 
 class LocalFSStore;
 
@@ -97,7 +98,7 @@ class LocalFSStore;
  * The behavior of reusing existing generations like this makes this
  * procedure idempotent. It also avoids clutter.
  */
-Path createGeneration(LocalFSStore & store, Path profile, StorePath outPath);
+std::filesystem::path createGeneration(LocalFSStore & store, std::filesystem::path profile, StorePath outPath);
 
 /**
  * Unconditionally delete a generation
@@ -112,7 +113,7 @@ Path createGeneration(LocalFSStore & store, Path profile, StorePath outPath);
  *
  * @todo Should we expose this at all?
  */
-void deleteGeneration(const Path & profile, GenerationNumber gen);
+void deleteGeneration(const std::filesystem::path & profile, GenerationNumber gen);
 
 /**
  * Delete the given set of generations.
@@ -128,7 +129,7 @@ void deleteGeneration(const Path & profile, GenerationNumber gen);
  * Trying to delete the currently active generation will fail, and cause
  * no generations to be deleted.
  */
-void deleteGenerations(const Path & profile, const std::set<GenerationNumber> & gensToDelete, bool dryRun);
+void deleteGenerations(const std::filesystem::path & profile, const std::set<GenerationNumber> & gensToDelete, bool dryRun);
 
 /**
  * Delete generations older than `max` passed the current generation.
@@ -141,7 +142,7 @@ void deleteGenerations(const Path & profile, const std::set<GenerationNumber> & 
  * @param dryRun Log what would be deleted instead of actually doing
  * so.
  */
-void deleteGenerationsGreaterThan(const Path & profile, GenerationNumber max, bool dryRun);
+void deleteGenerationsGreaterThan(const std::filesystem::path & profile, GenerationNumber max, bool dryRun);
 
 /**
  * Delete all generations other than the current one
@@ -151,7 +152,7 @@ void deleteGenerationsGreaterThan(const Path & profile, GenerationNumber max, bo
  * @param dryRun Log what would be deleted instead of actually doing
  * so.
  */
-void deleteOldGenerations(const Path & profile, bool dryRun);
+void deleteOldGenerations(const std::filesystem::path & profile, bool dryRun);
 
 /**
  * Delete generations older than `t`, except for the most recent one
@@ -162,7 +163,7 @@ void deleteOldGenerations(const Path & profile, bool dryRun);
  * @param dryRun Log what would be deleted instead of actually doing
  * so.
  */
-void deleteGenerationsOlderThan(const Path & profile, time_t t, bool dryRun);
+void deleteGenerationsOlderThan(const std::filesystem::path & profile, time_t t, bool dryRun);
 
 /**
  * Parse a temp spec intended for `deleteGenerationsOlderThan()`.
@@ -177,14 +178,14 @@ time_t parseOlderThanTimeSpec(std::string_view timeSpec);
  *
  * @todo Always use `switchGeneration()` instead, and delete this.
  */
-void switchLink(Path link, Path target);
+void switchLink(std::filesystem::path link, std::filesystem::path target);
 
 /**
  * Roll back a profile to the specified generation, or to the most
  * recent one older than the current.
  */
 void switchGeneration(
-    const Path & profile,
+    const std::filesystem::path & profile,
     std::optional<GenerationNumber> dstGen,
     bool dryRun);
 
@@ -192,7 +193,7 @@ void switchGeneration(
  * Ensure exclusive access to a profile.  Any command that modifies
  * the profile first acquires this lock.
  */
-void lockProfile(PathLocks & lock, const Path & profile);
+void lockProfile(PathLocks & lock, const std::filesystem::path & profile);
 
 /**
  * Optimistic locking is used by long-running operations like `nix-env
@@ -205,34 +206,34 @@ void lockProfile(PathLocks & lock, const Path & profile);
  * store.  Most of the time, only the user environment has to be
  * rebuilt.
  */
-std::string optimisticLockProfile(const Path & profile);
+std::string optimisticLockProfile(const std::filesystem::path & profile);
 
 /**
  * Create and return the path to a directory suitable for storing the user’s
  * profiles.
  */
-Path profilesDir();
+std::filesystem::path profilesDir();
 
 /**
  * Return the path to the profile directory for root (but don't try creating it)
  */
-Path rootProfilesDir();
+std::filesystem::path rootProfilesDir();
 
 /**
  * Create and return the path to the file used for storing the users's channels
  */
-Path defaultChannelsDir();
+std::filesystem::path defaultChannelsDir();
 
 /**
  * Return the path to the channel directory for root (but don't try creating it)
  */
-Path rootChannelsDir();
+std::filesystem::path rootChannelsDir();
 
 /**
  * Resolve the default profile (~/.nix-profile by default,
  * $XDG_STATE_HOME/nix/profile if XDG Base Directory Support is enabled),
  * and create if doesn't exist
  */
-Path getDefaultProfile();
+std::filesystem::path getDefaultProfile();
 
 }

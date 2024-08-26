@@ -15,7 +15,7 @@ PathLocks::PathLocks()
 }
 
 
-PathLocks::PathLocks(const PathSet & paths, const std::string & waitMsg)
+PathLocks::PathLocks(const std::set<std::filesystem::path> & paths, const std::string & waitMsg)
     : deletePaths(false)
 {
     lockPaths(paths, waitMsg);

@@ -657,7 +657,7 @@ Goal::Co DerivationGoal::tryToBuild()
        crashes.  If we can't acquire the lock, then continue; hopefully some
        other goal can start a build, and if not, the main loop will sleep a few
        seconds and then retry this goal. */
-    PathSet lockFiles;
+    std::set<std::filesystem::path> lockFiles;
     /* FIXME: Should lock something like the drv itself so we don't build same
        CA drv concurrently */
     if (dynamic_cast<LocalStore *>(&worker.store)) {
@@ -679,9 +679,13 @@ Goal::Co DerivationGoal::tryToBuild()
     }
 
     if (!outputLocks.lockPaths(lockFiles, "", false)) {
-        if (!actLock)
+        if (!actLock) {
+            PathSet set2;
+            for (auto & p : lockFiles)
+                set2.insert(p.string());
             actLock = std::make_unique<Activity>(*logger, lvlWarn, actBuildWaiting,
-                fmt("waiting for lock on %s", Magenta(showPaths(lockFiles))));
+                fmt("waiting for lock on %s", Magenta(showPaths(set2))));
+        }
         worker.waitForAWhile(shared_from_this());
         co_await Suspend{};
         co_return tryToBuild();
