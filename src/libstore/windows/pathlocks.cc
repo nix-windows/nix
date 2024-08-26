@@ -11,12 +11,16 @@
 
 namespace nix {
 
+namespace fs {
+using namespace std::filesystem;
+}
+
 using namespace nix::windows;
 
-void deleteLockFile(const Path & path, Descriptor desc)
+void deleteLockFile(const fs::path & path, Descriptor desc)
 {
 
-    int exit = DeleteFileA(path.c_str());
+    int exit = DeleteFileW(path.c_str());
     if (exit == 0)
         warn("%s: &s", path, std::to_string(GetLastError()));
 }
@@ -36,9 +40,9 @@ void PathLocks::unlock()
     fds.clear();
 }
 
-AutoCloseFD openLockFile(const Path & path, bool create)
+AutoCloseFD openLockFile(const fs::path & path, bool create)
 {
-    AutoCloseFD desc = CreateFileA(
+    AutoCloseFD desc = CreateFileW(
         path.c_str(),
         GENERIC_READ | GENERIC_WRITE,
         FILE_SHARE_READ | FILE_SHARE_WRITE,
@@ -103,13 +107,14 @@ bool lockFile(Descriptor desc, LockType lockType, bool wait)
     }
 }
 
-bool PathLocks::lockPaths(const PathSet & paths, const std::string & waitMsg, bool wait)
+bool PathLocks::lockPaths(const std::set<std::filesystem::path> & paths, const std::string & waitMsg, bool wait)
 {
     assert(fds.empty());
 
     for (auto & path : paths) {
         checkInterrupt();
-        Path lockPath = path + ".lock";
+        fs::path lockPath = path;
+        lockPath += L".lock";
         debug("locking path '%1%'", path);
 
         AutoCloseFD fd;

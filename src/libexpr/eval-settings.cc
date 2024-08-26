@@ -6,6 +6,8 @@
 
 namespace nix {
 
+namespace fs { using namespace std::filesystem; }
+
 /* Very hacky way to parse $NIX_PATH, which is colon-separated, but
    can contain URLs (e.g. "nixpkgs=https://bla...:foo=https://"). */
 Strings EvalSettings::parseNixPath(const std::string & s)
@@ -56,18 +58,18 @@ EvalSettings::EvalSettings(bool & readOnlyMode, EvalSettings::LookupPathHooks lo
 Strings EvalSettings::getDefaultNixPath()
 {
     Strings res;
-    auto add = [&](const Path & p, const std::string & s = std::string()) {
+    auto add = [&](const fs::path & p, const std::string & s = std::string()) {
         if (pathAccessible(p)) {
             if (s.empty()) {
-                res.push_back(p);
+                res.push_back(p.string());
             } else {
-                res.push_back(s + "=" + p);
+                res.push_back(s + "=" + p.string());
             }
         }
     };
 
-    add(getNixDefExpr() + "/channels");
-    add(rootChannelsDir() + "/nixpkgs", "nixpkgs");
+    add(fs::path{getNixDefExpr()} / "channels");
+    add(rootChannelsDir() / "nixpkgs", "nixpkgs");
     add(rootChannelsDir());
 
     return res;

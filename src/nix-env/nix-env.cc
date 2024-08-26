@@ -29,6 +29,8 @@
 #include <unistd.h>
 #include <nlohmann/json.hpp>
 
+namespace nix::fs { using namespace std::filesystem; }
+
 using namespace nix;
 using std::cout;
 
@@ -786,7 +788,7 @@ static void opSet(Globals & globals, Strings opFlags, Strings opArgs)
     globals.state->store->buildPaths(paths, globals.state->repair ? bmRepair : bmNormal);
 
     debug("switching to new user environment");
-    Path generation = createGeneration(
+    auto generation = createGeneration(
         *store2,
         globals.profile,
         drv.queryOutPath());
@@ -1425,18 +1427,19 @@ static int main_nix_env(int argc, char * * argv)
         globals.instSource.type = srcUnknown;
         globals.instSource.systemFilter = "*";
 
-        Path nixExprPath = getNixDefExpr();
+        fs::path nixExprPath = getNixDefExpr();
 
-        if (!pathExists(nixExprPath)) {
+        if (!fs::symlink_exists(nixExprPath)) {
             try {
-                createDirs(nixExprPath);
+                fs::create_directories(nixExprPath);
                 replaceSymlink(
                     defaultChannelsDir(),
-                    nixExprPath + "/channels");
+                    nixExprPath / "channels");
                 if (!isRootUser())
                     replaceSymlink(
                         rootChannelsDir(),
-                        nixExprPath + "/channels_root");
+                        nixExprPath / "channels_root");
+            } catch (fs::filesystem_error &) {
             } catch (Error &) { }
         }
 
@@ -1545,7 +1548,7 @@ static int main_nix_env(int argc, char * * argv)
         globals.instSource.nixExprPath = std::make_shared<SourcePath>(
             file != ""
             ? lookupFileArg(*globals.state, file)
-            : globals.state->rootPath(CanonPath(nixExprPath)));
+            : globals.state->rootPath(CanonPath(nixExprPath.string())));
 
         globals.instSource.autoArgs = myArgs.getAutoArgs(*globals.state);
 
@@ -1553,7 +1556,7 @@ static int main_nix_env(int argc, char * * argv)
             globals.profile = getEnv("NIX_PROFILE").value_or("");
 
         if (globals.profile == "")
-            globals.profile = getDefaultProfile();
+            globals.profile = getDefaultProfile().string();
 
         op(globals, std::move(opFlags), std::move(opArgs));
 

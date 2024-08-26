@@ -15,6 +15,7 @@
 
 namespace nix {
 
+namespace fs { using namespace std::filesystem; }
 
 PackageInfos queryInstalled(EvalState & state, const Path & userEnv)
 {
@@ -158,14 +159,14 @@ bool createUserEnv(EvalState & state, PackageInfos & elems,
         PathLocks lock;
         lockProfile(lock, profile);
 
-        Path lockTokenCur = optimisticLockProfile(profile);
+        fs::path lockTokenCur = optimisticLockProfile(profile);
         if (lockToken != lockTokenCur) {
             printInfo("profile '%1%' changed while we were busy; restarting", profile);
             return false;
         }
 
         debug("switching to new user environment");
-        Path generation = createGeneration(*store2, profile, topLevelOut);
+        fs::path generation = createGeneration(*store2, profile, topLevelOut);
         switchLink(profile, generation);
     }
 
