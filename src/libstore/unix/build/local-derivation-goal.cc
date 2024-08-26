@@ -68,6 +68,8 @@
 
 namespace nix {
 
+namespace fs { using namespace std::filesystem; }
+
 void handleDiffHook(
     uid_t uid, uid_t gid,
     const Path & tryA, const Path & tryB,
@@ -451,15 +453,15 @@ void LocalDerivationGoal::startBuilder()
         auto cgroupFS = getCgroupFS();
         if (!cgroupFS)
             throw Error("cannot determine the cgroups file system");
-        auto rootCgroupPath = canonPath(*cgroupFS + "/" + rootCgroup);
-        if (!pathExists(rootCgroupPath))
-            throw Error("expected cgroup directory '%s'", rootCgroupPath);
+        auto rootCgroupPath = (fs::path{*cgroupFS} / fs::path{rootCgroup}).lexically_normal();
+        if (!fs::exists(rootCgroupPath))
+            throw Error("expected cgroup directory '%s'", rootCgroupPath.native());
 
         static std::atomic<unsigned int> counter{0};
 
         cgroup = buildUser
-            ? fmt("%s/nix-build-uid-%d", rootCgroupPath, buildUser->getUID())
-            : fmt("%s/nix-build-pid-%d-%d", rootCgroupPath, getpid(), counter++);
+            ? fmt("%s/nix-build-uid-%d", rootCgroupPath.native(), buildUser->getUID())
+            : fmt("%s/nix-build-pid-%d-%d", rootCgroupPath.native(), getpid(), counter++);
 
         debug("using cgroup '%s'", *cgroup);
 
@@ -2139,7 +2141,7 @@ void LocalDerivationGoal::runChild()
 
             /* The tmpDir in scope points at the temporary build directory for our derivation. Some packages try different mechanisms
                to find temporary directories, so we want to open up a broader place for them to put their files, if needed. */
-            Path globalTmpDir = canonPath(defaultTempDir(), true);
+            auto globalTmpDir = fs::weakly_canonical(fs::path{defaultTempDir()});
 
             /* They don't like trailing slashes on subpath directives */
             while (!globalTmpDir.empty() && globalTmpDir.back() == '/')

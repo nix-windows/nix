@@ -421,7 +421,7 @@ static Path parsePath(const AbstractSetting & s, const std::string & str)
     if (str == "")
         throw UsageError("setting '%s' is a path and paths cannot be empty", s.name);
     else
-        return canonPath(str);
+        return (std::filesystem::path{str}).lexically_normal().string();
 }
 
 PathSetting::PathSetting(Config * options,

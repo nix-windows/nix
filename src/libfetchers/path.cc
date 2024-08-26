@@ -127,14 +127,14 @@ struct PathInputScheme : InputScheme
             if (!input.parent)
                 throw Error("cannot fetch input '%s' because it uses a relative path", input.to_string());
 
-            auto parent = canonPath(*input.parent);
+            auto parent = input.parent->lexically_normal();
 
             // the path isn't relative, prefix it
-            absPath = nix::absPath(path, parent);
+            absPath = (parent / path).string();
 
             // for security, ensure that if the parent is a store path, it's inside it
-            if (store->isInStore(parent)) {
-                auto storePath = store->printStorePath(store->toStorePath(parent).first);
+            if (store->isInStore(parent.string())) {
+                auto storePath = store->printStorePath(store->toStorePath(parent.string()).first);
                 if (!isDirOrInDir(absPath, storePath))
                     throw BadStorePath("relative path '%s' points outside of its parent's store path '%s'", path, storePath);
             }

@@ -42,9 +42,9 @@ struct Input
     Attrs attrs;
 
     /**
-     * path of the parent of this input, used for relative path resolution
+     * Path of the parent of this input, used for relative path resolution
      */
-    std::optional<Path> parent;
+    std::optional<std::filesystem::path> parent;
 
 public:
     /**

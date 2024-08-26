@@ -68,7 +68,7 @@ Strings EvalSettings::getDefaultNixPath()
         }
     };
 
-    add(fs::path{getNixDefExpr()} / "channels");
+    add(getNixDefExpr() / "channels");
     add(rootChannelsDir() / "nixpkgs", "nixpkgs");
     add(rootChannelsDir());
 
@@ -98,11 +98,11 @@ const std::string & EvalSettings::getCurrentSystem() const
     return evalSystem != "" ? evalSystem : settings.thisSystem.get();
 }
 
-Path getNixDefExpr()
+fs::path getNixDefExpr()
 {
     return settings.useXDGBaseDirectories
-        ? getStateDir() + "/defexpr"
-        : getHome() + "/.nix-defexpr";
+        ? getStateDir() / "defexpr"
+        : getHome() / ".nix-defexpr";
 }
 
 }

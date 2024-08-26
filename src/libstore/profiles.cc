@@ -306,7 +306,7 @@ fs::path profilesDir()
     auto profileRoot =
         isRootUser()
         ? rootProfilesDir()
-        : fs::path{createNixStateDir()} / "profiles";
+        : createNixStateDir() / "profiles";
     fs::create_directories(profileRoot);
     return profileRoot;
 }
@@ -320,8 +320,8 @@ fs::path rootProfilesDir()
 fs::path getDefaultProfile()
 {
     fs::path profileLink = settings.useXDGBaseDirectories
-        ? fs::path{createNixStateDir()} / "profile"
-        : fs::path{getHome()} / ".nix-profile";
+        ? createNixStateDir() / "profile"
+        : getHome() / ".nix-profile";
     try {
         auto profile = profilesDir() / "profile";
         if (!fs::symlink_exists(profileLink)) {

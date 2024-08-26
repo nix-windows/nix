@@ -1,5 +1,6 @@
 #include "globals.hh"
 #include "current-process.hh"
+#include "executable-path.hh"
 #include "shared.hh"
 #include "store-api.hh"
 #include "gc-store.hh"
@@ -305,8 +306,9 @@ void printVersion(const std::string & programName)
         std::cout << "Additional system types: " << concatStringsSep(", ", settings.extraPlatforms.get()) << "\n";
         std::cout << "Features: " << concatStringsSep(", ", cfg) << "\n";
         std::cout << "System configuration file: " << settings.nixConfDir + "/nix.conf" << "\n";
-        std::cout << "User configuration files: " <<
-            concatStringsSep(":", settings.nixUserConfFiles)
+        std::cout << "User configuration files: "
+            << os_string_to_string(
+                (ExecutablePath{.directories = settings.nixUserConfFiles}).render())
             << "\n";
         std::cout << "Store directory: " << settings.nixStore << "\n";
         std::cout << "State directory: " << settings.nixStateDir << "\n";

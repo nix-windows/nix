@@ -252,6 +252,6 @@ struct EvalSettings : Config
 /**
  * Conventionally part of the default nix path in impure mode.
  */
-Path getNixDefExpr();
+std::filesystem::path getNixDefExpr();
 
 }

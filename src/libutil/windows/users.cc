@@ -9,6 +9,8 @@
 
 namespace nix {
 
+namespace fs { using namespace std::filesystem; }
+
 using namespace nix::windows;
 
 std::string getUserName()
@@ -34,13 +36,13 @@ std::string getUserName()
     return name;
 }
 
-Path getHome()
+std::filesystem::path getHome()
 {
-    static Path homeDir = []()
+    static std::filesystem::path homeDir = []()
     {
-        Path homeDir = getEnv("USERPROFILE").value_or("C:\\Users\\Default");
+        std::filesystem::path homeDir = getEnvOs(L"USERPROFILE").value_or(L"C:\\Users\\Default");
         assert(!homeDir.empty());
-        return canonPath(homeDir);
+        return std::filesystem::path{homeDir}.lexically_normal();
     }();
     return homeDir;
 }
