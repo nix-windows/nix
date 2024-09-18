@@ -141,9 +141,9 @@ App UnresolvedApp::resolve(ref<Store> evalStore, ref<Store> store)
             make_ref<InstallableDerivedPath>(store, DerivedPath { ctxElt }));
 
     auto builtContext = Installable::build(evalStore, store, Realise::Outputs, installableContext);
-    res.program = resolveString(*store, unresolved.program, builtContext);
-    if (!store->isInStore(res.program))
-        throw Error("app program '%s' is not in the Nix store", res.program);
+    res.program = resolveString(*store, unresolved.program.string(), builtContext);
+    if (!store->isInStore(res.program.string()))
+        throw Error("app program '%s' is not in the Nix store", res.program.string());
 
     return res;
 }

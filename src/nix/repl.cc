@@ -10,7 +10,7 @@
 
 namespace nix {
 
-void runNix(std::string program, const Strings & args,
+void runNix(const std::string & program, const Strings & args,
     const std::optional<std::string> & input = {})
 {
     auto subprocessEnv = getEnv();

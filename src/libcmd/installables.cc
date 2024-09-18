@@ -133,7 +133,10 @@ MixFlakeOptions::MixFlakeOptions()
             lockFlags.writeLockFile = false;
             lockFlags.inputOverrides.insert_or_assign(
                 flake::parseInputPath(inputPath),
-                parseFlakeRef(fetchSettings, flakeRef, absPath(getCommandBaseDir()), true));
+                parseFlakeRef(
+                    fetchSettings,
+                    flakeRef,
+                    fs::weakly_canonical(getCommandBaseDir()).string()));
         }},
         .completer = {[&](AddCompletions & completions, size_t n, std::string_view prefix) {
             if (n == 0) {
@@ -176,7 +179,7 @@ MixFlakeOptions::MixFlakeOptions()
             auto flake = flake::lockFlake(
                 flakeSettings,
                 *evalState,
-                parseFlakeRef(fetchSettings, flakeRef, absPath(getCommandBaseDir())),
+                parseFlakeRef(fetchSettings, flakeRef, fs::weakly_canonical(getCommandBaseDir()).string()),
                 { .writeLockFile = false });
             for (auto & [inputName, input] : flake.lockFile.root->inputs) {
                 auto input2 = flake.lockFile.findInput({inputName}); // resolve 'follows' nodes
@@ -268,7 +271,7 @@ void SourceExprCommand::completeInstallable(AddCompletions & completions, std::s
             auto e =
                 state->parseExprFromFile(
                     resolveExprPath(
-                        lookupFileArg(*state, *file)));
+                        lookupFileArg(*state, file->string())));
 
             Value root;
             state->eval(e, root);
@@ -501,12 +504,12 @@ Installables SourceExprCommand::parseInstallables(
             state->eval(e, *vFile);
         }
         else if (file) {
-            auto dir = absPath(getCommandBaseDir());
-            state->evalFile(lookupFileArg(*state, *file, &dir), *vFile);
+            auto dir = fs::weakly_canonical(getCommandBaseDir());
+            state->evalFile(lookupFileArg(*state, file->string(), &dir), *vFile);
         }
         else {
-            Path dir = absPath(getCommandBaseDir());
-            auto e = state->parseExprFromString(*expr, state->rootPath(dir));
+            auto dir = fs::weakly_canonical(getCommandBaseDir());
+            auto e = state->parseExprFromString(*expr, state->rootPath(dir.string()));
             state->eval(e, *vFile);
         }
 
@@ -542,7 +545,9 @@ Installables SourceExprCommand::parseInstallables(
 
             try {
                 auto [flakeRef, fragment] = parseFlakeRefWithFragment(
-                    fetchSettings, std::string { prefix }, absPath(getCommandBaseDir()));
+                    fetchSettings,
+                    std::string { prefix },
+                    fs::weakly_canonical(getCommandBaseDir()).string());
                 result.push_back(make_ref<InstallableFlake>(
                         this,
                         getEvalState(),
@@ -862,7 +867,7 @@ std::vector<FlakeRef> RawInstallablesCommand::getFlakeRefsForCompletion()
         res.push_back(parseFlakeRefWithFragment(
             fetchSettings,
             expandTilde(i),
-            absPath(getCommandBaseDir())).first);
+            fs::weakly_canonical(getCommandBaseDir()).string()).first);
     return res;
 }
 
@@ -885,7 +890,7 @@ std::vector<FlakeRef> InstallableCommand::getFlakeRefsForCompletion()
         parseFlakeRefWithFragment(
             fetchSettings,
             expandTilde(_installable),
-            absPath(getCommandBaseDir())).first
+            fs::weakly_canonical(getCommandBaseDir()).string()).first
     };
 }
 

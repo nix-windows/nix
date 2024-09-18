@@ -15,6 +15,8 @@
 
 namespace nix {
 
+namespace fs { using namespace std::filesystem; }
+
 void Args::addFlag(Flag && flag_)
 {
     auto flag = std::make_shared<Flag>(std::move(flag_));
@@ -352,13 +354,13 @@ void RootArgs::parseCmdline(const Strings & _cmdline, bool allowShebang)
         d.completer(*completions, d.n, d.prefix);
 }
 
-Path Args::getCommandBaseDir() const
+fs::path Args::getCommandBaseDir() const
 {
     assert(parent);
     return parent->getCommandBaseDir();
 }
 
-Path RootArgs::getCommandBaseDir() const
+fs::path RootArgs::getCommandBaseDir() const
 {
     return commandBaseDir;
 }

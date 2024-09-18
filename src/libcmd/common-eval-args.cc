@@ -152,7 +152,13 @@ Bindings * MixEvalArgs::getAutoArgs(EvalState & state)
         auto v = state.allocValue();
         std::visit(overloaded {
             [&](const AutoArgExpr & arg) {
-                state.mkThunk_(*v, state.parseExprFromString(arg.expr, compatibilitySettings.nixShellShebangArgumentsRelativeToScript ? state.rootPath(absPath(getCommandBaseDir())) : state.rootPath(".")));
+                state.mkThunk_(
+                    *v,
+                    state.parseExprFromString(
+                        arg.expr,
+                        compatibilitySettings.nixShellShebangArgumentsRelativeToScript
+                            ? state.rootPath(fs::weakly_canonical(getCommandBaseDir()).string())
+                            : state.rootPath(".")));
             },
             [&](const AutoArgString & arg) {
                 v->mkString(arg.s);
@@ -169,7 +175,7 @@ Bindings * MixEvalArgs::getAutoArgs(EvalState & state)
     return res.finish();
 }
 
-SourcePath lookupFileArg(EvalState & state, std::string_view s, const Path * baseDir)
+SourcePath lookupFileArg(EvalState & state, std::string_view s, const fs::path * baseDir)
 {
     if (EvalSettings::isPseudoUrl(s)) {
         auto accessor = fetchers::downloadTarball(
@@ -188,12 +194,13 @@ SourcePath lookupFileArg(EvalState & state, std::string_view s, const Path * bas
     }
 
     else if (s.size() > 2 && s.at(0) == '<' && s.at(s.size() - 1) == '>') {
-        Path p(s.substr(1, s.size() - 2));
+        // Should perhaps be a `CanonPath`?
+        std::string p(s.substr(1, s.size() - 2));
         return state.findFile(p);
     }
 
     else
-        return state.rootPath(baseDir ? absPath(s, *baseDir) : absPath(s));
+        return state.rootPath(fs::weakly_canonical(baseDir ? *baseDir / s : s).string());
 }
 
 }
