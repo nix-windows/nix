@@ -37,7 +37,7 @@ struct CmdFmt : SourceExprCommand {
         auto & installable = InstallableValue::require(*installable_);
         auto app = installable.toApp(*evalState).resolve(evalStore, store);
 
-        Strings programArgs{app.program};
+        Strings programArgs{app.program.string()};
 
         // Propagate arguments from the CLI
         for (auto &i : args) {
@@ -48,7 +48,7 @@ struct CmdFmt : SourceExprCommand {
         // we are about to exec out of this process without running C++ destructors.
         evalState->evalCaches.clear();
 
-        execProgramInStore(store, UseLookupPath::DontUse, app.program, programArgs);
+        execProgramInStore(store, UseLookupPath::DontUse, app.program.string(), programArgs);
     };
 };
 

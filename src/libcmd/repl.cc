@@ -38,6 +38,8 @@
 
 namespace nix {
 
+namespace fs { using namespace std::filesystem; }
+
 /**
  * Returned by `NixRepl::processLine`.
  */
@@ -68,7 +70,7 @@ struct NixRepl
 {
     size_t debugTraceIndex;
 
-    Strings loadedFiles;
+    std::list<fs::path> loadedFiles;
     std::function<AnnotatedValues()> getValues;
 
     const static int envSize = 32768;
@@ -79,7 +81,7 @@ struct NixRepl
 
     RunNix * runNixPtr;
 
-    void runNix(Path program, const Strings & args, const std::optional<std::string> & input = {});
+    void runNix(const std::string & program, const Strings & args, const std::optional<std::string> & input = {});
 
     std::unique_ptr<ReplInteracter> interacter;
 
@@ -94,7 +96,7 @@ struct NixRepl
     StorePath getDerivationPath(Value & v);
     ProcessLineResult processLine(std::string line);
 
-    void loadFile(const Path & path);
+    void loadFile(const fs::path & path);
     void loadFlake(const std::string & flakeRef);
     void loadFiles();
     void reloadFiles();
@@ -531,7 +533,9 @@ ProcessLineResult NixRepl::processLine(std::string line)
         Value v;
         evalString(arg, v);
         StorePath drvPath = getDerivationPath(v);
-        Path drvPathRaw = state->store->printStorePath(drvPath);
+        // N.B. This need not be a local / native file path. For
+        // example, we might be using an SSH store to a different OS.
+        std::string drvPathRaw = state->store->printStorePath(drvPath);
 
         if (command == ":b" || command == ":bl") {
             state->store->buildPaths({
@@ -706,12 +710,12 @@ ProcessLineResult NixRepl::processLine(std::string line)
     return ProcessLineResult::PromptAgain;
 }
 
-void NixRepl::loadFile(const Path & path)
+void NixRepl::loadFile(const fs::path & path)
 {
     loadedFiles.remove(path);
     loadedFiles.push_back(path);
     Value v, v2;
-    state->evalFile(lookupFileArg(*state, path), v);
+    state->evalFile(lookupFileArg(*state, path.string()), v);
     state->autoCallFunction(*autoArgs, v, v2);
     addAttrsToScope(v2);
 }
@@ -769,7 +773,7 @@ void NixRepl::reloadFiles()
 
 void NixRepl::loadFiles()
 {
-    Strings old = loadedFiles;
+    decltype(loadedFiles) old = loadedFiles;
     loadedFiles.clear();
 
     for (auto & i : old) {
@@ -828,7 +832,7 @@ void NixRepl::evalString(std::string s, Value & v)
 }
 
 
-void NixRepl::runNix(Path program, const Strings & args, const std::optional<std::string> & input)
+void NixRepl::runNix(const std::string & program, const Strings & args, const std::optional<std::string> & input)
 {
     if (runNixPtr)
         (*runNixPtr)(program, args, input);
