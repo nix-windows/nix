@@ -64,8 +64,10 @@ EOF
 
 # Initialise the database.
 # The flag itself does nothing, but running the command touches the store
-nix-store --init
-# Sanity check
-test -e "$NIX_STATE_DIR"/db/db.sqlite
+if [ "$OSTYPE" != "msys" ]; then
+  nix-store --init
+  # Sanity check
+  test -e "$NIX_STATE_DIR"/db/db.sqlite
+fi
 
 fi # !isTestOnNixOS
