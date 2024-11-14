@@ -374,9 +374,9 @@ void recursiveSync(const Path & path)
 }
 
 
+#ifndef _WIN32
 static void _deletePath(Descriptor parentfd, const fs::path & path, uint64_t & bytesFreed)
 {
-#ifndef _WIN32
     checkInterrupt();
 
     std::string name(baseNameOf(path.native()));
@@ -442,14 +442,12 @@ static void _deletePath(Descriptor parentfd, const fs::path & path, uint64_t & b
         if (errno == ENOENT) return;
         throw SysError("cannot unlink %1%", path);
     }
-#else
-    // TODO implement
-    throw UnimplementedError("_deletePath");
-#endif
 }
+#endif
 
 static void _deletePath(const fs::path & path, uint64_t & bytesFreed)
 {
+#ifndef _WIN32
     Path dir = dirOf(path.string());
     if (dir == "")
         dir = "/";
@@ -461,6 +459,14 @@ static void _deletePath(const fs::path & path, uint64_t & bytesFreed)
     }
 
     _deletePath(dirfd.get(), path, bytesFreed);
+#else
+    for (auto const &entry : fs::recursive_directory_iterator(path)) {
+        if (entry.is_symlink() || !entry.is_regular_file())
+            continue;
+        bytesFreed += entry.file_size();
+    }
+    fs::remove_all(path);
+#endif
 }
 
 
