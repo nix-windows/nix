@@ -59,7 +59,13 @@ bool lockFile(Descriptor desc, LockType lockType, bool wait)
         OVERLAPPED ov = {0};
         if (!UnlockFileEx(desc, 0, 2, 0, &ov)) {
             WinError winError("Failed to unlock file desc %s", desc);
-            throw winError;
+            // TODO: Not sure this is correct.
+            // But I have a feeling that because we're trying to release a lock
+            // on both read AND write, when only one has been taken at a time,
+            // we get the "not locked" error. But does that mean we're not
+            // unlocking at all?
+            if (winError.lastError != ERROR_NOT_LOCKED)
+                throw winError;
         }
         return true;
     }
