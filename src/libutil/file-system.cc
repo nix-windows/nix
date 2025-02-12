@@ -149,12 +149,20 @@ std::string_view baseNameOf(std::string_view path)
 }
 
 
-bool isInDir(std::string_view path, std::string_view dir)
+bool isInDir(const std::filesystem::path & path, const std::filesystem::path & dir)
 {
-    return path.substr(0, 1) == "/"
-        && path.substr(0, dir.size()) == dir
-        && path.size() >= dir.size() + 2
-        && path[dir.size()] == '/';
+    // Remove a trailing slash, makes comparison easier.
+    auto dirWithFilename = dir;
+    if (dir.has_relative_path() && !dir.has_filename()) {
+        dirWithFilename = dir.parent_path();
+    }
+
+    auto pathSegment = path.begin();
+    auto dirSegment = dirWithFilename.begin();
+    for (; pathSegment != path.end() && dirSegment != dirWithFilename.end(); ++pathSegment, ++dirSegment) {
+        if (*pathSegment != *dirSegment) return false;
+    }
+    return pathSegment != path.end() && dirSegment == dirWithFilename.end();
 }
 
 
