@@ -29,7 +29,12 @@ MakeError(BadStorePathName, BadStorePath);
  */
 struct StoreDirConfig
 {
-    const Path & storeDir;
+    /**
+     * This is a string and not a `std::fileysystem::path` because it
+     * might be a path on a different sort of file system than the one
+     * this Nix is running on, e.g. if it is a remote store.
+     */
+    const std::string & storeDir;
 
     // pure methods
 
@@ -70,7 +75,8 @@ struct StoreDirConfig
      * Split a path like `/nix/store/<hash>-<name>/<bla>` into
      * `/nix/store/<hash>-<name>` and `/<bla>`.
      */
-    std::pair<StorePath, Path> toStorePath(PathView path) const;
+    std::pair<StorePath, std::filesystem::path> toStorePath(PathView path) const;
+    std::pair<StorePath, std::string> toStorePath(std::string_view path) const;
 
     /**
      * Constructs a unique store path name.

@@ -86,11 +86,11 @@ private:
      * Compute the default Nix store directory from environment variables
      * (`NIX_STORE_DIR`, `NIX_STORE`) or the compile-time default.
      */
-    static Path getDefaultNixStoreDir();
+    static std::string getDefaultNixStoreDir();
 
 public:
 
-    const PathSetting storeDir_{
+    const Setting<std::string> storeDir_{
         this,
         getDefaultNixStoreDir(),
         "store",
@@ -335,7 +335,7 @@ public:
     /**
      * Follow symlinks until we end up with a path in the Nix store.
      */
-    Path followLinksToStore(std::string_view path) const;
+    std::filesystem::path followLinksToStore(std::string_view path) const;
 
     /**
      * Same as followLinksToStore(), but apply toStorePath() to the

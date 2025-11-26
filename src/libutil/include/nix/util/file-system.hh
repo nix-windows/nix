@@ -360,7 +360,7 @@ public:
         return _path;
     }
 
-    PathViewNG view() const
+    PathView view() const
     {
         return _path;
     }
@@ -370,7 +370,7 @@ public:
         return _path;
     }
 
-    operator PathViewNG() const
+    operator PathView() const
     {
         return _path;
     }

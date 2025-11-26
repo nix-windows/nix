@@ -8,7 +8,7 @@
 
 namespace nix {
 
-std::string os_string_to_string(PathViewNG::string_view path)
+std::string os_string_to_string(PathView::string_view path)
 {
     return std::string{path};
 }

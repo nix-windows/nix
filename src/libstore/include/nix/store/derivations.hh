@@ -274,7 +274,7 @@ struct BasicDerivation
      */
     StorePathSet inputSrcs;
     std::string platform;
-    Path builder;
+    std::string builder;
     Strings args;
     /**
      * Must not contain the key `__json`, at least in order to serialize to ATerm.
