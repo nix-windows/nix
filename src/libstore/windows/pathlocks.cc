@@ -58,7 +58,8 @@ bool lockFile(Descriptor desc, LockType lockType, bool wait)
         OVERLAPPED ov = {0};
         if (!UnlockFileEx(desc, 0, 2, 0, &ov)) {
             WinError winError("Failed to unlock file desc %s", desc);
-            throw winError;
+            if (winError.lastError != ERROR_NOT_LOCKED && winError.lastError != ERROR_LOCK_VIOLATION)
+                throw winError;
         }
         return true;
     }
@@ -74,7 +75,7 @@ bool lockFile(Descriptor desc, LockType lockType, bool wait)
         ov.Offset = 1;
         if (!UnlockFileEx(desc, 0, 1, 0, &ov)) {
             WinError winError("Failed to unlock file desc %s", desc);
-            if (winError.lastError != ERROR_NOT_LOCKED)
+            if (winError.lastError != ERROR_NOT_LOCKED && winError.lastError != ERROR_LOCK_VIOLATION)
                 throw winError;
         }
         return true;
@@ -92,7 +93,7 @@ bool lockFile(Descriptor desc, LockType lockType, bool wait)
         ov.Offset = 0;
         if (!UnlockFileEx(desc, 0, 1, 0, &ov)) {
             WinError winError("Failed to unlock file desc %s", desc);
-            if (winError.lastError != ERROR_NOT_LOCKED)
+            if (winError.lastError != ERROR_NOT_LOCKED && winError.lastError != ERROR_LOCK_VIOLATION)
                 throw winError;
         }
         return true;
