@@ -69,12 +69,36 @@ std::filesystem::path defaultTempDir()
     return std::filesystem::path(buf);
 }
 
+static void makeWritableRec(const std::filesystem::path & path)
+{
+    std::error_code ec;
+    auto status = std::filesystem::status(path, ec);
+    if (ec)
+        return;
+    if (std::filesystem::is_directory(status)) {
+        for (auto & entry : std::filesystem::directory_iterator(path, ec)) {
+            makeWritableRec(entry.path());
+        }
+    }
+    auto perms = status.permissions();
+    if ((perms & std::filesystem::perms::owner_write) == std::filesystem::perms::none) {
+        std::filesystem::permissions(path, std::filesystem::perms::owner_write, std::filesystem::perm_options::add, ec);
+    }
+}
+
 void deletePath(const std::filesystem::path & path)
 {
     std::error_code ec;
     std::filesystem::remove_all(path, ec);
-    if (ec && ec != std::errc::no_such_file_or_directory)
-        throw SysError(ec.default_error_condition().value(), "recursively deleting %1%", PathFmt(path));
+    if (ec && ec != std::errc::no_such_file_or_directory) {
+        /* On Windows, read-only files can't be deleted.
+           Clear the read-only attribute and retry. */
+        makeWritableRec(path);
+        ec.clear();
+        std::filesystem::remove_all(path, ec);
+        if (ec && ec != std::errc::no_such_file_or_directory)
+            throw SysError(ec.default_error_condition().value(), "recursively deleting %1%", PathFmt(path));
+    }
 }
 
 void deletePath(const std::filesystem::path & path, uint64_t & bytesFreed)
