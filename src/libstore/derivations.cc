@@ -2,6 +2,7 @@
 #include "nix/store/downstream-placeholder.hh"
 #include "nix/store/store-api.hh"
 #include "nix/store/globals.hh"
+#include "nix/util/file-system.hh"
 #include "nix/util/types.hh"
 #include "nix/util/util.hh"
 #include "nix/util/split.hh"
@@ -270,7 +271,7 @@ static BackedStringView parseString(StringViewStream & str)
 
 static void validatePath(std::string_view s)
 {
-    if (s.size() == 0 || s[0] != '/')
+    if (s.size() == 0 || !isAbsolute(s))
         throw FormatError("bad path '%1%' in derivation", s);
 }
 
