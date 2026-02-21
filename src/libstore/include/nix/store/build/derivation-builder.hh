@@ -11,6 +11,7 @@
 #include "nix/store/parsed-derivations.hh"
 #include "nix/util/processes.hh"
 #include "nix/util/json-impls.hh"
+#include "nix/util/muxable-pipe.hh"
 #include "nix/store/restricted-store.hh"
 #include "nix/store/build/derivation-env-desugar.hh"
 
@@ -188,6 +189,23 @@ struct DerivationBuilder : RestrictionContext
      * cannot safely be called from a destructor).
      */
     virtual void cleanupOnDestruction() noexcept {}
+
+    /**
+     * Get the communication channel for the builder output.
+     *
+     * On Unix, this is a file descriptor (the pseudoterminal master).
+     * On Windows, this is a pointer to the AsyncPipe connected to the
+     * builder's stdout/stderr via IOCP.
+     */
+    virtual MuxablePipePollState::CommChannel getBuilderOutputChannel()
+    {
+#ifndef _WIN32
+        return builderOut.get();
+#else
+        /* Subclasses must override this on Windows. */
+        throw Error("getBuilderOutputChannel not implemented");
+#endif
+    }
 };
 
 /**
@@ -217,9 +235,11 @@ struct DerivationBuilderDeleter
 
 using DerivationBuilderUnique = std::unique_ptr<DerivationBuilder, DerivationBuilderDeleter>;
 
-#ifndef _WIN32 // TODO enable `DerivationBuilder` on Windows
 DerivationBuilderUnique makeDerivationBuilder(
-    LocalStore & store, std::unique_ptr<DerivationBuilderCallbacks> miscMethods, DerivationBuilderParams params);
+    LocalStore & store,
+    std::unique_ptr<DerivationBuilderCallbacks> miscMethods,
+    DerivationBuilderParams params,
+    Descriptor ioCompletionPort = INVALID_DESCRIPTOR);
 
 /**
  * @param handler Must be chosen such that it supports the given
@@ -229,8 +249,8 @@ DerivationBuilderUnique makeExternalDerivationBuilder(
     LocalStore & store,
     std::unique_ptr<DerivationBuilderCallbacks> miscMethods,
     DerivationBuilderParams params,
-    const ExternalBuilder & handler);
-#endif
+    const ExternalBuilder & handler,
+    Descriptor ioCompletionPort = INVALID_DESCRIPTOR);
 
 } // namespace nix
 

@@ -11,6 +11,7 @@ DerivationBuilderUnique makeExternalDerivationBuilder(
     LocalStore & store,
     std::unique_ptr<DerivationBuilderCallbacks> miscMethods,
     DerivationBuilderParams params,
-    const ExternalBuilder & handler);
+    const ExternalBuilder & handler,
+    Descriptor ioCompletionPort = INVALID_DESCRIPTOR);
 
 } // namespace nix

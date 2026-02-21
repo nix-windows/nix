@@ -2,8 +2,8 @@
 #include "nix/store/build/derivation-env-desugar.hh"
 #ifndef _WIN32 // TODO enable build hook on Windows
 #  include "nix/store/build/hook-instance.hh"
-#  include "nix/store/build/derivation-builder.hh"
 #endif
+#include "nix/store/build/derivation-builder.hh"
 #include "nix/util/processes.hh"
 #include "nix/util/environment-variables.hh"
 #include "nix/util/config-global.hh"
@@ -774,9 +774,6 @@ Goal::Co DerivationBuildingGoal::buildLocally(
 {
     co_await yield();
 
-#ifdef _WIN32 // TODO enable `DerivationBuilder` on Windows
-    throw UnimplementedError("building derivations is not yet implemented on Windows");
-#else
     std::unique_ptr<BuildLog> buildLog;
     std::unique_ptr<LogFile> logFile;
 
@@ -802,7 +799,6 @@ Goal::Co DerivationBuildingGoal::buildLocally(
 
     std::unique_ptr<Activity> actLock;
     DerivationBuilderUnique builder;
-    Descriptor builderOut;
 
     // Will continue here while waiting for a build user below
     while (true) {
@@ -894,6 +890,12 @@ Goal::Co DerivationBuildingGoal::buildLocally(
                 .desugaredEnv = std::move(desugaredEnv),
             };
 
+#ifdef _WIN32
+            auto ioCompletionPort = worker.ioport.get();
+#else
+            auto ioCompletionPort = INVALID_DESCRIPTOR;
+#endif
+
             /* If we have to wait and retry (see below), then `builder` will
                already be created, so we don't need to create it again. */
             builder = localBuildCap.externalBuilder
@@ -901,16 +903,16 @@ Goal::Co DerivationBuildingGoal::buildLocally(
                                 localBuildCap.localStore,
                                 std::make_unique<DerivationBuildingGoalCallbacks>(*this, openLogFile, closeLogFile),
                                 std::move(params),
-                                *localBuildCap.externalBuilder)
+                                *localBuildCap.externalBuilder,
+                                ioCompletionPort)
                           : makeDerivationBuilder(
                                 localBuildCap.localStore,
                                 std::make_unique<DerivationBuildingGoalCallbacks>(*this, openLogFile, closeLogFile),
-                                std::move(params));
+                                std::move(params),
+                                ioCompletionPort);
         }
 
-        if (auto builderOutOpt = builder->startBuild()) {
-            builderOut = *std::move(builderOutOpt);
-        } else {
+        if (!builder->startBuild()) {
             if (!actLock)
                 actLock = std::make_unique<Activity>(
                     *logger,
@@ -926,7 +928,7 @@ Goal::Co DerivationBuildingGoal::buildLocally(
 
     actLock.reset();
 
-    worker.childStarted(shared_from_this(), {builderOut}, true, true);
+    worker.childStarted(shared_from_this(), {builder->getBuilderOutputChannel()}, true, true);
 
     started();
 
@@ -994,7 +996,6 @@ Goal::Co DerivationBuildingGoal::buildLocally(
         outputLocks.unlock();
         co_return doneSuccess(BuildResult::Success::Built, std::move(builtOutputs));
     }
-#endif
 }
 
 static void runPostBuildHook(

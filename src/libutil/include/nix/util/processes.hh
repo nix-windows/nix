@@ -154,4 +154,11 @@ std::string statusToString(int status);
 
 bool statusOk(int status);
 
+#ifdef _WIN32
+/**
+ * Escape a string for use as a Windows command-line argument.
+ */
+std::string windowsEscape(const std::string & str, bool cmd = false);
+#endif
+
 } // namespace nix

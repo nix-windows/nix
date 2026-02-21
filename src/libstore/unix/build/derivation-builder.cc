@@ -87,7 +87,10 @@ void DerivationBuilderDeleter::operator()(DerivationBuilder * builder) noexcept
 }
 
 std::unique_ptr<DerivationBuilder, DerivationBuilderDeleter> makeDerivationBuilder(
-    LocalStore & store, std::unique_ptr<DerivationBuilderCallbacks> miscMethods, DerivationBuilderParams params)
+    LocalStore & store,
+    std::unique_ptr<DerivationBuilderCallbacks> miscMethods,
+    DerivationBuilderParams params,
+    Descriptor)
 {
     bool useSandbox = false;
     const LocalSettings & localSettings = store.config->getLocalSettings();
